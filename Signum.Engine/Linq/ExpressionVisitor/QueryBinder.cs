@@ -2620,16 +2620,19 @@ namespace Signum.Engine.Linq
             {
                 EmbeddedEntityExpression cEmb = (EmbeddedEntityExpression)colExpression;
                 EmbeddedEntityExpression expEmb = (EmbeddedEntityExpression)expression;
-
-                var bindings = cEmb.Bindings.SelectMany(b => AdaptAssign(b.Binding, expEmb.GetBinding(b.FieldInfo)));
+                
+                var bindings = cEmb.Bindings
+                    .Where(b=>  !b.FieldInfo.HasAttribute<IgnoreAttribute>())
+                    .SelectMany(b => AdaptAssign(b.Binding, expEmb.GetBinding(b.FieldInfo)))
+                    .ToArray();
 
                 if (cEmb.FieldEmbedded!.HasValue != null)
                 {
                     var setValue = AssignColumn(cEmb.HasValue, expEmb.HasValue);
-                    bindings = bindings.PreAnd(setValue);
+                    bindings =  bindings.PreAnd(setValue).ToArray();
                 }
 
-                return bindings.ToArray();
+                return bindings;
             }
             else if (colExpression is EntityExpression && expression is EntityExpression)
             {
