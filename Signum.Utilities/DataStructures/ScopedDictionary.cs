@@ -74,7 +74,9 @@ namespace Signum.Utilities.DataStructures
 
         public TValue GetOrCreate(TKey key, Func<TValue> valueFactory)
         {
+#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
             if (!TryGetValue(key, out TValue result))
+#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
             {
                 result = valueFactory();
                 Add(key, result);

@@ -185,7 +185,9 @@ namespace Signum.Utilities.DataStructures
         {
             foreach (var item in adjacency)
             {
+#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
                 if (item.Value.TryGetValue(node, out E edge))
+#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
                     yield return KeyValuePair.Create(item.Key, edge);
             }
         }
