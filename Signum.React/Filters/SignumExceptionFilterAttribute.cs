@@ -57,8 +57,8 @@ namespace Signum.React.Filters
                         e.UserAgent = Try(300, () => req.Headers["User-Agent"].FirstOrDefault());
                         e.RequestUrl = Try(int.MaxValue, () => req.GetDisplayUrl());
                         e.UrlReferer = Try(int.MaxValue, () => req.Headers["Referer"].ToString());
-                        e.UserHostAddress = Try(100, () => connFeature.RemoteIpAddress.ToString());
-                        e.UserHostName = Try(100, () => Dns.GetHostEntry(connFeature.RemoteIpAddress).HostName);
+                        e.UserHostAddress = connFeature?.RemoteIpAddress != null ? Try(100, () => connFeature?.RemoteIpAddress?.ToString()) : null;
+                        e.UserHostName = connFeature?.RemoteIpAddress != null ? Try(100, () => Dns.GetHostEntry(connFeature?.RemoteIpAddress)?.HostName) : null;
                         e.User = (UserHolder.Current ?? (IUserEntity)context.HttpContext.Items[SignumAuthenticationFilter.Signum_User_Key])?.ToLite() ?? e.User;
                         e.QueryString = Try(int.MaxValue, () => req.QueryString.ToString());
                         e.Form = Try(int.MaxValue, () => Encoding.UTF8.GetString(body));
