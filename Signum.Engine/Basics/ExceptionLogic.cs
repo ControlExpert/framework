@@ -40,7 +40,23 @@ namespace Signum.Engine.Basics
 
 			completeContext(entity);
 
-			return entity.SaveForceNew();
+            Trace.WriteLine("123 - ExceptionMessage" + entity.ExceptionMessage);
+            Trace.WriteLine("123 - StackTrace" + entity.StackTrace);
+            Trace.WriteLine("123 - ApplicationName" + entity.ApplicationName);
+            Trace.WriteLine("123 - Environment" + entity.Environment);
+            Trace.WriteLine("123 - User" + entity.User);
+            Trace.WriteLine("123 - Data" + entity.Data);
+            Trace.WriteLine("123 - Version" + entity.Version);
+
+            entity.ExceptionMessage = null;
+            entity.StackTrace = null;
+            entity.ApplicationName = null;
+            entity.Environment = null;
+            entity.User = null;
+            entity.Data = null;
+            entity.Version = null;
+
+            return entity.SaveForceNew();
 		}
 
 		public static ExceptionEntity LogException(this Exception ex)
@@ -72,7 +88,6 @@ namespace Signum.Engine.Basics
             entity.ApplicationName = Schema.Current.ApplicationName;
             entity.HResult = ex.HResult;
 
-
             entity.Environment = CurrentEnvironment;
             try
             {
@@ -90,10 +105,7 @@ namespace Signum.Engine.Basics
 {e.GetType().Name}: {e.Message}
 {e.StackTrace}";
             }
-
-            Trace.WriteLine("123 - Dump: " + entity.Data);
-            entity.Data = null;
-
+            
             entity.Version = Schema.Current.Version.ToString();
 
             return entity;
