@@ -40,20 +40,6 @@ namespace Signum.Engine.Basics
 
 			completeContext(entity);
 
-            Trace.WriteLine("123 - ExceptionMessage" + entity.ExceptionMessage);
-            Trace.WriteLine("123 - StackTrace" + entity.StackTrace);
-            Trace.WriteLine("123 - ApplicationName" + entity.ApplicationName);
-            Trace.WriteLine("123 - Environment" + entity.Environment);
-            Trace.WriteLine("123 - User" + entity.User);
-            Trace.WriteLine("123 - Data" + entity.Data);
-            Trace.WriteLine("123 - Version" + entity.Version);
-
-            entity.ApplicationName = null;
-            entity.Environment = null;
-            entity.User = null;
-            entity.Data = null;
-            entity.Version = null;
-
             return entity.SaveForceNew();
 		}
 
@@ -83,7 +69,7 @@ namespace Signum.Engine.Basics
             entity.ExceptionMessage = messages.DefaultText("- No message - ");
             entity.StackTrace = stacktraces.DefaultText("- No stacktrace -");
             entity.ThreadId = Thread.CurrentThread.ManagedThreadId;
-            entity.ApplicationName = Schema.Current.ApplicationName;
+            entity.ApplicationName = Schema.Current.ApplicationName.TryEnd(100);
             entity.HResult = ex.HResult;
 
             entity.Environment = CurrentEnvironment;
