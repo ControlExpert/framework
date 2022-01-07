@@ -48,8 +48,6 @@ namespace Signum.Engine.Basics
             Trace.WriteLine("123 - Data" + entity.Data);
             Trace.WriteLine("123 - Version" + entity.Version);
 
-            entity.ExceptionMessage = null;
-            entity.StackTrace = null;
             entity.ApplicationName = null;
             entity.Environment = null;
             entity.User = null;
