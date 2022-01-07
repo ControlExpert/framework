@@ -61,33 +61,33 @@ namespace Signum.Engine.Basics
 
             entity.ExceptionType = ex.GetType().Name;
 
-            //var exceptions = ex.Follow(e => e.InnerException);
-            //string messages = exceptions.ToString(e => e.Message, "\r\n\r\n");
-            //string stacktraces = exceptions.ToString(e => e.StackTrace, "\r\n\r\n");
+            var exceptions = ex.Follow(e => e.InnerException);
+            string messages = exceptions.ToString(e => e.Message, "\r\n\r\n");
+            string stacktraces = exceptions.ToString(e => e.StackTrace, "\r\n\r\n");
 
             //entity.ExceptionMessage = messages.DefaultText("- No message - ");
             //entity.StackTrace = stacktraces.DefaultText("- No stacktrace -");
-            //entity.ThreadId = Thread.CurrentThread.ManagedThreadId;
-            //entity.ApplicationName = Schema.Current.ApplicationName;
-            //entity.HResult = ex.HResult;
+            entity.ThreadId = Thread.CurrentThread.ManagedThreadId;
+            entity.ApplicationName = Schema.Current.ApplicationName;
+            entity.HResult = ex.HResult;
 
 
             entity.Environment = CurrentEnvironment;
             try
             {
-                //entity.User = UserHolder.Current?.ToLite(); //Session special situations
+                entity.User = UserHolder.Current?.ToLite(); //Session special situations
             }
             catch { }
 
             try
             {
-                //entity.Data = ex.Data.Dump();
+                entity.Data = ex.Data.Dump();
             }
             catch (Exception e)
             {
-//                entity.Data = $@"Error Dumping Data!
-//{e.GetType().Name}: {e.Message}
-//{e.StackTrace}";
+                entity.Data = $@"Error Dumping Data!
+{e.GetType().Name}: {e.Message}
+{e.StackTrace}";
             }
 
             entity.Version = Schema.Current.Version.ToString();
