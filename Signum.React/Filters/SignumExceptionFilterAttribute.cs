@@ -52,17 +52,17 @@ namespace Signum.React.Filters
 
                     var exLog = context.Exception.LogException(e =>
                     {
-                        //e.ActionName = Try(100, ()=>(context.ActionDescriptor as ControllerActionDescriptor)?.ActionName);
-                        //e.ControllerName = Try(100, () => (context.ActionDescriptor as ControllerActionDescriptor)?.ControllerName);
-                        //e.UserAgent = Try(300, () => req.Headers["User-Agent"].FirstOrDefault());
-                        //e.RequestUrl = Try(int.MaxValue, () => req.GetDisplayUrl());
-                        //e.UrlReferer = Try(int.MaxValue, () => req.Headers["Referer"].ToString());
-                        //e.UserHostAddress = Try(100, () => connFeature?.RemoteIpAddress?.ToString());
-                        //e.UserHostName = Try(100, () => Dns.GetHostEntry(connFeature?.RemoteIpAddress)?.HostName);
-                        //e.User = (UserHolder.Current ?? (IUserEntity)context.HttpContext.Items[SignumAuthenticationFilter.Signum_User_Key])?.ToLite() ?? e.User;
-                        //e.QueryString = Try(int.MaxValue, () => req.QueryString.ToString());
-                        //e.Form = Try(int.MaxValue, () => Encoding.UTF8.GetString(body));
-                        //e.Session = null;
+                        e.ActionName = Try(100, () => (context.ActionDescriptor as ControllerActionDescriptor)?.ActionName);
+                        e.ControllerName = Try(100, () => (context.ActionDescriptor as ControllerActionDescriptor)?.ControllerName);
+                        e.UserAgent = Try(300, () => req.Headers["User-Agent"].FirstOrDefault());
+                        e.RequestUrl = Try(int.MaxValue, () => req.GetDisplayUrl());
+                        e.UrlReferer = Try(int.MaxValue, () => req.Headers["Referer"].ToString());
+                        e.UserHostAddress = Try(100, () => connFeature?.RemoteIpAddress?.ToString());
+                        e.UserHostName = Try(100, () => Dns.GetHostEntry(connFeature?.RemoteIpAddress)?.HostName);
+                        e.User = (UserHolder.Current ?? (IUserEntity)context.HttpContext.Items[SignumAuthenticationFilter.Signum_User_Key])?.ToLite() ?? e.User;
+                        e.QueryString = Try(int.MaxValue, () => req.QueryString.ToString());
+                        e.Form = Try(int.MaxValue, () => Encoding.UTF8.GetString(body));
+                        e.Session = null;
                     });
                     
                     if (ExpectsJsonResult(context))
