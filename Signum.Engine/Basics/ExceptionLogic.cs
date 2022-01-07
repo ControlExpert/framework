@@ -9,6 +9,7 @@ using Signum.Utilities;
 using Signum.Entities.Basics;
 using System.Threading;
 using Signum.Utilities.Reflection;
+using System.Diagnostics;
 
 namespace Signum.Engine.Basics
 {
@@ -65,8 +66,8 @@ namespace Signum.Engine.Basics
             string messages = exceptions.ToString(e => e.Message, "\r\n\r\n");
             string stacktraces = exceptions.ToString(e => e.StackTrace, "\r\n\r\n");
 
-            //entity.ExceptionMessage = messages.DefaultText("- No message - ");
-            //entity.StackTrace = stacktraces.DefaultText("- No stacktrace -");
+            entity.ExceptionMessage = messages.DefaultText("- No message - ");
+            entity.StackTrace = stacktraces.DefaultText("- No stacktrace -");
             entity.ThreadId = Thread.CurrentThread.ManagedThreadId;
             entity.ApplicationName = Schema.Current.ApplicationName;
             entity.HResult = ex.HResult;
@@ -89,6 +90,9 @@ namespace Signum.Engine.Basics
 {e.GetType().Name}: {e.Message}
 {e.StackTrace}";
             }
+
+            Trace.WriteLine("123 - Dump: " + entity.Data);
+            entity.Data = null;
 
             entity.Version = Schema.Current.Version.ToString();
 
