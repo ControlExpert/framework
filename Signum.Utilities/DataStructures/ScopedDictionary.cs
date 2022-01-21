@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Signum.Utilities.DataStructures
 {
@@ -30,7 +31,7 @@ namespace Signum.Utilities.DataStructures
             this.map.Add(key, value);
         }
 
-        public bool TryGetValue(TKey key, out TValue value)
+        public bool TryGetValue(TKey key, [MaybeNullWhen(false)] out TValue value)
         {
             for (ScopedDictionary<TKey, TValue>? scope = this; scope != null; scope = scope.previous)
             {
@@ -73,7 +74,9 @@ namespace Signum.Utilities.DataStructures
 
         public TValue GetOrCreate(TKey key, Func<TValue> valueFactory)
         {
+#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
             if (!TryGetValue(key, out TValue result))
+#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
             {
                 result = valueFactory();
                 Add(key, result);

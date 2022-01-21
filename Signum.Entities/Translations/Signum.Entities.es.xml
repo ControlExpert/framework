@@ -70,7 +70,7 @@
     <Member Name="TheEntity0IsNew" Description="La entidad {0} es nueva" />
     <Member Name="ThereAre0ThatReferThisEntity" Description="Hay '{0}' que refieren a esta entidad" />
     <Member Name="ThereAreRecordsIn0PointingToThisTableByColumn1" Description="Hay registros en '{0}' que refieren a esta tabla por la columna '{1}'" />
-    <Member Name="TheresAlreadyA0With1EqualsTo2_G" Description="Ya hay [m:un|f:una] {0} con {1} igual a '{2}'" />
+    <Member Name="TheresAlreadyA0With1EqualsTo2_G" Description="Ya hay [m:un|f:una] {0} con {1} igual a {2}" />
     <Member Name="UnauthorizedAccessTo0Because1" Description="Acceso denegado a {0} porque {1}" />
   </Type>
   <Type Name="Entity" Description="Entidad">
@@ -276,8 +276,8 @@
   </Type>
   <Type Name="PinnedFilterActive" Description="Filtro anclado activo">
     <Member Name="Always" Description="Siempre" />
-    <Member Name="Checkbox_StartChecked" Description="Checkbox (inicio marcado)" />
-    <Member Name="Checkbox_StartUnchecked" Description="Checkbox (inicio sin marcar)" />
+    <Member Name="Checkbox_StartChecked" Description="Checkbox (iniciar marcado)" />
+    <Member Name="Checkbox_StartUnchecked" Description="Checkbox (iniciar desmarcado)" />
     <Member Name="WhenHasValue" Description="Cuando tiene valor" />
   </Type>
   <Type Name="PropertyRouteEntity" Description="Ruta de la propiedad">
@@ -426,10 +426,10 @@
     <Member Name="StartOfSyncScriptGeneratedOn0" Description="--- INICIO DEL SCRIPT DE SINCRONIZACIÓN GENERADO EL {0}" />
   </Type>
   <Type Name="SystemTimeMode">
-    <Member Name="All" Description="todo" />
-    <Member Name="AsOf" Description="A partir de" />
+    <Member Name="All" Description="Todo" />
+    <Member Name="AsOf" Description="A fecha de" />
     <Member Name="Between" Description="Entre" />
-    <Member Name="ContainedIn" Description="Contenida en" />
+    <Member Name="ContainedIn" Description="Contenida entre" />
   </Type>
   <Type Name="SystemTimeProperty">
     <Member Name="SystemValidFrom" Description="Sistema válido desde" />

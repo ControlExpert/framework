@@ -57,7 +57,9 @@ namespace Signum.Utilities
             where K : notnull
             where V : new()
         {
+#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
             if (!dictionary.TryGetValue(key, out V result))
+#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
             {
                 result = new V();
                 dictionary.Add(key, result);
@@ -75,7 +77,9 @@ namespace Signum.Utilities
         public static V GetOrCreate<K, V>(this IDictionary<K, V> dictionary, K key, V value)
             where K : notnull
         {
+#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
             if (!dictionary.TryGetValue(key, out V result))
+#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
             {
                 result = value;
                 dictionary.Add(key, result);
@@ -86,7 +90,9 @@ namespace Signum.Utilities
         public static V GetOrCreate<K, V>(this IDictionary<K, V> dictionary, K key, Func<V> generator)
             where K : notnull
         {
+#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
             if (!dictionary.TryGetValue(key, out V result))
+#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
             {
                 result = generator();
                 dictionary.Add(key, result);
@@ -97,7 +103,9 @@ namespace Signum.Utilities
         public static V GetOrCreate<K, V>(this IDictionary<K, V> dictionary, K key, Func<K, V> generator)
             where K : notnull
         {
+#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
             if (!dictionary.TryGetValue(key, out V result))
+#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
             {
                 result = generator(key);
                 dictionary.Add(key, result);
@@ -108,7 +116,9 @@ namespace Signum.Utilities
         public static V GetOrThrow<K, V>(this IDictionary<K, V> dictionary, K key, Func<K, Exception> exception)
             where K : notnull
         {
+#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
             if (!dictionary.TryGetValue(key, out V result))
+#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
                 throw exception(key);
             return result;
         }
@@ -116,7 +126,9 @@ namespace Signum.Utilities
         public static V GetOrThrow<K, V>(this IDictionary<K, V> dictionary, K key, string messageWithFormat) 
             where K : notnull
         {
+#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
             if (!dictionary.TryGetValue(key, out V result))
+#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
                 throw new KeyNotFoundException(messageWithFormat.FormatWith(key));
             return result;
         }
@@ -124,7 +136,9 @@ namespace Signum.Utilities
         public static V GetOrThrow<K, V>(this IDictionary<K, V> dictionary, K key) 
             where K : notnull
         {
+#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
             if (!dictionary.TryGetValue(key, out V result))
+#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
                 throw new KeyNotFoundException("Key '{0}' ({1}) not found on {2}".FormatWith(key, key.GetType().TypeName(), dictionary.GetType().TypeName()));
             return result;
         }

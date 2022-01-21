@@ -1,9 +1,10 @@
 import { Dic } from './Globals';
 import { Entity, ModifiableEntity, SelectorMessage, EntityPack } from './Signum.Entities';
-import { Type, getTypeInfo, OperationType, New, OperationInfo, PropertyRoute } from './Reflection';
+import { Type, getTypeInfo, OperationType, New, OperationInfo, PropertyRoute, tryGetTypeInfo } from './Reflection';
 import SelectorModal from './SelectorModal';
 import * as Operations from './Operations';
 import * as Navigator from './Navigator';
+import {API} from "./Navigator";
 
 export const customConstructors: { [typeName: string]: (props?: any, pr?: PropertyRoute) => ModifiableEntity | Promise<ModifiableEntity | undefined> } = {}
 
@@ -17,13 +18,12 @@ export function construct(type: string | Type<any>, props?: any, pr?: PropertyRo
 export function constructPack<T extends ModifiableEntity>(type: Type<T>, props?: Partial<T>, pr?: PropertyRoute): Promise<EntityPack<T> | undefined>;
 export function constructPack(type: string, props?: any, pr?: PropertyRoute): Promise<EntityPack<ModifiableEntity> | undefined>;
 export function constructPack(type: string | Type<any>, props?: any, pr?: PropertyRoute): Promise<EntityPack<ModifiableEntity> | undefined> {
-
+  
   const typeName = (type as Type<any>).typeName ?? type as string;
 
-  const ti = getTypeInfo(typeName);
+  const ti = tryGetTypeInfo(typeName);
   if (ti)
     pr = PropertyRoute.root(ti);
- 
   
   const c = customConstructors[typeName];
   if (c)
@@ -38,11 +38,9 @@ export function constructPack(type: string | Type<any>, props?: any, pr?: Proper
 
   if (ti) {
 
-    const constructOperations = Dic.getValues(ti.operations!).filter(a => a.operationType == OperationType.Constructor);
+    if (ti.hasConstructorOperation) {
 
-    if (constructOperations.length) {
-
-      const ctrs = constructOperations.filter(oi => Operations.isOperationInfoAllowed(oi));
+      const ctrs = Dic.getValues(ti.operations!).filter(a => a.operationType == "Constructor");
 
       if (!ctrs.length)
         throw new Error("No constructor is allowed!");
