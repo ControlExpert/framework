@@ -1,10 +1,12 @@
+using System.Collections.Generic;
+using System.Text;
 using System.Security.Cryptography;
 
 namespace Signum.Services;
 
 public static class Security
 {
-    public static Func<string, byte[]> EncodePassword = (string originalPassword) => MD5Hash(originalPassword);
+    public static Func<string, string, IList<byte[]>> EncodePassword = (string userName, string originalPassword) => new List<byte[]> { MD5Hash(originalPassword) };
 
     public static byte[] MD5Hash(string saltedPassword)
     {
@@ -23,8 +25,6 @@ public static class Security
             sb.AppendFormat("{0:x2}", stream[i]);
         return sb.ToString();
     }
-
- 
 }
 
 public class CryptorEngine
