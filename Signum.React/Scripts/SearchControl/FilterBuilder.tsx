@@ -1,9 +1,9 @@
 import * as React from 'react'
 import { DateTime } from 'luxon'
-import { Dic, areEqual, classes } from '../Globals'
+import { Dic, areEqual, classes, KeyGenerator } from '../Globals'
 import { FilterOptionParsed, QueryDescription, QueryToken, SubTokensOptions, filterOperations, isList, FilterOperation, FilterConditionOptionParsed, FilterGroupOptionParsed, isFilterGroupOptionParsed, hasAnyOrAll, getTokenParents, isPrefix, FilterConditionOption, PinnedFilter, PinnedFilterParsed } from '../FindOptions'
-import { SearchMessage } from '../Signum.Entities'
-import { isNumber } from '../Lines/ValueLine'
+import { SearchMessage, Lite } from '../Signum.Entities'
+import { isNumber, trimDateToFormat } from '../Lines/ValueLine'
 import { ValueLine, EntityLine, EntityCombo, StyleContext, FormControlReadonly } from '../Lines'
 import { Binding, IsByAll, tryGetTypeInfos, toLuxonFormat, getTypeInfos, toNumberFormat } from '../Reflection'
 import { TypeContext } from '../TypeContext'
@@ -27,10 +27,13 @@ interface FilterBuilderProps {
   readOnly?: boolean;
   title?: React.ReactNode;
   renderValue?: (rvc: RenderValueContext) => React.ReactElement<any> | undefined;
-  showPinnedFilters?: boolean;
+  showPinnedFiltersOptions?: boolean;
+  showPinnedFiltersOptionsButton?: boolean;
 }
 
 export default function FilterBuilder(p: FilterBuilderProps) {
+
+  const [showPinnedFiltersOptions, setShowPinnedFiltersOptions] = React.useState<boolean>(p.showPinnedFiltersOptions ?? false)
 
   const forceUpdate = useForceUpdatePromise();
 
@@ -85,6 +88,8 @@ export default function FilterBuilder(p: FilterBuilderProps) {
   }
 
 
+  var keyGenerator = React.useMemo(() => new KeyGenerator(), []);
+
   return (
     <fieldset className="form-xs">
       {p.title && <legend>{p.title}</legend>}
@@ -101,22 +106,23 @@ export default function FilterBuilder(p: FilterBuilderProps) {
               <th>{SearchMessage.Field.niceToString()}</th>
               <th>{SearchMessage.Operation.niceToString()}</th>
               <th style={{ paddingRight: "20px" }}>{SearchMessage.Value.niceToString()}</th>
-              {p.showPinnedFilters && <th></th>}
+              {showPinnedFiltersOptions && <th></th>}
             </tr>
           </thead>
           <tbody>
-            {p.filterOptions.map((f, i) => isFilterGroupOptionParsed(f) ?
-              <FilterGroupComponent key={i} filterGroup={f} readOnly={Boolean(p.readOnly)} onDeleteFilter={handlerDeleteFilter}
+            {p.filterOptions.map((f) => isFilterGroupOptionParsed(f) ?
+              <FilterGroupComponent key={keyGenerator.getKey(f)} filterGroup={f} readOnly={Boolean(p.readOnly)} onDeleteFilter={handlerDeleteFilter}
                 prefixToken={undefined}
                 subTokensOptions={p.subTokensOptions} queryDescription={p.queryDescription}
                 onTokenChanged={p.onTokenChanged} onFilterChanged={handleFilterChanged}
                 lastToken={p.lastToken} onHeightChanged={handleHeightChanged} renderValue={p.renderValue}
-                showPinnedFilters={p.showPinnedFilters || false} disableValue={false} /> :
-              <FilterConditionComponent key={i} filter={f} readOnly={Boolean(p.readOnly)} onDeleteFilter={handlerDeleteFilter}
+                showPinnedFiltersOptions={showPinnedFiltersOptions}
+                disableValue={false} /> :
+              <FilterConditionComponent key={keyGenerator.getKey(f)} filter={f} readOnly={Boolean(p.readOnly)} onDeleteFilter={handlerDeleteFilter}
                 prefixToken={undefined}
                 subTokensOptions={p.subTokensOptions} queryDescription={p.queryDescription}
                 onTokenChanged={p.onTokenChanged} onFilterChanged={handleFilterChanged} renderValue={p.renderValue}
-                showPinnedFilters={p.showPinnedFilters || false} disableValue={false} />
+                showPinnedFiltersOptions={showPinnedFiltersOptions} disableValue={false} />
             )}
             {!p.readOnly &&
               <tr className="sf-filter-create">
@@ -131,6 +137,13 @@ export default function FilterBuilder(p: FilterBuilderProps) {
                     onClick={e => handlerNewFilter(e, true)}>
                     <FontAwesomeIcon icon="plus" className="sf-create mr-1" />{SearchMessage.AddGroup.niceToString()}
                   </a>
+
+                  {p.showPinnedFiltersOptionsButton && <a href="#" title={StyleContext.default.titleLabels ? (showPinnedFiltersOptions ? SearchMessage.HidePinnedFiltersOptions : SearchMessage.ShowPinnedFiltersOptions).niceToString() : undefined}
+                    className="sf-line-button ml-3"
+                    onClick={e => { e.preventDefault(); setShowPinnedFiltersOptions(!showPinnedFiltersOptions); }}>
+                    <FontAwesomeIcon color="orange" icon={[showPinnedFiltersOptions ? "fas" : "far", "star"]} className="mr-1" />{(showPinnedFiltersOptions ? SearchMessage.HidePinnedFiltersOptions : SearchMessage.ShowPinnedFiltersOptions).niceToString()}
+                  </a>
+                  }
                 </td>
               </tr>
             }
@@ -140,6 +153,7 @@ export default function FilterBuilder(p: FilterBuilderProps) {
     </fieldset>
   );
 }
+
 
 export interface RenderValueContext {
   filter: FilterConditionOptionParsed | FilterGroupOptionParsed;
@@ -159,7 +173,7 @@ export interface FilterGroupComponentsProps {
   onHeightChanged: () => void;
   lastToken: QueryToken | undefined;
   renderValue?: (rvc: RenderValueContext) => React.ReactElement<any> | undefined;
-  showPinnedFilters: boolean;
+  showPinnedFiltersOptions: boolean;
   disableValue: boolean;
 }
 
@@ -241,12 +255,15 @@ export function FilterGroupComponent(p: FilterGroupComponentsProps) {
 
   const fg = p.filterGroup;
 
-  const opacity = isFilterActive(fg) ? undefined : 0.4;
+  var keyGenerator = React.useMemo(() => new KeyGenerator(), []);
+
+  if (!p.showPinnedFiltersOptions && !isFilterActive(fg))
+    return null;
 
   const readOnly = fg.frozen || p.readOnly;
 
   return (
-    <tr className="sf-filter-group" style={{ opacity: opacity}}>
+    <tr className="sf-filter-group">
       <td style={{ verticalAlign: "top" }}>
         {!readOnly &&
           <a href="#" title={StyleContext.default.titleLabels ? SearchMessage.DeleteFilter.niceToString() : undefined}
@@ -285,7 +302,7 @@ export function FilterGroupComponent(p: FilterGroupComponentsProps) {
             </div>
           }
           <div>
-            {p.showPinnedFilters &&
+            {p.showPinnedFiltersOptions &&
               <button className={classes("btn", "btn-link", "btn-sm", "sf-user-filter", fg.pinned && "active")} onClick={e => { fg.pinned = fg.pinned ? undefined : {}; changeFilter(); }} disabled={p.readOnly}>
                 <FontAwesomeIcon color="orange" icon={[fg.pinned ? "fas" : "far", "star"]} />
               </button>
@@ -306,22 +323,22 @@ export function FilterGroupComponent(p: FilterGroupComponentsProps) {
             </thead>
             {fg.expanded ?
               <tbody>
-                {fg.filters.map((f, i) => isFilterGroupOptionParsed(f) ?
+                {fg.filters.map((f) => isFilterGroupOptionParsed(f) ?
 
-                  <FilterGroupComponent key={i} filterGroup={f} readOnly={Boolean(p.readOnly)} onDeleteFilter={handlerDeleteFilter}
+                  <FilterGroupComponent key={keyGenerator.getKey(f)} filterGroup={f} readOnly={Boolean(p.readOnly)} onDeleteFilter={handlerDeleteFilter}
                     prefixToken={fg.token}
                     subTokensOptions={p.subTokensOptions} queryDescription={p.queryDescription}
                     onTokenChanged={p.onTokenChanged} onFilterChanged={p.onFilterChanged}
                     lastToken={p.lastToken} onHeightChanged={p.onHeightChanged} renderValue={p.renderValue}
-                    showPinnedFilters={p.showPinnedFilters}
+                    showPinnedFiltersOptions={p.showPinnedFiltersOptions}
                     disableValue={p.disableValue || fg.pinned != null && fg.pinned.active != "Checkbox_StartChecked" && fg.pinned.active != "Checkbox_StartUnchecked"}
                   /> :
 
-                  <FilterConditionComponent key={i} filter={f} readOnly={Boolean(p.readOnly)} onDeleteFilter={handlerDeleteFilter}
+                  <FilterConditionComponent key={keyGenerator.getKey(f)} filter={f} readOnly={Boolean(p.readOnly)} onDeleteFilter={handlerDeleteFilter}
                     prefixToken={fg.token}
                     subTokensOptions={p.subTokensOptions} queryDescription={p.queryDescription}
                     onTokenChanged={p.onTokenChanged} onFilterChanged={p.onFilterChanged} renderValue={p.renderValue}
-                    showPinnedFilters={p.showPinnedFilters}
+                    showPinnedFiltersOptions={p.showPinnedFiltersOptions}
                     disableValue={p.disableValue || fg.pinned != null && fg.pinned.active != "Checkbox_StartChecked" && fg.pinned.active != "Checkbox_StartUnchecked"}
                   />
                 )}
@@ -382,8 +399,13 @@ export function FilterGroupComponent(p: FilterGroupComponentsProps) {
 }
 
 function isFilterActive(fo: FilterOptionParsed) {
-  return fo.pinned == null ||
-    fo.pinned.active == null /*Always*/ ||
+  if (fo.pinned == null)
+    return true;
+
+  if (fo.pinned.splitText && (fo.value == null || fo.value == ""))
+    return false;
+
+  return fo.pinned.active == null /*Always*/ ||
     fo.pinned.active == "Always" ||
     fo.pinned.active == "Checkbox_StartChecked" ||
     fo.pinned.active == "WhenHasValue" && !(fo.value == null || fo.value == "");
@@ -399,7 +421,7 @@ export interface FilterConditionComponentProps {
   onTokenChanged?: (token: QueryToken | undefined) => void;
   onFilterChanged: () => void;
   renderValue?: (rvc: RenderValueContext) => React.ReactElement<any> | undefined;
-  showPinnedFilters: boolean;
+  showPinnedFiltersOptions: boolean;
   disableValue: boolean;
 }
 
@@ -422,12 +444,18 @@ export function FilterConditionComponent(p: FilterConditionComponentProps) {
     }
     else {
 
-      if (!areEqual(f.token, newToken, a => a.filterType) || !areEqual(f.token, newToken, a => a.preferEquals)) {
+      if (!areEqual(f.token, newToken, a => a.filterType) ||
+        !areEqual(f.token, newToken, a => a.preferEquals) ||
+        newToken.filterType == "Lite" && f.value != null && newToken.type.name != IsByAll && !getTypeInfos(newToken.type.name).some(t => t.name == (f.value as Lite<any>).EntityType)) {
         f.operation = newToken.preferEquals ? "EqualTo" : newToken.filterType && filterOperations[newToken.filterType].first();
         f.value = f.operation && isList(f.operation) ? [undefined] : undefined;
       }
-      else if (f.token && f.token.filterType == "DateTime" && newToken.filterType == "DateTime" && newToken.format && f.token.format != newToken.format) {
-        f.value = f.value && trimDateToFormat(f.value, toLuxonFormat(newToken.format));
+      else if (f.token && f.token.filterType == "DateTime" && newToken.filterType == "DateTime") {
+        if (f.value) {
+          const type = newToken.type.name as "Date" | "DateTime";
+          const date = trimDateToFormat(DateTime.fromISO(f.value), type, newToken.format);
+          f.value = type == "Date" ? date.toISODate() : date.toISO();
+        }
       }
     }
     f.token = newToken ?? undefined;
@@ -439,16 +467,6 @@ export function FilterConditionComponent(p: FilterConditionComponentProps) {
 
     forceUpdate();
   }
-
-  function trimDateToFormat(date: string, momentFormat: string | undefined) {
-
-    if (!momentFormat)
-      return date;
-
-    const formatted = DateTime.fromISO(date).toFormat(momentFormat);
-    return DateTime.fromFormat(formatted, momentFormat).toISO();
-  }
-
 
   function handleChangeOperation(event: React.FormEvent<HTMLSelectElement>) {
     const operation = (event.currentTarget as HTMLSelectElement).value as FilterOperation;
@@ -466,11 +484,12 @@ export function FilterConditionComponent(p: FilterConditionComponentProps) {
 
   const readOnly = f.frozen || p.readOnly;
 
-  const opacity = isFilterActive(f) ? undefined : 0.4;
+  if (!p.showPinnedFiltersOptions && !isFilterActive(f))
+    return null;
 
   return (
     <>
-      <tr className="sf-filter-condition" style={{ opacity: opacity }}>
+      <tr className="sf-filter-condition">
         <td>
           {!readOnly &&
             <a href="#" title={StyleContext.default.titleLabels ? SearchMessage.DeleteFilter.niceToString() : undefined}
@@ -502,7 +521,7 @@ export function FilterConditionComponent(p: FilterConditionComponentProps) {
           {p.disableValue ? <small className="text-muted">{SearchMessage.ParentValue.niceToString()}</small> :
             f.token && f.token.filterType && f.operation && renderValue()}
         </td>
-        {f.token && f.token.filterType && f.operation && p.showPinnedFilters &&
+        {f.token && f.token.filterType && f.operation && p.showPinnedFiltersOptions &&
           <td>
             <button className={classes("btn", "btn-link", "btn-sm", "sf-user-filter", f.pinned && "active")} onClick={e => { f.pinned = f.pinned ? undefined : {}; changeFilter(); }} disabled={p.readOnly}>
               <FontAwesomeIcon color="orange" icon={[f.pinned ? "fas" : "far", "star"]} />
@@ -510,7 +529,7 @@ export function FilterConditionComponent(p: FilterConditionComponentProps) {
           </td>
         }
       </tr>
-      {p.showPinnedFilters && f.pinned && <PinnedFilterEditor pinned={f.pinned} opacity={opacity} onChange={() => changeFilter()} readonly={readOnly} />}
+      {p.showPinnedFiltersOptions && f.pinned && <PinnedFilterEditor pinned={f.pinned} onChange={() => changeFilter()} readonly={readOnly} />}
     </>
   );
 
@@ -547,21 +566,20 @@ interface PinnedFilterEditorProps {
   pinned: PinnedFilterParsed;
   readonly: boolean;
   onChange: () => void;
-  opacity?: number
 }
 
 export function PinnedFilterEditor(p: PinnedFilterEditorProps) {
   return (
     <tr className="sf-pinned-filter" style={{ backgroundColor: "#fff6e6", verticalAlign: "top" }}>
       <td></td>
-      <td style={{ opacity: p.opacity }}>
+      <td>
         <div>
           <input type="text" className="form-control form-control-xs" placeholder={SearchMessage.Label.niceToString()} readOnly={p.readonly}
             value={p.pinned.label ?? ""}
             onChange={e => { p.pinned.label = e.currentTarget.value; p.onChange(); }} />
         </div>
       </td>
-      <td style={{ opacity: p.opacity }}>
+      <td>
         <div className="input-group input-group-xs">
           {numericTextBox(Binding.create(p.pinned, _ => _.column), SearchMessage.Column.niceToString())}
           {numericTextBox(Binding.create(p.pinned, _ => _.row), SearchMessage.Row.niceToString())}

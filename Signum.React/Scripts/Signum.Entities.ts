@@ -340,7 +340,6 @@ export module JavascriptMessage {
   export const showPeriod = new MessageKey("JavascriptMessage", "showPeriod");
   export const showPreviousOperation = new MessageKey("JavascriptMessage", "showPreviousOperation");
   export const Date = new MessageKey("JavascriptMessage", "Date");
-  export const Time = new MessageKey("JavascriptMessage", "Time");
 }
 
 export module LiteMessage {
@@ -421,8 +420,10 @@ export const PropertyOperation = new EnumType<PropertyOperation>("PropertyOperat
 export type PropertyOperation =
   "Set" |
   "AddElement" |
+  "AddNewElement" |
   "ChangeElements" |
-  "RemoveElements" |
+  "RemoveElement" |
+  "RemoveElementsWhere" |
   "ModifyEntity" |
   "CreateNewEntity";
 
@@ -436,10 +437,7 @@ export module ReactWidgetsMessage {
   export const MoveBack = new MessageKey("ReactWidgetsMessage", "MoveBack");
   export const MoveForward = new MessageKey("ReactWidgetsMessage", "MoveForward");
   export const DateButton = new MessageKey("ReactWidgetsMessage", "DateButton");
-  export const TimeButton = new MessageKey("ReactWidgetsMessage", "TimeButton");
   export const OpenCombobox = new MessageKey("ReactWidgetsMessage", "OpenCombobox");
-  export const OpenDropdown = new MessageKey("ReactWidgetsMessage", "OpenDropdown");
-  export const Placeholder = new MessageKey("ReactWidgetsMessage", "Placeholder");
   export const FilterPlaceholder = new MessageKey("ReactWidgetsMessage", "FilterPlaceholder");
   export const EmptyList = new MessageKey("ReactWidgetsMessage", "EmptyList");
   export const EmptyFilter = new MessageKey("ReactWidgetsMessage", "EmptyFilter");
@@ -515,6 +513,12 @@ export module SearchMessage {
   export const PaginationAll_0Elements = new MessageKey("SearchMessage", "PaginationAll_0Elements");
   export const PaginationPages_0Of01lements = new MessageKey("SearchMessage", "PaginationPages_0Of01lements");
   export const PaginationFirst_01Elements = new MessageKey("SearchMessage", "PaginationFirst_01Elements");
+  export const ReturnNewEntity = new MessageKey("SearchMessage", "ReturnNewEntity");
+  export const DoYouWantToSelectTheNew01_G = new MessageKey("SearchMessage", "DoYouWantToSelectTheNew01_G");
+  export const ShowPinnedFiltersOptions = new MessageKey("SearchMessage", "ShowPinnedFiltersOptions");
+  export const HidePinnedFiltersOptions = new MessageKey("SearchMessage", "HidePinnedFiltersOptions");
+  export const SummaryHeader = new MessageKey("SearchMessage", "SummaryHeader");
+  export const SummaryHeaderMustBeAnAggregate = new MessageKey("SearchMessage", "SummaryHeaderMustBeAnAggregate");
 }
 
 export module SelectorMessage {

@@ -221,7 +221,19 @@ namespace Signum.Entities
         [Description("{0} of {1} elements")]
         PaginationPages_0Of01lements,
         [Description("{0} {1} elements")]
-        PaginationFirst_01Elements
+        PaginationFirst_01Elements,
+        [Description("Return new entity?")]
+        ReturnNewEntity,
+        [Description("Do you want to return the new {0} ({1})?")]
+        DoYouWantToSelectTheNew01_G,
+        [Description("Show pinned filter options")]
+        ShowPinnedFiltersOptions,
+        [Description("Hide pinned filter options")]
+        HidePinnedFiltersOptions,
+        [Description("Summary header")]
+        SummaryHeader,
+        [Description("Summary header must be an aggregate (like Sum, Count, etc..)")]
+        SummaryHeaderMustBeAnAggregate,
     }
 
     public enum SelectorMessage
@@ -383,8 +395,6 @@ namespace Signum.Entities
 
         [Description("Date")]
         Date,
-        [Description("Time")]
-        Time,
     }
 
     //https://github.com/jquense/react-widgets/blob/5d4985c6dac0df34b86c7d8ad311ff97066977ab/packages/react-widgets/src/messages.tsx#L35
@@ -400,14 +410,8 @@ namespace Signum.Entities
         MoveForward,
         [Description("Select date")]
         DateButton,
-        [Description("Select time")]
-        TimeButton,
         [Description("open combobox")]
         OpenCombobox,
-        [Description("open dropdown")]
-        OpenDropdown,
-        [Description("")]
-        Placeholder,
         [Description("")]
         FilterPlaceholder,
         [Description("There are no items in this list")]

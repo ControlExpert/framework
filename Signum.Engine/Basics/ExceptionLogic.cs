@@ -53,6 +53,7 @@ namespace Signum.Engine.Basics
         public static ExceptionEntity LogException(this Exception ex)
         {
             var entity = GetEntity(ex);
+
             entity = entity.SaveForceNew();
 
             if (OnExceptionLogged != null)

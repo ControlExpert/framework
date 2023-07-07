@@ -55,11 +55,12 @@ export function getEntityOperationButtons(ctx: ButtonsContext): Array<ButtonBarE
       return [{
         order: group.order != undefined ? group.order : 100,
         shortcut: e => groupButtons.some(bbe => bbe.shortcut != null && bbe.shortcut(e)),
-        button: (
+        button: React.cloneElement(
           <DropdownButton title={group.text()} data-key={group.key} key={i} id={group.key} variant={group.outline != false ? ("outline-" + (group.color ?? "secondary")) : group.color ?? "light"}>
-            { groupButtons.map(bbe => bbe.button) }
-          </DropdownButton>
-        )
+            </DropdownButton>,
+            undefined,
+            ...groupButtons.map(bbe => bbe.button)
+          )
       } as ButtonBarElement];
     }
   });
@@ -86,7 +87,7 @@ export function andClose<T extends Entity>(eoc: EntityOperationContext<T>, inDro
   });
 }
 
-export function andNew<T extends Entity>(eoc: EntityOperationContext<T>, inDropdown?: boolean): AlternativeOperationSetting<T> {
+export function andNew<T extends Entity>(eoc: EntityOperationContext<T>, inDropdown?: boolean, reloadComponent: boolean = true): AlternativeOperationSetting<T> {
 
   return ({
     name: "andNew",
@@ -100,7 +101,7 @@ export function andNew<T extends Entity>(eoc: EntityOperationContext<T>, inDropd
         notifySuccess();
 
         (eoc.frame.createNew!(pack) ?? Promise.resolve(undefined))
-          .then(newPack => newPack && eoc.frame.onReload(newPack, true))
+          .then(newPack => newPack && eoc.frame.onReload(newPack, reloadComponent))
           .done();
       };
       eoc.defaultClick();

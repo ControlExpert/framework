@@ -86,6 +86,10 @@ export function isFilterGroupOptionParsed(fo: FilterOptionParsed): fo is FilterG
   return (fo as FilterGroupOptionParsed).groupOperation != undefined;
 }
 
+export function isActive(fo: FilterOptionParsed) {
+  return !(fo.pinned && (fo.pinned.active == "Checkbox_StartUnchecked" || fo.pinned.active == "WhenHasValue" && fo.value == null));
+}
+
 export interface FilterConditionOptionParsed {
   token?: QueryToken;
   frozen: boolean;
@@ -135,11 +139,14 @@ export interface OrderOptionParsed {
 export interface ColumnOption {
   token: string | QueryTokenString<any>;
   displayName?: string | (() => string);
+  summaryToken?: string | QueryTokenString<any>;
 }
 
 export interface ColumnOptionParsed {
   token?: QueryToken;
   displayName?: string;
+  summaryToken?: QueryToken;
+
 }
 
 export const DefaultPagination: Pagination = {
@@ -234,10 +241,8 @@ export function withoutAggregate(fop: FilterOptionParsed): FilterOptionParsed | 
 
 export function withoutPinned(fop: FilterOptionParsed): FilterOptionParsed | undefined {
 
-  if (fop.pinned) {
-    if (fop.pinned.active == "Checkbox_StartUnchecked" ||
-      fop.pinned.active == "WhenHasValue" && fop.value == null)
-      return undefined;
+  if (!isActive(fop)) {
+    return undefined;
   }
 
   if (isFilterGroupOptionParsed(fop)) {
