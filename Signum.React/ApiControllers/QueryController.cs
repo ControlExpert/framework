@@ -20,6 +20,7 @@ using System.Linq.Expressions;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using System.Text.Json;
+using Signum.Entities.Reflection;
 
 namespace Signum.React.ApiControllers
 {
@@ -116,10 +117,16 @@ namespace Signum.React.ApiControllers
             return result;
         }
 
-        [HttpPost("api/query/entitiesWithFilter"), ProfilerActionSplitter]
-        public async Task<List<Lite<Entity>>> GetEntitiesWithFilter([Required, FromBody]QueryEntitiesRequestTS request, CancellationToken token)
+        [HttpPost("api/query/entitiesLiteWithFilter"), ProfilerActionSplitter]
+        public async Task<List<Lite<Entity>>> GetEntitiesLiteWithFilter([Required, FromBody]QueryEntitiesRequestTS request, CancellationToken token)
         {
-            return await QueryLogic.Queries.GetEntities(request.ToQueryEntitiesRequest()).ToListAsync();
+            return await QueryLogic.Queries.GetEntitiesLite(request.ToQueryEntitiesRequest()).ToListAsync();
+        }
+
+        [HttpPost("api/query/entitiesFullWithFilter"), ProfilerActionSplitter]
+        public async Task<List<Entity>> GetEntitiesFullWithFilter([Required, FromBody] QueryEntitiesRequestTS request, CancellationToken token)
+        {
+            return await QueryLogic.Queries.GetEntitiesFull(request.ToQueryEntitiesRequest()).ToListAsync();
         }
 
         [HttpPost("api/query/queryValue"), ProfilerActionSplitter]
@@ -440,7 +447,7 @@ namespace Signum.React.ApiControllers
             this.typeColor = token.TypeColor;
             this.niceTypeName = token.NiceTypeName;
             this.isGroupable = token.IsGroupable;
-            this.hasOrderAdapter = QueryUtils.OrderAdapters.ContainsKey(token.Type);
+            this.hasOrderAdapter = QueryUtils.OrderAdapters.Any(a => a(token) != null);
             this.preferEquals = token.Type == typeof(string) &&
                 token.GetPropertyRoute() is PropertyRoute pr &&
                 typeof(Entity).IsAssignableFrom(pr.RootType) &&
@@ -469,7 +476,7 @@ namespace Signum.React.ApiControllers
             this.niceTypeName = qt.NiceTypeName;
             this.queryTokenType = GetQueryTokenType(qt);
             this.isGroupable = qt.IsGroupable;
-            this.hasOrderAdapter = QueryUtils.OrderAdapters.ContainsKey(qt.Type);
+            this.hasOrderAdapter = QueryUtils.OrderAdapters.Any(a => a(qt) != null);
 
             this.preferEquals = qt.Type == typeof(string) &&
                 qt.GetPropertyRoute() is PropertyRoute pr &&

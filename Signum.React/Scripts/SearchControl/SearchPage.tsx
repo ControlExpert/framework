@@ -2,7 +2,7 @@ import * as React from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { RouteComponentProps } from 'react-router'
 import * as Finder from '../Finder'
-import { FindOptions, FilterOption, isFilterGroupOption } from '../FindOptions'
+import { FindOptions, FilterOption, isFilterGroupOption, QueryDescription } from '../FindOptions'
 import { getQueryNiceName } from '../Reflection'
 import * as Navigator from '../Navigator'
 import * as AppContext from '../AppContext';
@@ -10,13 +10,15 @@ import SearchControl, { SearchControlHandler } from './SearchControl'
 import { namespace } from 'd3'
 import { useTitle } from '../AppContext'
 import { QueryString } from '../QueryString'
+import { useAPI } from '../Hooks'
 
 interface SearchPageProps extends RouteComponentProps<{ queryName: string }> {
 
 }
 
 function SearchPage(p: SearchPageProps) {
-  const fo = Finder.parseFindOptionsPath(p.match.params.queryName, QueryString.parse(p.location.search))
+  const fo = Finder.parseFindOptionsPath(p.match.params.queryName, QueryString.parse(p.location.search));
+  const qd = useAPI(() => Finder.getQueryDescription(fo.queryName), [fo.queryName]);
 
   useTitle(getQueryNiceName(p.match.params.queryName));
   React.useEffect(() => {
@@ -68,7 +70,7 @@ function SearchPage(p: SearchPageProps) {
           <FontAwesomeIcon icon="external-link-alt" />
         </a>
       </h3>
-      <SearchControl ref={searchControl}
+      {qd && <SearchControl ref={searchControl}
         defaultIncludeDefaultFilters={true}
         findOptions={fo}
         tag="SearchPage"
@@ -77,7 +79,7 @@ function SearchPage(p: SearchPageProps) {
         allowSelection={qs && qs.allowSelection}
         hideFullScreenButton={true}
         largeToolbarButtons={true}
-        showFilters={qs?.showFilters ?? SearchPage.showFilters(fo, qs)}
+        showFilters={SearchPage.showFilters(fo, qd, qs)}
         showGroupButton={true}
         avoidChangeUrl={false}
         view={qs?.inPlaceNavigation ? "InPlace" : undefined}
@@ -87,6 +89,7 @@ function SearchPage(p: SearchPageProps) {
         onSearch={result => changeUrl()}
         extraButtons={qs?.extraButtons}
       />
+      }
     </div>
   );
 }
@@ -103,13 +106,13 @@ function anyPinned(filterOptions?: FilterOption[]): boolean {
 namespace SearchPage {
   export let marginDown = 130;
   export let minHeight = 600;
-  export let showFilters = (fo: FindOptions, qs: Finder.QuerySettings | undefined) => {
+  export let showFilters = (fo: FindOptions, qd: QueryDescription, qs: Finder.QuerySettings | undefined) => {
     var allFilters = [
       ...fo.filterOptions ?? [],
-      ... (fo.includeDefaultFilters ?? true) ? qs?.defaultFilters ?? [] : []
+      ... (fo.includeDefaultFilters ?? true) ? Finder.getDefaultFilter(qd, qs)?? [] : []
     ];
 
-    return !(allFilters.length == 0 || anyPinned(allFilters));
+    return allFilters.length > 0 && !anyPinned(allFilters);
   }
 }
 

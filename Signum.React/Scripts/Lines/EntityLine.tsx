@@ -14,6 +14,9 @@ import { useController } from './LineBase'
 
 export interface EntityLineProps extends EntityBaseProps {
   ctx: TypeContext<ModifiableEntity | Lite<Entity> | undefined | null>;
+  avoidLink?: boolean;
+  avoidViewButton?: boolean;
+  avoidCreateButton?: boolean;
   autocomplete?: AutocompleteConfig<unknown> | null;
   renderItem?: React.ReactNode;
   showType?: boolean;
@@ -31,8 +34,8 @@ export class EntityLineController extends EntityBaseController<EntityLineProps> 
   focusNext!: React.MutableRefObject<boolean>;
   typeahead!: React.RefObject<TypeaheadController>;
 
-  init(p: EntityLineProps) {
-    super.init(p);
+  init(pro: EntityLineProps) {
+    super.init(pro);
 
     [this.currentItem, this.setCurrentItem] = React.useState<ItemPair | undefined>();
     const mounted = useMounted();
@@ -47,7 +50,7 @@ export class EntityLineController extends EntityBaseController<EntityLineProps> 
           if (this.currentItem)
             this.setCurrentItem(undefined);
         } else {
-          if (!this.currentItem || !is(this.currentItem.entity as Entity | Lite<Entity>, entity as Entity | Lite<Entity>)) {
+          if (!this.currentItem || !is(this.currentItem.entity as Entity | Lite<Entity>, entity as Entity | Lite<Entity>) || getToString(this.currentItem.entity) != getToString(entity)) {
             var ci = { entity: entity!, item: undefined as unknown }
             this.setCurrentItem(ci);
 
@@ -74,7 +77,7 @@ export class EntityLineController extends EntityBaseController<EntityLineProps> 
       }
 
       return undefined;
-    }, [p.ctx.value]);
+    }, [pro.ctx.value]);
 
   }
 
@@ -128,11 +131,12 @@ export const EntityLine = React.memo(React.forwardRef(function EntityLine(props:
 
   const buttons = (
     <span className="input-group-append">
-      {!hasValue && c.renderCreateButton(true)}
+      {c.props.extraButtonsBefore && c.props.extraButtonsBefore(c)}
+      {!hasValue && !p.avoidViewButton && c.renderCreateButton(true)}
       {!hasValue && c.renderFindButton(true)}
-      {hasValue && c.renderViewButton(true, p.ctx.value!)}
+      {hasValue && !p.avoidViewButton && c.renderViewButton(true, p.ctx.value!)}
       {hasValue && c.renderRemoveButton(true, p.ctx.value!)}
-      {c.props.extraButtons && c.props.extraButtons(c)}
+      {c.props.extraButtonsAfter && c.props.extraButtonsAfter(c)}
     </span>
   );
 
@@ -166,7 +170,7 @@ export const EntityLine = React.memo(React.forwardRef(function EntityLine(props:
     var ac = p.autocomplete;
 
     if (ac == null || ctx.readOnly) {
-      var fcr = <FormControlReadonly ctx={ctx}>{ctx.value && ctx.value.toStr}</FormControlReadonly>;
+      var fcr = <FormControlReadonly ctx={ctx} className={classes(ctx.formControlClass, "sf-entity-autocomplete", c.mandatoryClass) }>{ctx.value && ctx.value.toStr}</FormControlReadonly>;
       return renderInput ? renderInput(fcr) : fcr;
     }
 
@@ -197,7 +201,7 @@ export const EntityLine = React.memo(React.forwardRef(function EntityLine(props:
     if (p.ctx.readOnly)
       return <FormControlReadonly ctx={p.ctx}>{str}</FormControlReadonly>
 
-    if (p.navigate && p.view) {
+    if (p.view && !p.avoidLink) {
       return (
         <a ref={e => setLinkOrSpan(e)}
           href="#" onClick={c.handleViewClick}
