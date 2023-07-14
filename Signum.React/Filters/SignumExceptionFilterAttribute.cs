@@ -34,8 +34,6 @@ namespace Signum.React.Filters
 
         public static Action<ResourceExecutedContext, ExceptionEntity>? ApplyMixins = null;
 
-        public static Func<Exception, HttpError> CustomHttpErrorFactory = ex => new HttpError(ex);
-
         public async Task OnResourceExecutionAsync(ResourceExecutingContext precontext, ResourceExecutionDelegate next)
         {
             //Eagerly reading the whole body just in case to avoid "Cannot access a disposed object" 
@@ -165,7 +163,7 @@ namespace Signum.React.Filters
         public string ExceptionMessage;
         public string? ExceptionId;
         public string? StackTrace;
-        public ModelEntity? Model; 
+        public ModelEntity? Model;
         public HttpError? InnerException;
     }
 

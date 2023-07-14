@@ -29,7 +29,7 @@ namespace Signum.React.Authorization
         public static Action<ActionContext, UserEntity> UserLogged;
         public static Action<ActionContext, UserEntity> UserLoggingOut;
 
-        
+
         public static void Start(IApplicationBuilder app, Func<AuthTokenConfigurationEmbedded> tokenConfig, string hashableEncryptionKey)
         {
             SignumControllerFactory.RegisterArea(MethodInfo.GetCurrentMethod());
@@ -52,7 +52,7 @@ namespace Signum.React.Authorization
                     {
                         if (UserEntity.Current == null)
                             return null;
-                        
+
                         var ta = TypeAuthLogic.GetAllowed(t);
 
                         if (ta.MaxUI() == TypeAllowedBasic.None)
@@ -221,7 +221,7 @@ namespace Signum.React.Authorization
                         if (error != null)
                             throw new ApplicationException(error);
 
-                        ((UserEntity)ctx.Entity).PasswordHash = Security.EncodePassword(password);
+                        ((UserEntity)ctx.Entity).PasswordHash = Security.EncodePassword(((UserEntity)ctx.Entity).UserName, password).Last();
                     }
                 }
             });
@@ -230,7 +230,7 @@ namespace Signum.React.Authorization
                 Omnibox.OmniboxServer.IsNavigable += type => TypeAuthLogic.GetAllowed(type).MaxUI() >= TypeAllowedBasic.Read;
 
             if (SessionLogLogic.IsStarted)
-                AuthServer.UserLogged +=  (ActionContext ac, UserEntity user) =>
+                AuthServer.UserLogged += (ActionContext ac, UserEntity user) =>
                 {
                     Microsoft.AspNetCore.Http.HttpRequest re = ac.HttpContext.Request;
                     SessionLogLogic.SessionStart(
