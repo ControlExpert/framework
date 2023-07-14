@@ -60,7 +60,7 @@ public static class ResetPasswordRequestLogic
                         user.Execute(UserOperation.Reactivate);
                     }
                     
-                    user.PasswordHash = Security.EncodePassword(password);
+                    user.PasswordHash = Security.EncodePassword(user.UserName, password).Last();
                     user.LoginFailedCounter = 0;
                     using (AuthLogic.Disable())
                     {
