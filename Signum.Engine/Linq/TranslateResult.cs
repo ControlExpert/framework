@@ -235,7 +235,7 @@ namespace Signum.Engine.Linq
             return SqlServerRetry.Retry(() =>
             {
                 using (new EntityCache())
-                using (Transaction tr = new Transaction())
+                using (var tr = new Transaction())
                 {
                     object? result;
                     using (var retriever = EntityCache.NewRetriever())
@@ -285,7 +285,7 @@ namespace Signum.Engine.Linq
             return SqlServerRetry.RetryAsync(async () =>
             {
                 using (new EntityCache())
-                using (Transaction tr = new Transaction())
+                using (var tr = new Transaction())
                 {
                     object? result;
                     using (var retriever = EntityCache.NewRetriever())
@@ -330,17 +330,16 @@ namespace Signum.Engine.Linq
             });
         }
 
-        internal T? UniqueMethod(IEnumerable<T> enumerable, UniqueFunction uniqueFunction)
+        internal static T? UniqueMethod(IEnumerable<T> enumerable, UniqueFunction uniqueFunction)
         {
-            switch (uniqueFunction)
+            return uniqueFunction switch
             {
-                case UniqueFunction.First:  return enumerable.FirstEx();
-                case UniqueFunction.FirstOrDefault: return enumerable.FirstOrDefault();
-                case UniqueFunction.Single: return enumerable.SingleEx();
-                case UniqueFunction.SingleOrDefault: return enumerable.SingleOrDefaultEx()!;
-                default:
-                    throw new InvalidOperationException();
-            }
+                UniqueFunction.First => enumerable.FirstEx(),
+                UniqueFunction.FirstOrDefault => enumerable.FirstOrDefault(),
+                UniqueFunction.Single => enumerable.SingleEx(),
+                UniqueFunction.SingleOrDefault => enumerable.SingleOrDefaultEx()!,
+                _ => throw new InvalidOperationException(),
+            };
         }
 
         public string CleanCommandText()

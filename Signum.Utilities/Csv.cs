@@ -165,8 +165,8 @@ namespace Signum.Utilities
 
         public static List<T> ReadFile<T>(string fileName, Encoding? encoding = null, CultureInfo? culture = null, int skipLines = 1, CsvReadOptions<T>? options = null) where T : class, new()
         {
-            encoding = encoding ?? DefaultEncoding;
-            culture = culture ?? DefaultCulture ?? CultureInfo.CurrentCulture;
+            encoding ??= DefaultEncoding;
+            culture ??= DefaultCulture ?? CultureInfo.CurrentCulture;
 
             using (FileStream fs = File.OpenRead(fileName))
                 return ReadStream<T>(fs, encoding, culture, skipLines, options).ToList();
@@ -180,14 +180,14 @@ namespace Signum.Utilities
 
         public static IEnumerable<T> ReadStream<T>(Stream stream, Encoding? encoding = null, CultureInfo? culture = null, int skipLines = 1, CsvReadOptions<T>? options = null) where T : class, new()
         {
-            encoding = encoding ?? DefaultEncoding;
+            encoding ??= DefaultEncoding;
             var defCulture = culture ?? DefaultCulture ?? CultureInfo.CurrentCulture;
             var defOptions = options ?? new CsvReadOptions<T>();
 
             var members = CsvMemberCache<T>.Members;
             var parsers = members.Select(m => GetParser(defCulture, m, defOptions.ParserFactory)).ToList();
 
-            Regex regex = GetRegex(defCulture, defOptions.RegexTimeout);
+            Regex regex = GetRegex(defCulture, defOptions.RegexTimeout, defOptions.ListSeparator);
 
             if (defOptions.AsumeSingleLine)
             {
@@ -354,24 +354,17 @@ namespace Signum.Utilities
 
         static ConcurrentDictionary<char, Regex> regexCache = new ConcurrentDictionary<char, Regex>();
         const string BaseRegex = @"^((?<val>'(?:[^']+|'')*'|[^;\r\n]*))?((?!($|\r\n));(?<val>'(?:[^']+|'')*'|[^;\r\n]*))*($|\r\n)";
-        static Regex GetRegex(CultureInfo culture, TimeSpan timeout)
+        static Regex GetRegex(CultureInfo culture, TimeSpan timeout, char? listSeparator = null)
         {
-            char separator = GetListSeparator(culture);
+            char separator = listSeparator ?? GetListSeparator(culture);
 
             return regexCache.GetOrAdd(separator, s =>
                 new Regex(BaseRegex.Replace('\'', '"').Replace(';', s), RegexOptions.Multiline | RegexOptions.ExplicitCapture, timeout));
         }
-
+  
         private static char GetListSeparator(CultureInfo culture)
         {
-            //Temp Hack https://github.com/dotnet/runtime/issues/43795
-            if (culture.NumberFormat.NumberDecimalSeparator == ",")
-                return ';';
-
-
-            return ',';
-
-            //return culture.TextInfo.ListSeparator.SingleEx();
+            return culture.TextInfo.ListSeparator.SingleEx();
         }
 
         static class CsvMemberCache<T>
@@ -402,7 +395,7 @@ namespace Signum.Utilities
         {
             if (s.StartsWith("\"") && s.EndsWith("\""))
             {
-                string str = s.Substring(1, s.Length - 2).Replace("\"\"", "\"");
+                string str = s[1..^1].Replace("\"\"", "\"");
 
                 return Regex.Replace(str, "(?<!\r)\n", "\r\n");
             }
@@ -444,6 +437,7 @@ namespace Signum.Utilities
         public Func<Match, T>? Constructor;
         public Func<Exception, Match?, bool>? SkipError;
         public TimeSpan RegexTimeout = Regex.InfiniteMatchTimeout;
+        public char? ListSeparator;
     }
 
 

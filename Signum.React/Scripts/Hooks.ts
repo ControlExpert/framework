@@ -55,9 +55,24 @@ export interface Size {
   height: number;
 }
 
-export function useSize<T extends HTMLElement = HTMLDivElement>(initialTimeout = 0, resizeTimeout = 300): { size: Size | undefined, setContainer: (element: T | null) => void } {
+export function whenVisible<T extends HTMLElement>(element: T, callback: (visible: boolean) => void, options?: IntersectionObserverInit) {
+
+  var observer = new IntersectionObserver((entries, observer) => {
+    entries.forEach(entry => {
+      callback(entry.intersectionRatio > 0);
+    });
+  }, options);
+
+  observer.observe(element);
+
+  return observer;
+}
+
+export function useSize<T extends HTMLElement = HTMLDivElement>(initialTimeout = 0, resizeTimeout = 300, autoResetOnHide = false): { size: Size | undefined, setContainer: (element: T | null) => void } {
   const [size, setSize] = React.useState<Size | undefined>();
+  const sizeRef = useUpdatedRef(size);
   const divElement = React.useRef<T | null>(null);
+
   function setNewSize() {
     const rect = divElement.current!.getBoundingClientRect();
     if (size == null || size.width != rect.width || size.height != rect.height)
@@ -65,16 +80,34 @@ export function useSize<T extends HTMLElement = HTMLDivElement>(initialTimeout =
   }
 
   const initialHandle = React.useRef<number | null>(null);
+  const visibleObserver = React.useRef<IntersectionObserver | null>(null);
+
   function setContainer(div: T | null) {
 
     if (initialHandle.current)
       clearTimeout(initialHandle.current);
 
+    if (visibleObserver.current)
+      visibleObserver.current.disconnect();
+
     if (divElement.current = div) {
-      if (initialTimeout)
-        initialHandle.current = setTimeout(setNewSize, initialTimeout);
-      else
-        setNewSize();
+
+      if (div.clientHeight == 0 && div.clientWidth == 0)
+        setSize(undefined);
+
+      visibleObserver.current = whenVisible(div, (visible) => {
+        if (sizeRef.current != null && !autoResetOnHide)
+          return;
+
+        if (visible) {
+          if (initialTimeout)
+            initialHandle.current = setTimeout(setNewSize, initialTimeout);
+          else
+            setNewSize();
+        }
+        else 
+          setSize(undefined);
+      });
     }
   }
 
@@ -101,6 +134,9 @@ export function useSize<T extends HTMLElement = HTMLDivElement>(initialTimeout =
 
       if (initialHandle.current)
         clearTimeout(initialHandle.current);
+
+      if (visibleObserver.current)
+        visibleObserver.current.disconnect();
 
       window.removeEventListener("resize", onResize);
     };
@@ -184,7 +220,7 @@ export function useAPI<T>(makeCall: (signal: AbortSignal, oldData: T | undefined
   return data && data.result;
 }
 
-function areEqual(depsA: ReadonlyArray<any>, depsB: ReadonlyArray<any>) {
+export function areEqual(depsA: React.DependencyList, depsB: React.DependencyList) {
 
   if (depsA.length !== depsB.length)
     return false;
@@ -273,3 +309,32 @@ export function useHistoryListen(locationChanged: (location: History.Location, a
     return () => { unregisterCallback.current!(); }
   }, [enabled, ...(extraDeps || [])]);
 }
+
+export const useDoubleClick = (doubleClick: React.MouseEventHandler, click: React.MouseEventHandler, options?: { timeout?: number }) => {
+  options = {
+    timeout: 200,
+    ...options,
+  };
+
+  /** @type {{ current: number }} */
+  const handleRef = React.useRef<number | undefined>();
+
+  const clearClickTimeout = () => {
+    if (handleRef) {
+      clearTimeout(handleRef.current);
+      handleRef.current = undefined;
+    }
+  };
+
+  return React.useCallback((event: React.MouseEvent) => {
+    clearClickTimeout();
+    if (click && event.detail === 1) {
+      handleRef.current = setTimeout(() => {
+        click(event);
+      }, options!.timeout);
+    }
+    if (event.detail % 2 === 0) {
+      doubleClick(event);
+    }
+  }, [click, doubleClick, options.timeout]);
+};

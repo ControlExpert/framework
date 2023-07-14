@@ -11,6 +11,7 @@ import { Property } from 'csstype';
 import "./Search.css"
 import { ButtonBarElement, StyleContext } from '../TypeContext';
 import { useForceUpdate, usePrevious, useStateWithPromise } from '../Hooks'
+import { RefreshMode } from '../Signum.Entities.DynamicQuery';
 
 export interface SimpleFilterBuilderProps {
   findOptions: FindOptions;
@@ -43,12 +44,13 @@ export interface SearchControlProps {
   allowChangeColumns?: boolean;
   allowChangeOrder?: boolean;
   create?: boolean;
+  createButtonClass?: string;
   view?: boolean | "InPlace";
   largeToolbarButtons?: boolean;
-  avoidAutoRefresh?: boolean;
+  defaultRefreshMode?: RefreshMode;
   avoidChangeUrl?: boolean;
   throwIfNotFindable?: boolean;
-  refreshKey?: any;
+  deps?: React.DependencyList;
   extraOptions?: any;
   enableAutoFocus?: boolean;
   simpleFilterBuilder?: (sfbc: Finder.SimpleFilterBuilderContext) => React.ReactElement<any> | undefined;
@@ -60,8 +62,8 @@ export interface SearchControlProps {
   onSearch?: (fo: FindOptionsParsed, dataChange: boolean) => void;
   onResult?: (table: ResultTable, dataChange: boolean) => void;
   //Return "no_change" to prevent refresh. Navigator.view won't be called by search control, but returning an entity allows to return it immediatly in a SearchModal in find mode.  
-  onCreate?: () => Promise<undefined | EntityPack<any> | ModifiableEntity | "no_change">;
-  onCreateFinished?: (entity: EntityPack<any> | ModifiableEntity | undefined) => void;
+  onCreate?: (scl: SearchControlLoaded) => Promise<undefined | EntityPack<any> | ModifiableEntity | "no_change">;
+  onCreateFinished?: (entity: EntityPack<Entity> | ModifiableEntity | Lite<Entity> | undefined, scl: SearchControlLoaded) => void;
   styleContext?: StyleContext;
 }
 
@@ -79,8 +81,8 @@ function is_touch_device(): boolean {
 export interface SearchControlHandler {
   findOptions: FindOptions;
   state?: SearchControlState;
-  doSearch(): void;
-  doSearchPage1(): void;
+  doSearch(opts: { dataChanged?: boolean, force?: boolean }): void;
+  doSearchPage1(force?: boolean): void;
   searchControlLoaded: SearchControlLoaded | null;
 }
 
@@ -102,8 +104,8 @@ const SearchControl = React.forwardRef(function SearchControl(p: SearchControlPr
       return searchControlLoaded.current;
     },
     state: state,
-    doSearch: () => searchControlLoaded.current && searchControlLoaded.current.doSearch(),
-    doSearchPage1: () => searchControlLoaded.current && searchControlLoaded.current.doSearchPage1(),
+    doSearch: opts => searchControlLoaded.current && searchControlLoaded.current.doSearch(opts),
+    doSearchPage1: force => searchControlLoaded.current && searchControlLoaded.current.doSearchPage1(force),
   };
   React.useImperativeHandle(ref, () => handler, [p.findOptions, state, searchControlLoaded.current]);
 
@@ -189,8 +191,9 @@ const SearchControl = React.forwardRef(function SearchControl(p: SearchControlPr
         allowChangeColumns={p.allowChangeColumns != null ? p.allowChangeColumns : true}
         allowChangeOrder={p.allowChangeOrder != null ? p.allowChangeOrder : true}
         create={p.create != null ? p.create : tis.some(ti => Navigator.isCreable(ti, { isSearch: true }))}
-        view={p.view != null ? p.view : tis.some(ti => Navigator.isViewable(ti, { isSearch: true }))}
+        createButtonClass={p.createButtonClass}
 
+        view={p.view != null ? p.view : tis.some(ti => Navigator.isViewable(ti, { isSearch: true }))}
 
         allowSelection={p.allowSelection != null ? p.allowSelection : qs && qs.allowSelection != null ? qs!.allowSelection : true}
         showContextMenu={p.showContextMenu ?? qs?.showContextMenu ?? ((fo) => fo.groupResults ? "Basic" : true)}
@@ -199,9 +202,9 @@ const SearchControl = React.forwardRef(function SearchControl(p: SearchControlPr
         showBarExtension={p.showBarExtension != null ? p.showBarExtension : true}
         showBarExtensionOption={p.showBarExtensionOption}
         largeToolbarButtons={p.largeToolbarButtons != null ? p.largeToolbarButtons : false}
-        avoidAutoRefresh={p.avoidAutoRefresh != null ? p.avoidAutoRefresh : false}
+        defaultRefreshMode={p.defaultRefreshMode}
         avoidChangeUrl={p.avoidChangeUrl != null ? p.avoidChangeUrl : true}
-        refreshKey={p.refreshKey}
+        deps={p.deps}
         extraOptions={p.extraOptions}
 
         enableAutoFocus={p.enableAutoFocus == null ? false : p.enableAutoFocus}

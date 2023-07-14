@@ -58,7 +58,7 @@ namespace Signum.Engine
                      }).ToList();
 
                 StringBuilder sb = new StringBuilder();
-                sb.AppendLine($@"[TableName(""{tableName.ToString()}"")]");
+                sb.AppendLine($@"[TableName(""{tableName}"")]");
                 sb.AppendLine($"public class {tableName.Name} : IView");
                 sb.AppendLine(@"{");
                 foreach (var c in columns)
@@ -86,8 +86,51 @@ namespace Signum.Engine
             return Schema.Current.GenerationScipt();
         }
 
+       
+
+        public static void NewDatabase()
+        {
+            var databaseName = Connector.Current.DatabaseName();
+            if (Database.View<SysTables>().Any())
+            {
+                SafeConsole.WriteLineColor(ConsoleColor.Red, $"Are you sure you want to delete all the data in the database '{databaseName}'?");
+                Console.Write($"Confirm by writing the name of the database:");
+                string val = Console.ReadLine()!;
+                if (val.ToLower() != databaseName.ToLower())
+                {
+                    Console.WriteLine($"Wrong name. No changes where made");
+                    Console.WriteLine();
+                    return;
+                }
+            }
+
+            Console.Write("Creating new database...");
+            Administrator.TotalGeneration();
+            Console.WriteLine("Done.");
+        }
+
+        public static Func<bool> AvoidSimpleSynchronize = () => true;
+
+        public static void Synchronize()
+        {
+            if (AvoidSimpleSynchronize())
+                return; 
+
+            Console.WriteLine();
+
+            SqlPreCommand? command = Administrator.TotalSynchronizeScript();
+            if (command == null)
+            {
+                SafeConsole.WriteLineColor(ConsoleColor.Green, "Already synchronized!");
+                return;
+            }
+
+            command.OpenSqlFileRetry();
+        }
+
         public static SqlPreCommand? TotalSynchronizeScript(bool interactive = true, bool schemaOnly = false)
         {
+
             var command = Schema.Current.SynchronizationScript(interactive, schemaOnly);
 
             if (command == null)
@@ -153,22 +196,37 @@ namespace Signum.Engine
         internal static readonly ThreadVariable<Func<ObjectName, ObjectName>?> registeredViewNameReplacer = Statics.ThreadVariable<Func<ObjectName, ObjectName>?>("overrideDatabase");
         public static IDisposable OverrideViewNameReplacer(Func<ObjectName, ObjectName> replacer)
         {
-            var old = registeredViewNameReplacer.Value;
-            registeredViewNameReplacer.Value = old == null ? replacer : n =>
-            {
-                var rep = replacer(n);
-                if (rep != n)
-                    return rep;
-
-                return old!(n);
-            };
-            return new Disposable(() => registeredViewNameReplacer.Value = old);
+            registeredViewNameReplacer.Value += replacer;
+            return new Disposable(() => registeredViewNameReplacer.Value -= replacer);
         }
+
+        public static event Func<ObjectName, ObjectName>? GlobalViewNameReplacer;
 
         public static ObjectName ReplaceViewName(ObjectName name)
         {
-            var replacer = registeredViewNameReplacer.Value;
-            return replacer == null ? name : replacer(name);
+            var scopeReplacer = registeredViewNameReplacer.Value;
+            if(scopeReplacer != null)
+            {
+                foreach (var rep in scopeReplacer.GetInvocationListTyped())
+                {
+                    var on = rep(name);
+                    if (on != null)
+                        return on;
+                }
+            }
+
+            var globalReplacer = GlobalViewNameReplacer;
+            if (globalReplacer != null)
+            {
+                foreach (var rep in globalReplacer.GetInvocationListTyped())
+                {
+                    var on = rep(name);
+                    if (on != null)
+                        return on;
+                }
+            }
+
+            return name;
         }
 
         public static IDisposable OverrideDatabaseInSysViews(DatabaseName? database)
@@ -280,7 +338,7 @@ namespace Signum.Engine
         public static void SaveDisableIdentity<T>(T entities)
             where T : Entity
         {
-            using (Transaction tr = new Transaction())
+            using (var tr = new Transaction())
             using (Administrator.SaveDisableIdentity<T>())
             {
                 Database.Save(entities);
@@ -291,7 +349,7 @@ namespace Signum.Engine
         public static void SaveListDisableIdentity<T>(IEnumerable<T> entities)
             where T : Entity
         {
-            using (Transaction tr = new Transaction())
+            using (var tr = new Transaction())
             using (Administrator.SaveDisableIdentity<T>())
             {
                 Database.SaveList(entities);
@@ -487,7 +545,7 @@ namespace Signum.Engine
         {
             var table = Schema.Current.Table(type);
 
-            using (Transaction tr = new Transaction())
+            using (var tr = new Transaction())
             {
                 table.TablesMList().ToList().ForEach(mlist =>
                 {
@@ -581,7 +639,7 @@ namespace Signum.Engine
         public static void MoveAllForeignKeys<T>(Lite<T> fromEntity, Lite<T> toEntity, Func<ITable, IColumn, bool>? shouldMove = null)
         where T : Entity
         {
-            using (Transaction tr = new Transaction())
+            using (var tr = new Transaction())
             {
                 MoveAllForeignKeysPrivate<T>(fromEntity, toEntity, shouldMove).Select(a => a.UpdateScript).Combine(Spacing.Double)!.ExecuteLeaves();
                 tr.Commit();

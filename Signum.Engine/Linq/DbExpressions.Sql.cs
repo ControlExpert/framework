@@ -1,3 +1,4 @@
+using NpgsqlTypes;
 using Signum.Engine;
 using Signum.Engine.Maps;
 using Signum.Entities;
@@ -39,6 +40,7 @@ namespace Signum.Engine.Linq
         SqlVariable,
         SqlLiteral,
         SqlCast,
+        SqlCastLazy,
         Case,
         RowNumber,
         Like,
@@ -312,22 +314,20 @@ namespace Signum.Engine.Linq
     {
         public static bool OrderMatters(this AggregateSqlFunction aggregateFunction)
         {
-            switch (aggregateFunction)
+            return aggregateFunction switch
             {
-                case AggregateSqlFunction.Average:
-                case AggregateSqlFunction.StdDev:
-                case AggregateSqlFunction.StdDevP:
-                case AggregateSqlFunction.Count:
-                case AggregateSqlFunction.CountDistinct:
-                case AggregateSqlFunction.Min:
-                case AggregateSqlFunction.Max:
-                case AggregateSqlFunction.Sum:
-                    return false;
-                case AggregateSqlFunction.string_agg:
-                    return true;
-                default:
-                    throw new UnexpectedValueException(aggregateFunction);
-            }
+                AggregateSqlFunction.Average or 
+                AggregateSqlFunction.StdDev or 
+                AggregateSqlFunction.StdDevP or 
+                AggregateSqlFunction.Count or 
+                AggregateSqlFunction.CountDistinct or
+                AggregateSqlFunction.Min or 
+                AggregateSqlFunction.Max or 
+                AggregateSqlFunction.Sum => false,
+
+                AggregateSqlFunction.string_agg => true,
+                _ => throw new UnexpectedValueException(aggregateFunction),
+            };
         }
     }
 
@@ -665,6 +665,8 @@ namespace Signum.Engine.Linq
         date_trunc,
         age,
         tstzrange,
+        upper,
+        lower,
     }
 
     public static class PostgressOperator
@@ -758,6 +760,34 @@ namespace Signum.Engine.Linq
         public static int ToSqlWeekDay(DayOfWeek dayOfWeek, byte dateFirst /*keep parameter here to evaluate now*/)
         {
             return (((int)dayOfWeek - dateFirst + 7) % 7) + 1;
+        }
+    }
+
+    internal class SqlCastLazyExpression : DbExpression
+    {
+        public readonly AbstractDbType DbType;
+        public readonly Expression Expression;
+
+        public SqlCastLazyExpression(Type type, Expression expression)
+            : this(type, expression, Schema.Current.Settings.DefaultSqlType(type.UnNullify()))
+        {
+        }
+
+        public SqlCastLazyExpression(Type type, Expression expression, AbstractDbType dbType)
+            : base(DbExpressionType.SqlCastLazy, type)
+        {
+            this.Expression = expression;
+            this.DbType = dbType;
+        }
+
+        public override string ToString()
+        {
+            return "LazyCast({0} as {1})".FormatWith(Expression.ToString(), DbType.ToString(Schema.Current.Settings.IsPostgres));
+        }
+
+        protected override Expression Accept(DbExpressionVisitor visitor)
+        {
+            return visitor.VisitSqlCastLazy(this);
         }
     }
 
@@ -875,7 +905,7 @@ namespace Signum.Engine.Linq
                 throw new ArgumentNullException(nameof(condition));
 
             if (condition.Type.UnNullify() != typeof(bool))
-                throw new ArgumentException("condition");
+                throw new ArgumentException("condition should be boolean");
 
             this.Condition = condition;
             this.Value = value ?? throw new ArgumentNullException(nameof(value));
@@ -939,7 +969,7 @@ namespace Signum.Engine.Linq
             Type refType = this.Type.UnNullify();
 
             if (whens.Any(w => w.Value.Type.UnNullify() != refType))
-                throw new ArgumentException("whens");
+                throw new ArgumentException("inconsistent whens");
 
             this.Whens = whens.ToReadOnly();
             this.DefaultValue = defaultValue;
@@ -982,16 +1012,42 @@ namespace Signum.Engine.Linq
         public readonly Expression? Min;
         public readonly Expression? Max;
         public readonly Expression? PostgresRange;
-        public readonly bool AsUtc;
 
-        public IntervalExpression(Type type, Expression? min, Expression? max, Expression? postgresRange, bool asUtc)
+        public readonly Type ElementType;
+
+        public IntervalExpression(Type type, Expression? min, Expression? max, Expression? postgresRange)
             :base(DbExpressionType.Interval, type)
-
         {
-            this.Min = min ?? (postgresRange == null ? throw new ArgumentException(nameof(min)) : (Expression?)null);
-            this.Max = max ?? (postgresRange == null ? throw new ArgumentException(nameof(max)) : (Expression?)null);
-            this.PostgresRange = postgresRange ?? ((min == null || max == null) ? throw new ArgumentException(nameof(min)) : (Expression?)null);
-            this.AsUtc = asUtc;
+#pragma warning disable IDE0075 // Simplify conditional expression
+            var isNullable =
+                 type.IsInstantiationOf(typeof(NullableInterval<>)) ? true :
+                 type.IsInstantiationOf(typeof(Interval<>)) ? false :
+                 throw new UnexpectedValueException(type);
+#pragma warning restore IDE0075 // Simplify conditional expression
+
+            this.ElementType = isNullable ?  type.GetGenericArguments()[0].Nullify() : type.GetGenericArguments()[0];
+            
+            if (postgresRange == null)
+            {
+                this.Min = min == null ? throw new ArgumentNullException(nameof(min)) :
+                    min.Type != ElementType ? throw new ArgumentException($"{nameof(min)} should be a {ElementType.TypeName()}"): 
+                    min;
+
+
+                this.Max = max == null ? throw new ArgumentNullException(nameof(max)) :
+                    max.Type != ElementType ? throw new ArgumentException($"{nameof(max)} should be a {ElementType.TypeName()}") :
+                    max;
+            }
+            else
+            {
+                var rangeType = typeof(NpgsqlRange<>).MakeGenericType(type.GetGenericArguments()[0]);
+
+                if (min != null || max != null)
+                    throw new InvalidOperationException($"{nameof(min)} and {nameof(max)} should be null if {nameof(postgresRange)} is used");
+
+                this.PostgresRange = postgresRange.Type != rangeType ? throw new ArgumentException($"{nameof(postgresRange)} should be a {rangeType.TypeName()}") :
+                    postgresRange;
+            }
         }
 
         public override string ToString()
@@ -1012,7 +1068,6 @@ namespace Signum.Engine.Linq
 
     public static class SystemTimeExpressions
     {
-        static MethodInfo miOverlaps = ReflectionTools.GetMethodInfo((Interval<DateTime> pair) => pair.Overlaps(new Interval<DateTime>()));
         internal static Expression? Overlaps(this IntervalExpression? interval1, IntervalExpression? interval2)
         {
             if (interval1 == null)
@@ -1030,6 +1085,15 @@ namespace Signum.Engine.Linq
             var max1 = interval1.Max!;
             var min2 = interval2.Min!;
             var max2 = interval2.Max!;
+
+            if (min1 is SqlCastLazyExpression min1L &&
+               max1 is SqlCastLazyExpression max1L &&
+               min2 is SqlCastLazyExpression min2L &&
+               max2 is SqlCastLazyExpression max2L)
+                return Expression.And(
+                 Expression.GreaterThan(max1L.Expression, min2L.Expression),
+                 Expression.GreaterThan(max2L.Expression, min1L.Expression)
+                 );
 
             return Expression.And(
                  Expression.GreaterThan(max1, min2),
@@ -1055,10 +1119,10 @@ namespace Signum.Engine.Linq
             : base(DbExpressionType.Like, typeof(bool))
         {
             if (expression == null || expression.Type != typeof(string))
-                throw new ArgumentException("expression");
+                throw new ArgumentException("expression is wrong");
 
             if (pattern == null || pattern.Type != typeof(string))
-                throw new ArgumentException("pattern");
+                throw new ArgumentException("pattern is wrong");
             this.Expression = expression;
             this.Pattern = pattern;
         }

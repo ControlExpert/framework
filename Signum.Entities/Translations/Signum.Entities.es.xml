@@ -163,6 +163,7 @@
     <Member Name="groupResults" Description="Agrupar resultados" />
     <Member Name="hideFilters" Description="Ocultar filtros" />
     <Member Name="insertColumn" Description="Insertar columna" />
+    <Member Name="joinMode" Description="Modo de unión" />
     <Member Name="loading" Description="Cargando..." />
     <Member Name="loseCurrentChanges" Description="¿Perder cambios?" />
     <Member Name="moveDown" Description="Bajar" />
@@ -191,7 +192,6 @@
     <Member Name="showPeriod" Description="Mostrar período" />
     <Member Name="showPreviousOperation" Description="Mostrar operación anterior" />
     <Member Name="showRecords" Description="Mostrar registros" />
-    <Member Name="Time" Description="Hora" />
     <Member Name="ungroupResults" Description="Desagrupar resultados" />
     <Member Name="view" Description="Ver" />
   </Type>
@@ -257,6 +257,7 @@
     <Member Name="Setters" Description="Establecedor" />
     <Member Name="StateShouldBe0InsteadOf1" Description="Estado debe ser {0} (en lugar de {1})" />
     <Member Name="TheOperation0DidNotReturnAnEntity" Description="{0} no devolvió ninguna entidad" />
+    <Member Name="TheStateOf0ShouldBe1InsteadOf2" Description="El estado de {0} debería ser {1} (en vez de {2})" />
   </Type>
   <Type Name="OperationSymbol" Description="Símbolo Operación" />
   <Type Name="OrderType" Description="Tipo de orden">
@@ -266,7 +267,7 @@
   <Type Name="PaginationMessage">
     <Member Name="All" Description="Todas" />
   </Type>
-  <Type Name="PaginationMode">
+  <Type Name="PaginationMode" Description="Modo paginación">
     <Member Name="All" Description="Todos" />
     <Member Name="Firsts" Description="Primeros" />
     <Member Name="Paginate" Description="Paginar" />
@@ -337,9 +338,11 @@
     <Member Name="SecondStart" Description="Segundo de inicio" />
     <Member Name="Step0" Description="Paso {0}" />
     <Member Name="Text" Description="texto" />
+    <Member Name="TimeOfDay" Description="Hora del día" />
     <Member Name="TotalDays" Description="Total de días" />
     <Member Name="TotalHours" Description="Total de horas" />
     <Member Name="TotalMilliseconds" Description="Total de milisegundos" />
+    <Member Name="TotalMinutes" Description="Minutos totales" />
     <Member Name="TotalSeconds" Description="Total de segundos" />
     <Member Name="WeekNumber" Description="Número semana" />
     <Member Name="WeekStart" Description="Semana de inicio" />
@@ -363,12 +366,13 @@
     <Member Name="MoveToday" Description="Hoy" />
     <Member Name="NoneSelected" Description="sin elementos seleccionados" />
     <Member Name="OpenCombobox" Description="abrir combo" />
-    <Member Name="OpenDropdown" Description="abrir desplegable" />
-    <Member Name="Placeholder" Description="" />
     <Member Name="RemoveLabel" Description="Eliminar elemento seleccionado" />
     <Member Name="SelectedItems0" Description="Elementos seleccionados: {0}" />
     <Member Name="TagsLabel" Description="Elementos seleccionados" />
-    <Member Name="TimeButton" Description="Seleccionar hora" />
+  </Type>
+  <Type Name="RefreshMode">
+    <Member Name="Auto" Description="Auto" />
+    <Member Name="Manual" Description="Manual" />
   </Type>
   <Type Name="RoundingType">
     <Member Name="Ceil" Description="Cielo" />
@@ -396,6 +400,7 @@
     <Member Name="CreateNew0_G" Description="Crear nuev[m:o|f:a] {0}" />
     <Member Name="DeleteAllFilter" Description="Eliminar todos los filtros" />
     <Member Name="DeleteFilter" Description="Borrar filtro" />
+    <Member Name="DerivedGroupKey" Description="Derivado de la clave de grupo " />
     <Member Name="DisplayName" Description="Nombre para mostrar" />
     <Member Name="DoYouWantToSelectTheNew01_G" Description="¿Desea devolver el nuevo {0} ({1})?" />
     <Member Name="Explore" Description="Explorar" />
@@ -404,6 +409,10 @@
     <Member Name="Find" Description="Buscar" />
     <Member Name="FinderOf0" Description="Buscador de {0}" />
     <Member Name="First0Results_N" Description="primer[os] {0} resultado[s]." />
+    <Member Name="GoBackToPageOne" Description="volver a la página uno" />
+    <Member Name="GroupKey" Description="Clave de grupo" />
+    <Member Name="HiddenColumn" Description="Columna oculta" />
+    <Member Name="HideHiddenColumns" Description="Ocultar columnas ocultas" />
     <Member Name="HidePinnedFiltersOptions" Description="Ocultar opciones de filtro ancladas" />
     <Member Name="Label" Description="Etiqueta" />
     <Member Name="Name" Description="Nombre" />
@@ -412,6 +421,8 @@
     <Member Name="NoColumnSelected" Description="Ninguna columna seleccionada" />
     <Member Name="NoFiltersSpecified" Description="Ningún filtro especificado" />
     <Member Name="NoResultsFound" Description="No se encontraron resultados" />
+    <Member Name="NoResultsFoundInPage01" Description="No se encontraron resultados en la página {0}, {1}" />
+    <Member Name="NoResultsInThisPage" Description="No hay resultados en esta página" />
     <Member Name="Of" Description="de" />
     <Member Name="Operation" Description="Operación" />
     <Member Name="Operations" Description="Operaciones" />
@@ -432,8 +443,11 @@
     <Member Name="ReturnNewEntity" Description="¿Devolver nueva entidad?" />
     <Member Name="Row" Description="Fila" />
     <Member Name="Search" Description="Buscar" />
+    <Member Name="ShowHiddenColumns" Description="Mostrar columnas ocultas" />
     <Member Name="ShowPinnedFiltersOptions" Description="Mostrar opciones de filtro ancladas" />
     <Member Name="SplitText" Description="Dividir texto" />
+    <Member Name="SummaryHeader" Description="Resumen en cabecera" />
+    <Member Name="SummaryHeaderMustBeAnAggregate" Description="Resumen en cabeceradebe ser un agregado (Suma, Recuento, etc.)" />
     <Member Name="ThereIsNo0" Description="No hay {0}" />
     <Member Name="ToPreventPerformanceIssuesAutomaticSearchIsDisabledCheckYourFiltersAndThenClickSearchButton" Description="Para evitar problemas de rendimiento, la búsqueda automática está deshabilitada, compruebe primero los filtros y, a continuación, haga clic en el botón [Buscar]." />
     <Member Name="Value" Description="Valor" />
@@ -446,6 +460,7 @@
     <Member Name="_0Selector" Description="Selector de {0}" />
     <Member Name="ChooseAValue" Description="Elige un valor" />
     <Member Name="ConstructorSelector" Description="Selector de constructor" />
+    <Member Name="CreationOf0Cancelled" Description="Creación de {0} cancelada" />
     <Member Name="PleaseChooseA0ToContinue" Description="Por favor, elija un {0} para continuar:" />
     <Member Name="PleaseChooseAValueToContinue" Description="Por favor, elige un valor para continuar:" />
     <Member Name="PleaseSelectAConstructor" Description="Por favor seleccione un Constructor" />
@@ -469,6 +484,11 @@
   <Type Name="SynchronizerMessage">
     <Member Name="EndOfSyncScript" Description="--- FIN DEL SCRIPT DE SINCRONIZACION" />
     <Member Name="StartOfSyncScriptGeneratedOn0" Description="--- INICIO DEL SCRIPT DE SINCRONIZACIÓN GENERADO EL {0}" />
+  </Type>
+  <Type Name="SystemTimeJoinMode">
+    <Member Name="AllCompatible" Description="Todos compatibles" />
+    <Member Name="Current" Description="Actual" />
+    <Member Name="FirstCompatible" Description="Primero compatible" />
   </Type>
   <Type Name="SystemTimeMode">
     <Member Name="All" Description="Todo" />
@@ -511,9 +531,12 @@
     <Member Name="_0IsNotA1_G" Description="{0} no es [m:un|f:una] {1}" />
     <Member Name="_0IsNotAllowed" Description="{0} no está permitido" />
     <Member Name="_0IsNotAllowedOnState1" Description="{0} no se permite en estado {1}" />
+    <Member Name="_0IsNotCompatibleWith1" Description="{0} no es compatible con {1}" />
     <Member Name="_0IsNotSet" Description="{0} no establecido" />
+    <Member Name="_0IsRepeated" Description="{0} está repetido" />
     <Member Name="_0IsSet" Description="{0} está establecido" />
     <Member Name="_0Or1ShouldBeSet" Description="{0} o {1} deben establecerse" />
+    <Member Name="_0ShouldBe1" Description="{0} debería ser {1}" />
     <Member Name="_0ShouldBe12" Description="{0} debe ser {1} {2}" />
     <Member Name="_0ShouldBe1InsteadOf2" Description="{0} debe ser {1} en lugar de {2}" />
     <Member Name="_0ShouldBeADateInThePast" Description="{0} debe ser una fecha pasada" />

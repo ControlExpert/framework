@@ -191,6 +191,14 @@ namespace Signum.Engine.Linq
             return castExpr;
         }
 
+        protected internal virtual Expression VisitSqlCastLazy(SqlCastLazyExpression castExpr)
+        {
+            var expression = Visit(castExpr.Expression);
+            if (expression != castExpr.Expression)
+                return new SqlCastLazyExpression(castExpr.Type, expression, castExpr.DbType);
+            return castExpr;
+        }
+
         protected internal virtual Expression VisitTable(TableExpression table)
         {
             return table;
@@ -528,7 +536,7 @@ namespace Signum.Engine.Linq
             Expression? max = Visit(interval.Max);
             Expression? postgresRange = Visit(interval.PostgresRange);
             if (min != interval.Min || max != interval.Max || postgresRange != interval.PostgresRange)
-                return new IntervalExpression(interval.Type, min, max, postgresRange, interval.AsUtc);
+                return new IntervalExpression(interval.Type, min, max, postgresRange);
             return interval;
         }
     }
