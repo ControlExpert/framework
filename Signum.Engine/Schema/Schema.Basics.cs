@@ -13,6 +13,7 @@ using Signum.Engine.Linq;
 using System.Globalization;
 using NpgsqlTypes;
 using System.Runtime.CompilerServices;
+using Signum.Utilities.DataStructures;
 
 namespace Signum.Engine.Maps
 {
@@ -77,6 +78,15 @@ namespace Signum.Engine.Maps
                     new SqlServerPeriodColumn(this.StartColumnName!, ColumnType.Start),
                     new SqlServerPeriodColumn(this.EndColumnName!, ColumnType.End)
                 };
+        }
+
+        internal IntervalExpression? IntervalExpression(Alias tableAlias)
+        {
+            return new IntervalExpression(typeof(NullableInterval<DateTimeOffset>),
+                StartColumnName == null ? null : new SqlCastLazyExpression(typeof(DateTimeOffset?), new ColumnExpression(typeof(DateTime?), tableAlias, StartColumnName), new AbstractDbType(System.Data.SqlDbType.DateTimeOffset)),
+                EndColumnName == null ? null : new SqlCastLazyExpression(typeof(DateTimeOffset?), new ColumnExpression(typeof(DateTime?), tableAlias, EndColumnName), new AbstractDbType(System.Data.SqlDbType.DateTimeOffset)),
+                PostgreeSysPeriodColumnName == null ? null : new ColumnExpression(typeof(NpgsqlRange<DateTimeOffset>), tableAlias, PostgreeSysPeriodColumnName)
+            );
         }
 
         public enum ColumnType
@@ -1234,7 +1244,7 @@ namespace Signum.Engine.Maps
 
         public override IEnumerable<IColumn> Columns()
         {
-            return new IColumn[0];
+            return Array.Empty<IColumn>();
         }
 
         public override IEnumerable<TableIndex> GenerateIndexes(ITable table)

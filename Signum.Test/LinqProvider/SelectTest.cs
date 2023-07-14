@@ -90,7 +90,7 @@ namespace Signum.Test.LinqProvider
         [Fact]
         public void SelectNoColumns()
         {
-            var list = Database.Query<AlbumEntity>().Select(a => new { DateTime.Now, Album = (AlbumEntity?)null, Artist = (Lite<ArtistEntity>?)null }).ToList();
+            var list = Database.Query<AlbumEntity>().Select(a => new { TimeZoneManager.Now, Album = (AlbumEntity?)null, Artist = (Lite<ArtistEntity>?)null }).ToList();
         }
 
         [Fact]
@@ -420,7 +420,7 @@ namespace Signum.Test.LinqProvider
             var list = Database.Query<BandEntity>()
                 .Select(b => new
                 {
-                    Count = b.Members.Count,
+                    b.Members.Count,
                     AnyDead = b.Members.Any(m => m.Dead),
                     DeadCount = b.Members.Count(m => m.Dead),
                     MinId = b.Members.Min(m => m.Id),

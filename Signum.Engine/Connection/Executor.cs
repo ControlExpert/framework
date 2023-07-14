@@ -1,10 +1,10 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
-using System.Data.SqlClient;
 using Signum.Engine.Maps;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Data.SqlClient;
 
 namespace Signum.Engine
 {
@@ -41,12 +41,12 @@ namespace Signum.Engine
             return Connector.Current.UnsafeExecuteDataReader(preCommand, commandType);
         }
 
-        public static Task<DbDataReaderWithCommand> UnsafeExecuteDataReaderAsync(string sql, List<DbParameter>? parameters = null, CommandType commandType = CommandType.Text, CancellationToken token = default(CancellationToken))
+        public static Task<DbDataReaderWithCommand> UnsafeExecuteDataReaderAsync(string sql, List<DbParameter>? parameters = null, CommandType commandType = CommandType.Text, CancellationToken token = default)
         {
             return Connector.Current.UnsafeExecuteDataReaderAsync(new SqlPreCommandSimple(sql, parameters), commandType, token);
         }
 
-        public static Task<DbDataReaderWithCommand> UnsafeExecuteDataReaderAsync(this SqlPreCommandSimple preCommand, CommandType commandType = CommandType.Text, CancellationToken token = default(CancellationToken))
+        public static Task<DbDataReaderWithCommand> UnsafeExecuteDataReaderAsync(this SqlPreCommandSimple preCommand, CommandType commandType = CommandType.Text, CancellationToken token = default)
         {
             return Connector.Current.UnsafeExecuteDataReaderAsync(preCommand, commandType, token);
         }

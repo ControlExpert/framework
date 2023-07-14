@@ -668,6 +668,7 @@ namespace Signum.Entities
         public override string HelpMessage => ValidationMessage.HaveANumberOfElements01.NiceToString().FormatWith(ComparisonType.NiceToString().FirstLower(), Number.ToString());
     }
 
+    [InTypeScript(true)]
     [DescriptionOptions(DescriptionOptions.Members)]
     public enum ComparisonType
     {
@@ -1043,6 +1044,8 @@ namespace Signum.Entities
         _0HasSomeRepeatedElements1,
         [Description("{0} should be {1} {2}")]
         _0ShouldBe12,
+        [Description("{0} should be {1}")]
+        _0ShouldBe1,
         [Description("{0} should be {1} instead of {2}")]
         _0ShouldBe1InsteadOf2,
         [Description("{0} has to be between {1} and {2}")]
@@ -1180,6 +1183,11 @@ namespace Signum.Entities
         ThereAre0InState1,
         [Description("There are {0} that reference this {1}")]
         ThereAre0ThatReferenceThis1,
+
+        [Description("{0} is not compatible with {1}")]
+        _0IsNotCompatibleWith1,
+        [Description("{0} is repeated")]
+        _0IsRepeated,
     }
 
     public static class ValidationMessageHelper

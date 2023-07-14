@@ -67,12 +67,27 @@ namespace Signum.Entities.DynamicQuery
     }
 
     [DescriptionOptions(DescriptionOptions.Members), InTypeScript(true)]
+    public enum RefreshMode
+    {
+        Auto,
+        Manual
+    }
+
+    [DescriptionOptions(DescriptionOptions.Members), InTypeScript(true)]
     public enum SystemTimeMode
     {
         AsOf,
         Between,
         ContainedIn,
         All
+    }
+
+    [DescriptionOptions(DescriptionOptions.Members), InTypeScript(true)]
+    public enum SystemTimeJoinMode
+    {
+        Current,
+        FirstCompatible,
+        AllCompatible,
     }
 
     [DescriptionOptions(DescriptionOptions.Members)]

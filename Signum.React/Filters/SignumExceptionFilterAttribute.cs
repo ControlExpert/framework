@@ -28,7 +28,11 @@ namespace Signum.React.Filters
 
         public static Func<Exception, bool> IncludeErrorDetails = ex => true;
 
-        public static readonly List<Type> AvoidLogException = new List<Type> { typeof(OperationCanceledException) };
+        public static readonly List<Type> AvoidLogException = new() { typeof(OperationCanceledException) };
+
+        public static Func<Exception, HttpError> CustomHttpErrorFactory = ex => new HttpError(ex);
+
+        public static Action<ResourceExecutedContext, ExceptionEntity>? ApplyMixins = null;
 
         public static Func<Exception, HttpError> CustomHttpErrorFactory = ex => new HttpError(ex);
 
@@ -61,6 +65,7 @@ namespace Signum.React.Filters
                         e.QueryString = new BigStringEmbedded(Try(int.MaxValue, () => req.QueryString.ToString()));
                         e.Form = new BigStringEmbedded(Try(int.MaxValue, () => Encoding.UTF8.GetString(body)));
                         e.Session = new BigStringEmbedded();
+                        ApplyMixins?.Invoke(context, e);
                     });
 
                     if (ExpectsJsonResult(context))
@@ -75,7 +80,14 @@ namespace Signum.React.Filters
                             var response = context.HttpContext.Response;
                             response.StatusCode = (int)statusCode;
                             response.ContentType = "application/json";
-                            await response.WriteAsync(JsonSerializer.Serialize(error, SignumServer.JsonSerializerOptions));
+
+                            var user = (IUserEntity?)context.HttpContext.Items[SignumAuthenticationFilter.Signum_User_Key];
+
+                            using (UserHolder.Current == null && user != null ? UserHolder.UserSession(user) : null)
+                            {
+                                await response.WriteAsync(JsonSerializer.Serialize(error, SignumServer.JsonSerializerOptions));
+                            }
+
                             context.ExceptionHandled = true;
                         }
                     }
@@ -83,7 +95,7 @@ namespace Signum.React.Filters
             }
         }
 
-        private string? Try(int size, Func<string?> getValue)
+        private static string? Try(int size, Func<string?> getValue)
         {
             try
             {
@@ -114,7 +126,7 @@ namespace Signum.React.Filters
             return result;
         }
 
-        private HttpStatusCode GetStatus(Type type)
+        private static HttpStatusCode GetStatus(Type type)
         {
             if (type == typeof(UnauthorizedAccessException))
                 return HttpStatusCode.Forbidden;
@@ -140,6 +152,7 @@ namespace Signum.React.Filters
         {
             this.ExceptionMessage = e.Message;
             this.ExceptionType = e.GetType().FullName!;
+            this.Model = e is ModelRequestedException mre ? mre.Model : null;
             if (includeErrorDetails)
             {
                 this.ExceptionId = e.GetExceptionEntity()?.Id.ToString();
@@ -152,13 +165,14 @@ namespace Signum.React.Filters
         public string ExceptionMessage;
         public string? ExceptionId;
         public string? StackTrace;
+        public ModelEntity? Model; 
         public HttpError? InnerException;
     }
 
     public class SignumInitializeFilterAttribute : IAsyncResourceFilter
     {
         public static Action InitializeDatabase = () => throw new InvalidOperationException("SignumInitializeFilterAttribute.InitializeDatabase should be set in Startup");
-        static object lockKey = new object();
+        static object lockKey = new();
         public bool Initialized = false;
 
         public Task OnResourceExecutionAsync(ResourceExecutingContext context, ResourceExecutionDelegate next)

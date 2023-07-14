@@ -5,12 +5,19 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 
 namespace Signum.Upgrade
 {
     public class CodeUpgradeRunner: IEnumerable<CodeUpgradeBase>
     {
         public List<CodeUpgradeBase> Upgrades = new List<CodeUpgradeBase>();
+
+        public CodeUpgradeRunner(bool autoDiscover)
+        {
+            if (autoDiscover)
+                Upgrades = Assembly.GetExecutingAssembly().GetTypes().Where(t => t.BaseType == typeof(CodeUpgradeBase)).Select(t => (CodeUpgradeBase)Activator.CreateInstance(t)!).ToList();
+        }
 
         public IEnumerator<CodeUpgradeBase> GetEnumerator() => Upgrades.GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => Upgrades.GetEnumerator();
@@ -25,14 +32,14 @@ namespace Signum.Upgrade
             var upgradeFile = Path.Combine(uctx.RootFolder, "SignumUpgrade.txt");
             while (true)
             {
-                SetExecuted(uctx, upgradeFile);
+                SetExecuted(upgradeFile);
 
                 if (!Prompt(uctx, upgradeFile))
                     return;
             }
         }
 
-        void SetExecuted(UpgradeContext uctx, string upgradeFile)
+        void SetExecuted(string upgradeFile)
         {
             Console.WriteLine();
             if (!File.Exists(upgradeFile))
@@ -41,7 +48,7 @@ namespace Signum.Upgrade
                 Console.WriteLine();
                 var result = Upgrades.Select(a=>a.Key).And("<< Mark ALL upgrades as executed >>").ChooseConsole(a => a.ToString(), "What do you think is the next upgrade that you should run? (the previous ones will be marked as executed)");
 
-                File.WriteAllLines(upgradeFile, result == null ? new string[0] : Upgrades.TakeWhile(a => a.Key != result).Select(a => a.Key).ToArray());
+                File.WriteAllLines(upgradeFile, result == null ? Array.Empty<string>() : Upgrades.TakeWhile(a => a.Key != result).Select(a => a.Key).ToArray());
                 Console.WriteLine();
                 SafeConsole.WriteLineColor(ConsoleColor.Green, $"File {upgradeFile} created!");
                 SafeConsole.WriteLineColor(ConsoleColor.DarkGray, $"(this file contains the Upgrades that have been run, and should be commited to git)");
@@ -82,17 +89,16 @@ namespace Signum.Upgrade
 
         }
 
-        public bool IsDirtyExceptSubmodules(string folder)
+        static bool IsDirtyExceptSubmodules(string folder)
         {
             using (Repository rep = new Repository(folder))
             {
-                var subModules = rep.Submodules.Select(a => a.Name);
-                var status = rep.RetrieveStatus();
-                return status.Any(a => a.State != FileStatus.Ignored && !subModules.Contains(a.FilePath));
+                var status = rep.RetrieveStatus(new StatusOptions { ExcludeSubmodules = true, Show = StatusShowOption.IndexAndWorkDir });
+                return status.Any(a => a.State != FileStatus.Ignored);
             }
         }
 
-        private bool ExecuteUpgrade(CodeUpgradeBase upgrade, UpgradeContext uctx, string signumUpgradeFile)
+        static bool ExecuteUpgrade(CodeUpgradeBase upgrade, UpgradeContext uctx, string signumUpgradeFile)
         {
             while (IsDirtyExceptSubmodules(uctx.RootFolder))
             {

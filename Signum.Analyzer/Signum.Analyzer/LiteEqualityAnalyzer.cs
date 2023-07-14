@@ -14,24 +14,36 @@ namespace Signum.Analyzer
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
     public class LiteEqualityAnalyzer : DiagnosticAnalyzer
     {
-        public const string DiagnosticId = "SF0003";
-        
-        private static DiagnosticDescriptor RuleLiteEntity = new DiagnosticDescriptor(DiagnosticId,
+        internal readonly static DiagnosticDescriptor RuleEqualsLite = new DiagnosticDescriptor("SF0031",
+            "Prevents unintended reference comparison between two Lite<T>",
+            "Avoid comparing two Lite<T> by reference, consider using 'Is' extension method", "Lite",
+            DiagnosticSeverity.Warning,
+            isEnabledByDefault: true,
+            description: "Checks that two Lite<T> not compared directly, preventing an unintended reference comparison.");
+
+        internal readonly static DiagnosticDescriptor RuleEqualsEntity = new DiagnosticDescriptor("SF0032",
+            "Prevents unintended reference comparison between two Entities",
+            "Avoid comparing two Entities by reference, consider using 'Is' extension method", "Lite",
+            DiagnosticSeverity.Warning,
+            isEnabledByDefault: true,
+            description: "Checks that two Lite<T> not compared directly, preventing an unintended reference comparison.");
+
+        internal readonly static DiagnosticDescriptor RuleLiteEntity = new DiagnosticDescriptor("SF0033",
             "Prevents comparisons between Lite<T> and T",
-            "Impossible to compare Lite<T> and T. Consider using 'Is' extension method", "Lite",
+            "Impossible to compare Lite<T> and T, consider using 'Is' extension method", "Lite",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true,
-            description: "Checks that Lite<T> and T are not compared directly. C# doesn't catch this because Lite<T> is implemented as an interface to have co-variance");
+            description: "Checks that two Entities are not compared directly. C# doesn't catch this because Lite<T> is implemented as an interface to have co-variance.");
 
-        private static DiagnosticDescriptor RuleEntityTypes = new DiagnosticDescriptor(DiagnosticId,
+        internal readonly static DiagnosticDescriptor RuleEntityTypes = new DiagnosticDescriptor("SF0034",
             "Prevents comparisons between Lite<A> and Lite<B>",
             "Impossible to compare Lite<{0}> and Lite<{1}>", "Lite",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true,
-            description: "Checks that Lite<T> and T are not compared directly. C# doesn't catch this because Lite<T> is implemented as an interface to have co-variance");
+            description: "Checks that Lite<T> and T are not compared directly. C# doesn't catch this because Lite<T> is implemented as an interface to have co-variance.");
 
 
-        public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get { return ImmutableArray.Create(RuleEntityTypes, RuleLiteEntity); } }
+        public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get { return ImmutableArray.Create(RuleEqualsLite, RuleEqualsEntity, RuleEntityTypes, RuleLiteEntity); } }
 
         public override void Initialize(AnalysisContext context)
         {
@@ -46,8 +58,8 @@ namespace Signum.Analyzer
 
             var equalsExpression = (BinaryExpressionSyntax)context.Node;
 
-            var left = context.SemanticModel.GetTypeInfo(equalsExpression.Left);
-            var right = context.SemanticModel.GetTypeInfo(equalsExpression.Right);
+            var left = context.SemanticModel.GetTypeInfo(equalsExpression.Left).Type;
+            var right = context.SemanticModel.GetTypeInfo(equalsExpression.Right).Type;
 
             if (
                 left.IsLite() && right.IsEntity() ||
@@ -61,18 +73,25 @@ namespace Signum.Analyzer
                 var tLeft = left.GetLiteEntityType();
                 var tRight = right.GetLiteEntityType();
 
-                if (tLeft != null && 
+                if (tLeft != null &&
                     tRight != null &&
                     tLeft.TypeKind != TypeKind.Interface &&
                     tRight.TypeKind != TypeKind.Interface &&
-                    !tLeft.GetBaseTypesAndThis().Contains(tRight) &&
-                    !tRight.GetBaseTypesAndThis().Contains(tLeft))
+                    !tLeft.GetBaseTypesAndThis().Contains(tRight, SymbolEqualityComparer.Default) &&
+                    !tRight.GetBaseTypesAndThis().Contains(tLeft, SymbolEqualityComparer.Default))
                 {
                     context.ReportDiagnostic(Diagnostic.Create(RuleEntityTypes, equalsExpression.GetLocation(), tLeft.Name, tRight.Name));
                 }
+                else
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(RuleEqualsLite, equalsExpression.GetLocation()));
+                }
+            }
+            else if (
+                left.IsEntity() && right.IsEntity())
+            {
+                context.ReportDiagnostic(Diagnostic.Create(RuleEqualsEntity, equalsExpression.GetLocation()));
             }
         }
-
     }
-
 }

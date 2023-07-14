@@ -10,8 +10,8 @@ using Signum.Utilities.Reflection;
 using System.Reflection;
 using System.Threading.Tasks;
 using System.Threading;
-using System.Data.SqlClient;
 using System.Collections.Generic;
+using Microsoft.Data.SqlClient;
 
 namespace Signum.Engine
 {
@@ -141,6 +141,8 @@ namespace Signum.Engine
 
             return catalogPostfix;
         }
+
+        public abstract bool HasTables();
 
         public abstract bool AllowsSetSnapshotIsolation { get; }
 

@@ -383,6 +383,22 @@ namespace Signum.Engine.DynamicQuery
             return new DEnumerable<T>(query.Query.ToList(), query.Context);
         }
 
+        public static DEnumerable<T> ToDEnumerable<T>(this IEnumerable<T> query, QueryDescription description)
+        {
+            ParameterExpression pe = Expression.Parameter(typeof(object));
+
+            var dic = description.Columns.ToDictionary(
+                cd => (QueryToken)new ColumnToken(cd, description.QueryName),
+                cd => Expression.PropertyOrField(Expression.Convert(pe, typeof(T)), cd.Name).BuildLiteNullifyUnwrapPrimaryKey(cd.PropertyRoutes!));
+
+            return new DEnumerable<T>(query.Select(a => (object)a!), new BuildExpressionContext(typeof(T), pe, dic));
+        }
+
+        public static DEnumerableCount<T> WithCount<T>(this DEnumerable<T> result, int? totalElements)
+        {
+            return new DEnumerableCount<T>(result.Collection, result.Context, totalElements);
+        }
+
         public static async Task<DEnumerable<T>> ToDEnumerableAsync<T>(this DQueryable<T> query, CancellationToken token)
         {
             var list = await query.Query.ToListAsync(token);
@@ -526,9 +542,9 @@ namespace Signum.Engine.DynamicQuery
 
             IOrderedQueryable<object> result = query.OrderBy(orders[0].lambda, orders[0].orderType);
 
-            foreach (var order in orders.Skip(1))
+            foreach (var (lambda, orderType) in orders.Skip(1))
             {
-                result = result.ThenBy(order.lambda, order.orderType);
+                result = result.ThenBy(lambda, orderType);
             }
 
             return result;
@@ -581,9 +597,9 @@ namespace Signum.Engine.DynamicQuery
 
             IOrderedEnumerable<object> result = collection.OrderBy(orders[0].lambda, orders[0].orderType);
 
-            foreach (var order in orders.Skip(1))
+            foreach (var (lambda, orderType) in orders.Skip(1))
             {
-                result = result.ThenBy(order.lambda, order.orderType);
+                result = result.ThenBy(lambda, orderType);
             }
 
             return result;
@@ -610,29 +626,29 @@ namespace Signum.Engine.DynamicQuery
         [return: MaybeNull]
         public static T Unique<T>(this IEnumerable<T> collection, UniqueType uniqueType)
         {
-            switch (uniqueType)
+            return uniqueType switch
             {
-                case UniqueType.First: return collection.First();
-                case UniqueType.FirstOrDefault: return collection.FirstOrDefault();
-                case UniqueType.Single: return collection.SingleEx();
-                case UniqueType.SingleOrDefault: return collection.SingleOrDefaultEx();
-                case UniqueType.Only: return collection.Only();
-                default: throw new InvalidOperationException();
-            }
+                UniqueType.First => collection.First(),
+                UniqueType.FirstOrDefault => collection.FirstOrDefault(),
+                UniqueType.Single => collection.SingleEx(),
+                UniqueType.SingleOrDefault => collection.SingleOrDefaultEx(),
+                UniqueType.Only => collection.Only(),
+                _ => throw new InvalidOperationException(),
+            };
         }
 
         //[return: MaybeNull]
         public static Task<T> UniqueAsync<T>(this IQueryable<T> collection, UniqueType uniqueType, CancellationToken token)
         {
-            switch (uniqueType)
+            return uniqueType switch
             {
-                case UniqueType.First: return collection.FirstAsync(token);
-                case UniqueType.FirstOrDefault: return collection.FirstOrDefaultAsync(token)!;
-                case UniqueType.Single: return collection.SingleAsync(token);
-                case UniqueType.SingleOrDefault: return collection.SingleOrDefaultAsync(token)!;
-                case UniqueType.Only: return collection.Take(2).ToListAsync(token).ContinueWith(l => l.Result.Only()!);
-                default: throw new InvalidOperationException();
-            }
+                UniqueType.First => collection.FirstAsync(token),
+                UniqueType.FirstOrDefault => collection.FirstOrDefaultAsync(token)!,
+                UniqueType.Single => collection.SingleAsync(token),
+                UniqueType.SingleOrDefault => collection.SingleOrDefaultAsync(token)!,
+                UniqueType.Only => collection.Take(2).ToListAsync(token).ContinueWith(l => l.Result.Only()!),
+                _ => throw new InvalidOperationException(),
+            };
         }
 
         #endregion
@@ -663,13 +679,13 @@ namespace Signum.Engine.DynamicQuery
 
             if (pagination is Pagination.All)
             {
-                var allList = await query.Query.ToListAsync();
+                var allList = await query.Query.ToListAsync(token);
 
                 return new DEnumerableCount<T>(allList, query.Context, allList.Count);
             }
             else if (pagination is Pagination.Firsts top)
             {
-                var topList = await query.Query.Take(top.TopElements).ToListAsync();
+                var topList = await query.Query.Take(top.TopElements).ToListAsync(token);
 
                 return new DEnumerableCount<T>(topList, query.Context, null);
             }
@@ -679,7 +695,7 @@ namespace Signum.Engine.DynamicQuery
                 {
                     var q = query.Query.OrderAlsoByKeys();
 
-                    var list = await query.Query.ToListAsync();
+                    var list = await query.Query.ToListAsync(token);
 
                     var elements = list;
                     if (pag.CurrentPage != 1)
@@ -698,7 +714,7 @@ namespace Signum.Engine.DynamicQuery
 
                     q = q.Take(pag.ElementsPerPage);
 
-                    var listTask = await q.ToListAsync();
+                    var listTask = await q.ToListAsync(token);
                     var countTask = systemTime is SystemTime.Interval ?
                         (await query.Query.ToListAsync()).Count : //Results multipy due to Joins, not easy to change LINQ provider because joins are delayed
                         await query.Query.CountAsync();
@@ -766,7 +782,7 @@ namespace Signum.Engine.DynamicQuery
             throw new InvalidOperationException("pagination type {0} not expexted".FormatWith(pagination.GetType().Name));
         }
 
-        public static DEnumerableCount<T> TryPaginate<T>(this DEnumerable<T> collection, Pagination pagination, SystemTime? systemTime)
+        public static DEnumerableCount<T> TryPaginate<T>(this DEnumerable<T> collection, Pagination pagination)
         {
             if (pagination == null)
                 throw new ArgumentNullException(nameof(pagination));
@@ -804,7 +820,7 @@ namespace Signum.Engine.DynamicQuery
             throw new InvalidOperationException("pagination type {0} not expexted".FormatWith(pagination.GetType().Name));
         }
 
-        public static DEnumerableCount<T> TryPaginate<T>(this DEnumerableCount<T> collection, Pagination pagination, SystemTime? systemTime)
+        public static DEnumerableCount<T> TryPaginate<T>(this DEnumerableCount<T> collection, Pagination pagination)
         {
             if (pagination == null)
                 throw new ArgumentNullException(nameof(pagination));
@@ -874,7 +890,7 @@ namespace Signum.Engine.DynamicQuery
 
         private static HashSet<QueryToken> GetRootKeyTokens(HashSet<QueryToken> keyTokens)
         {
-            return keyTokens.Where(t => !keyTokens.Any(t2 => t.FullKey().StartsWith(t2.FullKey() + "."))).ToHashSet();
+            return keyTokens.Where(t => !keyTokens.Any(t2 => t2.Dominates(t))).ToHashSet();
         }
 
 

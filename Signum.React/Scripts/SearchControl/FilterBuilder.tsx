@@ -71,7 +71,12 @@ export default function FilterBuilder(p: FilterBuilderProps) {
 
   function handleDeleteAllFilters(e: React.MouseEvent) {
     e.preventDefault();
-    p.filterOptions.clear();
+
+    var filtersCount = p.filterOptions.length;
+    p.filterOptions.filter(fo => !fo.frozen).forEach(fo => p.filterOptions.remove(fo));
+    if (p.filterOptions.length == filtersCount)
+      return;
+
     if (p.onFiltersChanged)
       p.onFiltersChanged(p.filterOptions);
     forceUpdate().then(handleHeightChanged).done();
@@ -655,7 +660,7 @@ export function createFilterValueControl(ctx: TypeContext<any>, token: QueryToke
       if (!ti)
         throw new Error(`EnumType ${tokenType.name} not found`);
       const members = Dic.getValues(ti.members).filter(a => !a.isIgnoredEnum);
-      return <ValueLine ctx={ctx} type={tokenType} formatText={token.format} unitText={token.unit} comboBoxItems={members} onChange={handleValueChange} labelText={labelText} />;
+      return <ValueLine ctx={ctx} type={tokenType} formatText={token.format} unitText={token.unit} optionItems={members} onChange={handleValueChange} labelText={labelText} />;
     default:
       return <ValueLine ctx={ctx} type={tokenType} formatText={token.format} unitText={token.unit} onChange={handleValueChange} labelText={labelText} />;
   }

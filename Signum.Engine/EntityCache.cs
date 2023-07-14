@@ -19,7 +19,7 @@ namespace Signum.Engine
             public void Add(Entity e)
             {
                 if (e == null)
-                    throw new ArgumentNullException("ie");
+                    throw new ArgumentNullException(nameof(e));
 
                 var tuple = (e.GetType(), e.Id);
 
@@ -27,7 +27,7 @@ namespace Signum.Engine
 
                 if (ident == null)
                     dic.Add(tuple, e);
-                else if (ident != e)
+                else if (!object.ReferenceEquals(ident, e))
                 {
                     //Odd but allowed
                     //throw new InvalidOperationException("There's a different instance of the same entity with Type '{0}' and Id '{1}'".FormatWith(ie.GetType().Name, ie.id));

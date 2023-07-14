@@ -90,7 +90,7 @@ export function toLuxonFormat(format: string | undefined, type: "Date" | "DateTi
     case "m": return "dd LLLL";
     case "u": return "yyyy-MM-dd'T'HH:mm:ss";
     case "s": return "yyyy-MM-dd'T'HH:mm:ss";
-    case "o": return "yyyy-MM-dd'T'HH:mm:ss.SSS";
+    case "o": return "yyyy-MM-dd'T'HH:mm:ss.u";
     case "t": return "t";
     case "T": return "tt";
     case "y": return "LLLL yyyy";
@@ -248,7 +248,11 @@ export namespace NumberFormatSettings {
 
 //https://docs.microsoft.com/en-us/dotnet/standard/base-types/standard-numeric-format-strings
 export function toNumberFormat(format: string | undefined, locale?: string): Intl.NumberFormat {
-  return new Intl.NumberFormat(locale ?? NumberFormatSettings.defaultNumberFormatLocale, toNumberFormatOptions(format));
+    let loc = locale ?? NumberFormatSettings.defaultNumberFormatLocale;
+    if (loc.startsWith("es-")) {
+        loc = "de-DE"; //fix problem for Intl formatting "es" numbers for 4 digits over decimal point 
+    }
+  return new Intl.NumberFormat(loc, toNumberFormatOptions(format));
 }
 
 export function toNumberFormatOptions(format: string | undefined): Intl.NumberFormatOptions | undefined {
@@ -307,13 +311,12 @@ export function toNumberFormatOptions(format: string | undefined): Intl.NumberFo
       useGrouping: false,
     }
 
-
-  //simple euristic
+  //simple heuristic
   var style = f.endsWith("%") ? "percent" : "decimal";
-  var afterDot = f.trimEnd("%").tryAfter(".") ?? "";
+  var afterDot = (f.tryBefore("%") ?? f).tryAfter(".") ?? "";
   const result: Intl.NumberFormatOptions = {
     style: style,
-    minimumFractionDigits: afterDot.trimStart("#").length,
+    minimumFractionDigits: afterDot.replaceAll("#", "").length,
     maximumFractionDigits: afterDot.length,
     useGrouping: f.contains(","),
   };
@@ -614,6 +617,7 @@ export function reloadTypes(): Promise<void> {
   return ajaxGet<TypeInfoDictionary>({
     url: "~/api/reflection/types?" + QueryString.stringify({
       user: AppContext.currentUser?.id,
+      userTicks: AppContext.currentUser?.ticks,
       culture: AppContext.currentCulture
     })
   })
@@ -772,7 +776,13 @@ export class Binding<T> implements IBinding<T> {
     delete this.parentObject[this.member];
   }
 
+  forceError: string | undefined;
+
   getError(): string | undefined {
+
+    if (this.forceError)
+      return this.forceError;
+
     const parentErrors = (this.parentObject as ModifiableEntity).error;
     return parentErrors && parentErrors[this.member];
   }
@@ -822,7 +832,7 @@ export class ReadonlyBinding<T> implements IBinding<T> {
     return undefined;
   }
 
-  setError(name: string | undefined): void {
+  setError(value: string | undefined): void {
   }
 }
 
@@ -865,7 +875,7 @@ export class MListElementBinding<T> implements IBinding<T>{
     return undefined;
   }
 
-  setError(name: string | undefined): void {
+  setError(value: string | undefined): void {
   }
 }
 
@@ -996,7 +1006,7 @@ function sameEntity(a: any, b: any) {
 
 export function getFieldMembers(field: string): LambdaMember[] {
   if (field.contains(".")) {
-    var mixinType = field.before(".").trimStart("[").trimEnd("]");
+    var mixinType = field.before(".").after("[").before("]");
     var fieldName = field.after(".");
 
     return [
@@ -1178,6 +1188,11 @@ export function newLite(type: PseudoType, id: number | string, toStr?: string): 
   };
 }
 
+export type Anonymous<T extends ModifiableEntity> = T & {
+  /** Represents the 'Entity' column in the query selector */
+  entity: T
+}
+
 export class Type<T extends ModifiableEntity> implements IType {
 
   New(props?: Partial<T>, propertyRoute?: PropertyRoute): T {
@@ -1314,11 +1329,11 @@ export class Type<T extends ModifiableEntity> implements IType {
 
   /* Constructs a QueryToken able to generate string like "Name" from a strongly typed lambda like a => a.name
    * Note: The QueryToken language is quite different to javascript lambdas (Any, Lites, Nullable, etc)*/
-  token(): QueryTokenString<T>;
+  token(): QueryTokenString<Anonymous<T>>;
   /** Shortcut for token().append(lambdaToColumn)
    * @param lambdaToColumn lambda expression pointing to a property in the anonymous class of the query. For simple columns comming from properties from the entity.
    */
-  token<S>(lambdaToColumn: (v: T) => S): QueryTokenString<S>;
+  token<S>(lambdaToColumn: (v: Anonymous<T>) => S): QueryTokenString<S>;
   /** Shortcut for token().expression<S>(columnName)
   * @param columnName property name of some property in the anonymous class of the query. For complex calculated columns that are not a property from the entitiy.
   */
@@ -1329,15 +1344,15 @@ export class Type<T extends ModifiableEntity> implements IType {
     else if (typeof lambdaToColumn == "string")
       return new QueryTokenString(lambdaToColumn);
     else
-      return new QueryTokenString(tokenSequence(lambdaToColumn));
+      return new QueryTokenString(tokenSequence(lambdaToColumn, true));
   }
 }
 
 /*  Some examples being in ExceptionEntity:
  *  "User" -> ExceptionEntity.token().append(a => a.user) 
  *            ExceptionEntity.token(a => a.user) 
- *  "Entity.User" -> ExceptionEntity.token().entity().append(a=>a.user)
- *                   ExceptionEntity.token().entity(a => a.user)
+ *  "Entity.User" -> ExceptionEntity.token().append(a=>a.entity).append(a=>a.user)
+ *                   ExceptionEntity.token(a => a.entity.user)
  * 
  */
 export class QueryTokenString<T> {
@@ -1367,20 +1382,6 @@ export class QueryTokenString<T> {
     return new QueryTokenString(this.token + ".SystemValidTo");
   }
 
-  /** Allows access to the "Entity" property of the anonymous class from the query.*/
-  entity(): QueryTokenString<T>;
-  /** Shortcut for entity().append(lambdaToProperty).*/
-  entity<S>(lambdaToProperty: (v: T) => S): QueryTokenString<S>;
-  entity(lambdaToProperty?: Function): QueryTokenString<any> {
-    if (this.token != "")
-      throw new Error("entity is only meant to be used with an empty token");
-
-    if (lambdaToProperty == null)
-      return new QueryTokenString("Entity")
-    else
-      return new QueryTokenString("Entity." + tokenSequence(lambdaToProperty));
-  }
-
   cast<R extends Entity>(t: Type<R>): QueryTokenString<R> {
     return new QueryTokenString<R>(this.token + ".(" + t.typeName + ")");
   }
@@ -1390,7 +1391,7 @@ export class QueryTokenString<T> {
    * @param lambdaToProperty for a typed lambda like a => a.name will append "Name" to the QueryTokenString
    */
   append<S>(lambdaToProperty: (v: T) => S): QueryTokenString<S> {
-    return new QueryTokenString<S>(this.token + (this.token ? "." : "") + tokenSequence(lambdaToProperty));
+    return new QueryTokenString<S>(this.token + (this.token ? "." : "") + tokenSequence(lambdaToProperty, !this.token));
   }
 
   mixin<M extends MixinEntity>(t: Type<M>): QueryTokenString<M> {
@@ -1454,9 +1455,9 @@ type ArrayElement<ArrayType> = ArrayType extends (infer ElementType)[] ? RemoveM
 
 type RemoveMListElement<Type> = Type extends MListElement<infer S> ? S : Type;
 
-function tokenSequence(lambdaToProperty: Function) {
+function tokenSequence(lambdaToProperty: Function, isFirst: boolean) {
   return getLambdaMembers(lambdaToProperty)
-    .filter(a => a.name != "entity") //For convinience navigating Lite<T>, 'entity' is removed. If you have a property named Entity, you will need to use expression<S>()
+    .filter((a, i) => a.name != "entity" || i == 0 && isFirst) //For convinience navigating Lite<T>, 'entity' is removed. If you have a property named Entity, you will need to use expression<S>()
     .map(a => a.name == "toStr" ? "ToString" : a.name.firstUpper())
     .join(".");
 }
@@ -1630,17 +1631,29 @@ export class PropertyRoute {
     return new PropertyRoute(parent, "LiteEntity", undefined, undefined, undefined);
   }
 
-  static parseFull(fullPropertyRoute: string): PropertyRoute {
-    const endPseudoTypeIndex = fullPropertyRoute.indexOf(")");
-    let propertyString = fullPropertyRoute.substr(endPseudoTypeIndex + 1);
-    if (propertyString.startsWith("."))
-      propertyString = propertyString.substr(1);
-    return PropertyRoute.parse(fullPropertyRoute.substring(1, endPseudoTypeIndex), propertyString);
-  }
+
 
   addMembers(propertyString: string): PropertyRoute {
     let result: PropertyRoute = this;
 
+    const parts = PropertyRoute.parseLambdaMembers(propertyString);
+
+    parts.forEach(m => result = result.addMember(m.type, m.name, true));
+
+    return result;
+  }
+
+  tryAddMembers(propertyString: string): PropertyRoute | undefined {
+    let result: PropertyRoute | undefined = this;
+
+    const parts = PropertyRoute.parseLambdaMembers(propertyString);
+
+    parts.forEach(m => result = result?.addMember(m.type, m.name, false));
+
+    return result;
+  }
+
+  static parseLambdaMembers(propertyString: string) {
     function splitMixin(text: string): LambdaMember[] {
 
       if (text.length == 0)
@@ -1676,17 +1689,45 @@ export class PropertyRoute {
 
       return splitDot(text);
     }
+    return splitIndexer(propertyString);
+  }
 
-    const parts = splitIndexer(propertyString);
 
-    parts.forEach(m => result = result.addMember(m.type, m.name, true));
-
-    return result;
+  static parseFull(fullPropertyRoute: string): PropertyRoute {
+    const type = fullPropertyRoute.after("(").before(")");
+    let propertyString = fullPropertyRoute.after(")");
+    if (propertyString.startsWith("."))
+      propertyString = propertyString.substr(1);
+    return PropertyRoute.root(type).addMembers(propertyString);
   }
 
   static parse(rootType: PseudoType, propertyString: string): PropertyRoute {
     return PropertyRoute.root(rootType).addMembers(propertyString);
   }
+
+  static tryParseFull(fullPropertyRoute: string): PropertyRoute | undefined {
+    const type = fullPropertyRoute.after("(").before(")");
+    let propertyString = fullPropertyRoute.after(")");
+    if (propertyString.startsWith("."))
+      propertyString = propertyString.substr(1);
+
+    var ti = tryGetTypeInfo(type);
+    if (ti == null)
+      return undefined;
+
+    return PropertyRoute.tryParse(type, propertyString);
+  }
+
+  static tryParse(rootType: PseudoType, propertyString: string): PropertyRoute | undefined {
+
+    const ti = tryGetTypeInfo(rootType);
+    if (ti == null)
+      return undefined;
+
+    return PropertyRoute.root(ti).tryAddMembers(propertyString);
+  }
+
+ 
 
   constructor(
     parent: PropertyRoute | undefined,
@@ -1702,8 +1743,12 @@ export class PropertyRoute {
     this.mixinName = mixinName;
   }
 
-  allParents(): PropertyRoute[] {
-    return [...this.parent == null ? [] : this.parent.allParents(), this];
+  allParents(includeMixins = false): PropertyRoute[] {
+
+    if (!includeMixins && this.propertyRouteType == "Mixin")
+      return this.parent!.allParents(includeMixins);
+
+    return [...this.parent == null ? [] : this.parent.allParents(includeMixins), this];
   }
 
   addLambda(property: ((val: any) => any) | string): PropertyRoute {
@@ -2038,7 +2083,7 @@ export class GraphExplorer {
 
     const mle = obj as MListElement<any>;
     if (mle.hasOwnProperty && mle.hasOwnProperty("rowId")) {
-      if (this.isModified(mle.element, dot(modelStatePrefix, "element"))) {
+      if (this.isModified(mle.element, modelStatePrefix + ".element")) {
         if (window.exploreGraphDebugMode)
           debugger;
         return true;
@@ -2056,7 +2101,7 @@ export class GraphExplorer {
 
     const lite = obj as Lite<Entity>
     if (lite.EntityType) {
-      if (lite.entity != undefined && this.isModified(lite.entity, dot(modelStatePrefix, "entity"))) {
+      if (lite.entity != undefined && this.isModified(lite.entity, modelStatePrefix + ".entity")) {
         if (window.exploreGraphDebugMode)
           debugger;
         return true;
@@ -2070,7 +2115,7 @@ export class GraphExplorer {
       let result = false;
       for (const p in obj) {
         if (obj.hasOwnProperty == null || obj.hasOwnProperty(p)) {
-          const propertyPrefix = dot(modelStatePrefix, p);
+          const propertyPrefix = modelStatePrefix + "." + p;
           if (this.isModified(obj[p], propertyPrefix)) {
             if (window.exploreGraphDebugMode)
               debugger;
@@ -2085,10 +2130,10 @@ export class GraphExplorer {
     if (this.mode == "collect") {
       if (mod.error != undefined) {
         for (const p in mod.error) {
-          const propertyPrefix = dot(modelStatePrefix, p);
+          const propertyPrefix = modelStatePrefix + "." + p;
 
           if (mod.error[p])
-            this.modelState[dot(modelStatePrefix, p)] = [mod.error[p]];
+            this.modelState[modelStatePrefix + "." + p] = [mod.error[p]];
         }
       }
     }
@@ -2096,7 +2141,7 @@ export class GraphExplorer {
 
       mod.error = undefined;
 
-      const prefix = dot(modelStatePrefix, "");
+      const prefix = modelStatePrefix  + ".";
       for (const key in this.modelState) {
         const propName = key.tryAfter(prefix)
         if (propName && !propName.contains(".")) {
@@ -2122,14 +2167,14 @@ export class GraphExplorer {
       if (obj.hasOwnProperty(p) && !GraphExplorer.specialProperties.contains(p)) {
 
         if (p == "mixins") {
-          const propertyPrefix = dot(modelStatePrefix, p);
+          const propertyPrefix = modelStatePrefix + "." + p;
           if (this.isModifiedMixinDictionary(obj[p], propertyPrefix)) {
             if (window.exploreGraphDebugMode)
               debugger;
             mod.modified = true;
           }
         } else {
-          const propertyPrefix = dot(modelStatePrefix, p);
+          const propertyPrefix = modelStatePrefix + "." + p;
           if (this.isModified(obj[p], propertyPrefix)) {
             if (window.exploreGraphDebugMode)
               debugger;
@@ -2168,12 +2213,5 @@ export class GraphExplorer {
   }
 
   static TypesLazilyCreated: string[] = [];
-}
-
-function dot(prev: string, property: string) {
-  if (prev == undefined || prev == "")
-    return property;
-
-  return prev + "." + property
 }
 

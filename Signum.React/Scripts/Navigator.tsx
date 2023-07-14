@@ -35,9 +35,6 @@ export function start(options: { routes: JSX.Element[] }) {
 
   ErrorModalOptions.getExceptionUrl = exceptionId => navigateRoute(newLite(ExceptionEntity, exceptionId));
   ErrorModalOptions.isExceptionViewable = () => isViewable(ExceptionEntity);
-  ErrorModalOptions.renderServiceMessage = se => <RenderServiceMessageDefault error={se} />;
-  ErrorModalOptions.renderValidationMessage = ve => <RenderValidationMessageDefault error={ve} />;
-  ErrorModalOptions.renderMessage = e => <RenderMessageDefault error={e} />;
 }
 
 export namespace NavigatorManager {
@@ -531,14 +528,16 @@ export function getAutoComplete(type: TypeReference, findOptions: FindOptions | 
   if (!result) {
     if (findOptions)
       result = new FindOptionsAutocompleteConfig(findOptions, {
-        getAutocompleteConstructor: !create ? undefined : (subStr, rows) => getAutocompleteConstructors(type, subStr, { ctx, foundLites: rows.map(a => a.entity!), findOptions }) as AutocompleteConstructor<Entity>[]
+        getAutocompleteConstructor: (subStr, rows) => getAutocompleteConstructors(type, subStr, { ctx, foundLites: rows.map(a => a.entity!), findOptions, create: create }) as AutocompleteConstructor<Entity>[]
       });
     else
       result = new LiteAutocompleteConfig((signal, subStr: string) => Finder.API.findLiteLike({
         types: type.name,
         subString: subStr,
         count: 5
-      }, signal).then(lites => [...lites, ...(!create ? [] : getAutocompleteConstructors(type, subStr, { ctx, foundLites: lites }) as AutocompleteConstructor<Entity>[])]), { showType: showType ?? type.name.contains(",") });
+      }, signal)
+        .then(lites => [...lites, ...(getAutocompleteConstructors(type, subStr, { ctx, foundLites: lites, create: create }) as AutocompleteConstructor<Entity>[])]),
+        { showType: showType ?? type.name.contains(",") });
   }
 
   if (!result.getItemsDelay && s?.autocompleteDelay) {
@@ -632,14 +631,14 @@ function cloneEntity(obj: any) {
 export function useFetchInState<T extends Entity>(lite: Lite<T> | null | undefined): T | null | undefined {
   return useAPI(signal =>
     lite == null ? Promise.resolve<T | null | undefined>(lite) :
-      API.fetchAndForget(lite),
+      API.fetch(lite),
     [lite && liteKey(lite)]);
 }
 
 export function useFetchInStateWithReload<T extends Entity>(lite: Lite<T> | null | undefined): [T | null | undefined, () => void] {
   return useAPIWithReload(signal =>
     lite == null ? Promise.resolve<T | null | undefined>(lite) :
-      API.fetchAndForget(lite),
+      API.fetch(lite),
     [lite && liteKey(lite)]);
 }
 
@@ -712,7 +711,7 @@ export module API {
     return fetchEntity(lite.EntityType, lite.id).then(e => lite.entity = e as T);
   }
 
-  export function fetchAndForget<T extends Entity>(lite: Lite<T>): Promise<T> {
+  export function fetch<T extends Entity>(lite: Lite<T>): Promise<T> {
 
     if (lite.id == null)
       throw new Error("Lite has no Id");
@@ -783,6 +782,7 @@ export interface AutocompleteConstructorContext {
   ctx: TypeContext<any>;
   foundLites: Lite<Entity>[];
   findOptions?: FindOptions;
+  create: boolean;
 }
 
 export interface ViewOverride<T extends ModifiableEntity> {
@@ -792,7 +792,8 @@ export interface ViewOverride<T extends ModifiableEntity> {
 
 export interface AutocompleteConstructor<T extends ModifiableEntity> {
   type: PseudoType;
-  onClick: () => Promise<T | undefined>;
+  onClick: () => Promise<T | Lite<T & Entity> | undefined>;
+  customElement?: React.ReactNode;
 }
 
 export function getAutocompleteConstructors(tr: TypeReference, str: string, aac: AutocompleteConstructorContext): AutocompleteConstructor<ModifiableEntity>[]{
