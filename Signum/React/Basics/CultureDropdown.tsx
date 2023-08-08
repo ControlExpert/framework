@@ -10,7 +10,7 @@ import { IconName } from '@fortawesome/fontawesome-svg-core';
 
 export default function CultureDropdown(p: { fullName?: boolean }): React.JSX.Element | null {
 
-  var cultures = useAPI(signal => CultureClient.getCultures(false), []);
+  var cultures = useAPI(signal => CultureClient.getCultures(null), []);
 
   if (!cultures)
     return null;
