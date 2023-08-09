@@ -309,6 +309,19 @@ namespace Signum.Upgrade
                 throw new InvalidOperationException("");
         }
 
+        public void UpdateNpmPackages(string packageJsonBlock)
+        {
+            var packages = packageJsonBlock.Lines().Select(a => a.Trim()).Where(a => a.HasText()).Select(a => new
+            {
+                PackageName = a.Before(":").Trim('"'),
+                Version = a.After(":").Trim(',', '"', ' '),
+            }).ToList();
+
+            foreach (var v in packages)
+            {
+                UpdateNpmPackage(v.PackageName, v.Version);
+            }
+        }
 
         public void UpdateNpmPackage(string packageName, string version)
         {
@@ -326,7 +339,7 @@ namespace Signum.Upgrade
                 var indent = GetIndent(lines[pos]);
                 lines.RemoveRange(pos, 1);
 
-                var comma = lines[pos].Trim().StartsWith("}") ? "" : ", ";
+                var comma = lines[pos].Trim().StartsWith("}") ? "" : ",";
                 lines.Insert(pos, IndentAndReplace(@$"""{packageName}"": ""{version}""" + comma, indent));
                 return true;
             });

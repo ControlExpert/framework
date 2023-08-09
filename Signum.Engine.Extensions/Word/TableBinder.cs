@@ -69,9 +69,7 @@ namespace Signum.Engine.Word
             if (prefix != null)
             {
                 var provider = WordTemplateLogic.ToDataTableProviders.TryGetC(prefix);
-                if (provider == null)
-                    errors.Add(new TemplateError(false, "No DataTableProvider '{0}' found (Possibilieties {1})".FormatWith(prefix, WordTemplateLogic.ToDataTableProviders.Keys.CommaOr())));
-                else
+                if (provider != null)   
                 {
                     var error = provider.Validate(titleFirstLine!.After(":"), template);
                     if (error != null)
@@ -294,7 +292,10 @@ namespace Signum.Engine.Word
             if (key == null)
                 return null;
 
-            var provider = WordTemplateLogic.ToDataTableProviders.GetOrThrow(key);
+            var provider = WordTemplateLogic.ToDataTableProviders.TryGetC(key);
+            if (provider == null)
+                return null;
+
             var ctx = new WordTemplateLogic.WordContext(parameters.Template, (Entity?)parameters.Entity, parameters.Model);
 
             var table = provider.GetDataTable(titleFirsLine!.After(":"), ctx);
@@ -482,7 +483,7 @@ namespace Signum.Engine.Word
 
         internal static (int colY, int colX, int colValue)? ParsePivot(string pivotStr)
         {
-            var m = Regex.Match(pivotStr, @"^Pivot\((?<colY>\d+),(?<colX>\d+),(?<colValue>\d+)\)$");
+            var m = Regex.Match(pivotStr, @"^Pivot\s*\(\s*(?<colY>\d+)\s*,\s*(?<colX>\d+)\s*,\s*(?<colValue>\d+)\s*\)\s*$");
             if (!m.Success)
                 return null;
 

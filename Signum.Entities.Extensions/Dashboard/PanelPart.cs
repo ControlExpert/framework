@@ -10,6 +10,7 @@ using Signum.Entities.UserQueries;
 using Signum.Entities;
 using System.Linq.Expressions;
 using Signum.Entities.Basics;
+using System.ComponentModel;
 
 namespace Signum.Entities.Dashboard
 {
@@ -33,6 +34,8 @@ namespace Signum.Entities.Dashboard
 
         [NumberBetweenValidator(1, 12)]
         public int Columns { get; set; }
+
+        public InteractionGroup? InteractionGroup { get; set; }
 
         public BootstrapStyle Style { get; set; }
 
@@ -91,6 +94,7 @@ namespace Signum.Entities.Dashboard
                 Title == null ? null! : new XAttribute("Title", Title),
                 IconName == null ? null! : new XAttribute("IconName", IconName),
                 IconColor == null ? null! : new XAttribute("IconColor", IconColor),
+                InteractionGroup == null ? null! : new XAttribute("InteractionGroup", InteractionGroup),
                 new XAttribute("Style", Style),
                 Content.ToXml(ctx));
         }
@@ -103,7 +107,8 @@ namespace Signum.Entities.Dashboard
             Title = x.Attribute("Title")?.Value;
             IconName = x.Attribute("IconName")?.Value;
             IconColor = x.Attribute("IconColor")?.Value;
-            Style = (BootstrapStyle)(x.Attribute("Style")?.Let(a => Enum.Parse(typeof(BootstrapStyle), a.Value)) ?? BootstrapStyle.Light);
+            Style = x.Attribute("Style")?.Value.TryToEnum<BootstrapStyle>() ?? BootstrapStyle.Light;
+            InteractionGroup = x.Attribute("InteractionGroup")?.Value.ToEnum<InteractionGroup>();
             Content = ctx.GetPart(Content, x.Elements().Single());
         }
 
@@ -112,8 +117,6 @@ namespace Signum.Entities.Dashboard
             return new Interval<int>(this.StartColumn, this.StartColumn + this.Columns);
         }
     }
-
-
 
     public interface IGridEntity
     {
@@ -183,6 +186,18 @@ namespace Signum.Entities.Dashboard
             ShowFooter = element.Attribute("ShowFooter")?.Value.ToBool() ?? false;
             CreateNew = element.Attribute("CreateNew")?.Value.ToBool() ?? false;
         }
+    }
+
+    public enum InteractionGroup
+    {
+        [Description("Group 1")] Group1,
+        [Description("Group 2")] Group2,
+        [Description("Group 3")] Group3,
+        [Description("Group 4")] Group4,
+        [Description("Group 5")] Group5,
+        [Description("Group 6")] Group6,
+        [Description("Group 7")] Group7,
+        [Description("Group 8")] Group8,
     }
 
     public enum UserQueryPartRenderMode

@@ -121,7 +121,7 @@ export function start(options: { routes: JSX.Element[], overrideCaseActivityMixi
         iconColor: "green"
       })
   ]);
-
+  
 
   Finder.addSettings({
     queryName: CaseActivityEntity,
@@ -197,8 +197,44 @@ export function start(options: { routes: JSX.Element[], overrideCaseActivityMixi
     icon: "share",
     iconColor: "blue",
     hideOnCanExecute: true,
-    onClick: eoc => executeCaseActivity(eoc, executeWorkflowJump),
-    contextual: { isVisible: ctx => true, onClick: executeWorkflowJumpContextual }
+    onClick: eoc => executeCaseActivity(eoc, eoc => {
+      eoc.onExecuteSuccess = pack => {
+        Operations.notifySuccess();
+        eoc.frame.onClose(pack);
+        return Promise.resolve();
+      }
+      return getWorkflowJumpSelector(toLite(eoc.entity.workflowActivity as WorkflowActivityEntity))
+        .then(dest => dest && eoc.defaultClick(dest));
+    }),
+    contextual: {
+      isVisible: ctx => true,
+      onClick: coc =>
+        Navigator.API.fetch(coc.context.lites[0])
+          .then(ca => getWorkflowJumpSelector(toLite(ca.workflowActivity as WorkflowActivityEntity)))
+          .then(dest => dest && coc.defaultContextualClick(dest))
+
+    }
+  }));
+  Operations.addSettings(new EntityOperationSettings(CaseActivityOperation.FreeJump, {
+    icon: "share-square",
+    color:"danger",
+    iconColor: "#800080",
+    hideOnCanExecute: true,
+    onClick: eoc => executeCaseActivity(eoc, eoc => {
+      eoc.onExecuteSuccess = async pack => {
+        Operations.notifySuccess();
+        eoc.frame.onClose(pack);
+      }
+      return getWorkflowFreeJump(eoc.entity.case.workflow)
+        .then(dest => dest && eoc.defaultClick(dest));
+    }),
+    contextual: {
+      isVisible: ctx => true,
+      onClick: coc => 
+        Navigator.API.fetch(coc.context.lites[0])
+          .then(ca => getWorkflowFreeJump(ca.case.workflow))
+          .then(dest => dest && coc.defaultContextualClick(dest))
+    }
   }));
   Operations.addSettings(new EntityOperationSettings(CaseActivityOperation.Timer, { isVisible: ctx => false }));
   Operations.addSettings(new EntityOperationSettings(CaseActivityOperation.MarkAsUnread, {
@@ -285,14 +321,14 @@ export function start(options: { routes: JSX.Element[], overrideCaseActivityMixi
     contextualFromMany: { icon: "heartbeat", iconColor: "red" },
   }));
   Operations.addSettings(new EntityOperationSettings(WorkflowOperation.Deactivate, {
-    onClick: eoc => chooseWorkflowExpirationDate([toLite(eoc.entity)]).then(val => val && eoc.defaultClick(val)).done(),
+    onClick: eoc => chooseWorkflowExpirationDate([toLite(eoc.entity)]).then(val => !val ? undefined : eoc.defaultClick(val)),
     contextual: {
-      onClick: coc => chooseWorkflowExpirationDate(coc.context.lites).then(val => val && coc.defaultContextualClick(val)).done(),
+      onClick: coc => chooseWorkflowExpirationDate(coc.context.lites).then(val => !val ? undefined : coc.defaultContextualClick(val)),
       icon: ["far", "heart"],
       iconColor: "gray"
     },
     contextualFromMany: {
-      onClick: coc => chooseWorkflowExpirationDate(coc.context.lites).then(val => val && coc.defaultContextualClick(val)).done(),
+      onClick: coc => chooseWorkflowExpirationDate(coc.context.lites).then(val => !val ? undefined : coc.defaultContextualClick(val)),
       icon: ["far", "heart"],
       iconColor: "gray"
     },
@@ -469,22 +505,22 @@ function hide<T extends Entity>(type: Type<T>) {
   Navigator.addSettings(new EntitySettings(type, undefined, { isViewable: "Never", isCreable: "Never" }));
 }
 
-export function executeCaseActivity(eoc: Operations.EntityOperationContext<CaseActivityEntity>, defaultOnClick: (eoc: Operations.EntityOperationContext<CaseActivityEntity>) => void) {
+export function executeCaseActivity(eoc: Operations.EntityOperationContext<CaseActivityEntity>, defaultOnClick: (eoc: Operations.EntityOperationContext<CaseActivityEntity>) => Promise<void>) : Promise<void> {
   const op = customOnClicks[eoc.operationInfo.key];
 
   const onClick = op && op[eoc.entity.case.mainEntity.Type];
 
   if (onClick)
-    onClick(eoc);
+    return onClick(eoc);
   else
-    defaultOnClick(eoc);
+    return defaultOnClick(eoc);
 }
 
-export function executeWorkflowSave(eoc: Operations.EntityOperationContext<WorkflowEntity>) {
+export function executeWorkflowSave(eoc: Operations.EntityOperationContext<WorkflowEntity>) : Promise<void> {
 
 
-  function saveAndSetErrors(entity: WorkflowEntity, model: WorkflowModel, replacementModel: WorkflowReplacementModel | undefined) {
-    API.saveWorkflow(entity, model, replacementModel)
+  function saveAndSetErrors(entity: WorkflowEntity, model: WorkflowModel, replacementModel: WorkflowReplacementModel | undefined): Promise<void> {
+    return API.saveWorkflow(entity, model, replacementModel)
       .then(packWithIssues => {
         eoc.frame.onReload(packWithIssues.entityPack);
         wf.setIssues(packWithIssues.issues);
@@ -499,12 +535,11 @@ export function executeWorkflowSave(eoc: Operations.EntityOperationContext<Workf
         }
         eoc.frame.setError(e.modelState, "entity");
 
-      }))
-      .done();
+      }));
   }
 
   let wf = FunctionalAdapter.innerRef(eoc.frame.entityComponent) as WorkflowHandle;
-  wf.getXml()
+  return wf.getXml()
     .then(xml => {
       var wfModel = WorkflowModel.New({
         diagramXml: xml,
@@ -518,42 +553,20 @@ export function executeWorkflowSave(eoc: Operations.EntityOperationContext<Workf
         Promise.resolve < WorkflowReplacementModel | undefined> (undefined) :
         API.previewChanges(toLite(eoc.entity), wfModel);
 
-      promise.then(repoModel => {
+      return promise.then(repoModel => {
         if (!repoModel || repoModel.replacements.length == 0)
-          saveAndSetErrors(eoc.entity, wfModel, undefined);
+          return saveAndSetErrors(eoc.entity, wfModel, undefined);
         else
-          Navigator.view(repoModel).then(replacementModel => {
+          return Navigator.view(repoModel).then(replacementModel => {
             if (!replacementModel)
               return;
 
-            saveAndSetErrors(eoc.entity, wfModel, replacementModel);
-          }).done();
-      }).done();
-    }).done();
+            return saveAndSetErrors(eoc.entity, wfModel, replacementModel);
+          });
+      });
+    });
 }
 
-export function executeWorkflowJumpContextual(coc: Operations.ContextualOperationContext<CaseActivityEntity>) {
-
-  Navigator.API.fetch(coc.context.lites[0])
-    .then(ca => {
-
-      getWorkflowJumpSelector(toLite(ca.workflowActivity as WorkflowActivityEntity))
-        .then(dest => dest && coc.defaultContextualClick(dest));
-    })
-    .done();
-}
-
-export function executeWorkflowJump(eoc: Operations.EntityOperationContext<CaseActivityEntity>) {
-
-  eoc.onExecuteSuccess = pack => {
-    Operations.notifySuccess();
-    eoc.frame.onClose(pack);
-  }
-
-  getWorkflowJumpSelector(toLite(eoc.entity.workflowActivity as WorkflowActivityEntity))
-    .then(dest => dest && eoc.defaultClick(dest))
-    .done();
-}
 
 function getWorkflowJumpSelector(activity: Lite<WorkflowActivityEntity>): Promise<Lite<IWorkflowNodeEntity> | undefined> {
 
@@ -566,16 +579,24 @@ function getWorkflowJumpSelector(activity: Lite<WorkflowActivityEntity>): Promis
       }));
 }
 
-export function executeAndClose(eoc: Operations.EntityOperationContext<CaseActivityEntity>) {
+function getWorkflowFreeJump(workflow: WorkflowEntity): Promise<Lite<WorkflowEntity> | undefined> {
 
-  confirmInNecessary(eoc).then(conf => {
+  return Finder.find({
+    queryName: WorkflowActivityEntity,
+    filterOptions: [{ token: WorkflowActivityEntity.token(w => w.entity.lane.pool.workflow), value: workflow }]
+  }, {
+    message: <span className="text-danger">FreeJump is an unrestricted but dangerous operation! If you don't know what you're doing... don't do it!</span> });
+}
+
+export function executeAndClose(eoc: Operations.EntityOperationContext<CaseActivityEntity>) : Promise<void> {
+
+  return confirmInNecessary(eoc).then(conf => {
     if (!conf)
       return;
 
-    Operations.API.executeEntity(eoc.entity, eoc.operationInfo.key)
+    return Operations.API.executeEntity(eoc.entity, eoc.operationInfo.key)
       .then(pack => { eoc.frame.onClose(); return Operations.notifySuccess(); })
-      .catch(ifError(ValidationError, e => eoc.frame.setError(e.modelState, "entity")))
-      .done();
+      .catch(ifError(ValidationError, e => eoc.frame.setError(e.modelState, "entity")));
   });
 }
 
@@ -630,9 +651,9 @@ export function toEntityPackWorkflow(entityOrEntityPack: Lite<CaseActivityEntity
   return API.fetchActivityForViewing(lite);
 }
 
-export const customOnClicks: { [operationKey: string]: { [typeName: string]: (ctx: EntityOperationContext<CaseActivityEntity>) => void } } = {};
+export const customOnClicks: { [operationKey: string]: { [typeName: string]: (ctx: EntityOperationContext<CaseActivityEntity>) => Promise<void> } } = {};
 
-export function registerOnClick<T extends ICaseMainEntity>(type: Type<T>, operationKey: ExecuteSymbol<CaseActivityEntity>, action: (ctx: EntityOperationContext<CaseActivityEntity>) => void) {
+export function registerOnClick<T extends ICaseMainEntity>(type: Type<T>, operationKey: ExecuteSymbol<CaseActivityEntity>, action: (ctx: EntityOperationContext<CaseActivityEntity>) => Promise<void>) {
   var op = customOnClicks[operationKey.key] || (customOnClicks[operationKey.key] = {});
   op[type.typeName] = action;
 }

@@ -31,7 +31,7 @@ export function start(options: { routes: JSX.Element[] }) {
     return (
       {
         order: -1,
-        button: <button className="btn btn-info ml-2"
+        button: <button className="btn btn-info ms-2"
           onClick={e => {
             e.preventDefault();
             var promise = ValueLineModal.show({
@@ -62,10 +62,10 @@ export function start(options: { routes: JSX.Element[] }) {
         groupOperation: "Or",
         pinned: { label: SearchMessage.Search.niceToString(), splitText: true, active: "WhenHasValue" },
         filters: [
-          { token: "DisplayName", operation: "StartsWith" },
-          { token: "GivenName", operation: "StartsWith" },
-          { token: "Surname", operation: "StartsWith" },
-          { token: "Mail", operation: "StartsWith" },
+          { token: "DisplayName", operation: "Contains" },
+          { token: "GivenName", operation: "Contains" },
+          { token: "Surname", operation: "Contains" },
+          { token: "Mail", operation: "Contains" },
         ],
       },
       {
@@ -90,14 +90,9 @@ export function start(options: { routes: JSX.Element[] }) {
         groupOperation: "Or",
         pinned: { label: SearchMessage.Search.niceToString(), splitText: true, active: "WhenHasValue" },
         filters: [
-          { token: "DisplayName", operation: "StartsWith" },
+          { token: "DisplayName", operation: "Contains" },
         ],
       },
-      //{
-      //  pinned: { label: ActiveDirectoryMessage.OnlyActiveUsers.niceToString(), active: "Checkbox_StartChecked", column: 2, row: 0 },
-      //  token: "AccountEnabled", operation: "EqualTo", value: true
-      //},
-      //{ token: "CreationType", operation: "DistinctTo", value: "Invitation" }
     ],
     defaultOrders: [
       { token: "DisplayName", orderType: "Ascending" }
