@@ -1,11 +1,11 @@
 
 import * as React from 'react'
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { ValueLine, EntityLine, RenderEntity } from '@framework/Lines'
+import { ValueLine, EntityLine, RenderEntity, OptionItem } from '@framework/Lines'
 import { tryGetTypeInfos, New, getTypeInfos } from '@framework/Reflection'
 import SelectorModal from '@framework/SelectorModal'
 import { TypeContext } from '@framework/TypeContext'
-import { DashboardEntity, PanelPartEmbedded, IPartEntity } from '../Signum.Entities.Dashboard'
+import { DashboardEntity, PanelPartEmbedded, IPartEntity, InteractionGroup } from '../Signum.Entities.Dashboard'
 import { EntityGridRepeater, EntityGridItem } from './EntityGridRepeater'
 import * as DashboardClient from "../DashboardClient";
 import { iconToString, IconTypeaheadLine, parseIcon } from "../../Basics/Templates/IconTypeahead";
@@ -13,6 +13,7 @@ import { ColorTypeaheadLine } from "../../Basics/Templates/ColorTypeahead";
 import "../Dashboard.css"
 import { getToString } from '@framework/Signum.Entities';
 import { useForceUpdate } from '@framework/Hooks'
+import { softCast } from '../../../Signum.React/Scripts/Globals';
 
 export default function Dashboard(p : { ctx: TypeContext<DashboardEntity> }){
   const forceUpdate = useForceUpdate();
@@ -45,6 +46,7 @@ export default function Dashboard(p : { ctx: TypeContext<DashboardEntity> }){
       });
   }
 
+  var colors = ["#DFFF00", "#FFBF00", "#FF7F50", "#DE3163", "#9FE2BF", "#40E0D0", "#6495ED", "#CCCCFF"]
 
   function renderPart(tc: TypeContext<PanelPartEmbedded>) {
     const tcs = tc.subCtx({ formGroupStyle: "SrOnly", formSize: "ExtraSmall", placeholderLabels: true });
@@ -55,8 +57,18 @@ export default function Dashboard(p : { ctx: TypeContext<DashboardEntity> }){
       <div>
         <div className="d-flex">
           {icon && <div className="mx-2"><FontAwesomeIcon icon={icon} style={{ color: tc.value.iconColor ?? undefined, fontSize: "25px", marginTop: "17px" }} /> </div>}
-          <div style={{ flexGrow: 1 }} className="mr-2">
-            <ValueLine ctx={tcs.subCtx(pp => pp.title)} labelText={getToString(tcs.value.content) ?? tcs.niceName(pp => pp.title)} />
+          <div style={{ flexGrow: 1 }} className="me-2">
+
+            <div className="row">
+              <div className="col-sm-8">
+                <ValueLine ctx={tcs.subCtx(pp => pp.title)} labelText={getToString(tcs.value.content) ?? tcs.niceName(pp => pp.title)} />
+              </div>
+              <div className="col-sm-4">
+                <ValueLine ctx={tcs.subCtx(pp => pp.interactionGroup)}
+                  onRenderDropDownListItem={(io) => <span><span className="sf-dot" style={{ backgroundColor: colors[InteractionGroup.values().indexOf(io.value)] }} />{io.label}</span>} />
+              </div>
+            </div>
+
             <div className="row">
               <div className="col-sm-4">
                 <ValueLine ctx={tcs.subCtx(pp => pp.style)} onChange={() => forceUpdate()} />

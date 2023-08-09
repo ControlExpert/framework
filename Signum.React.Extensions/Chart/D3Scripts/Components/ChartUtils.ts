@@ -1,4 +1,4 @@
-import { DateTime, DurationUnit, Duration } from "luxon"
+import { DateTime, DurationUnit, Duration, DateTimeUnit } from "luxon"
 import * as d3 from "d3"
 import * as d3sc from "d3-scale-chromatic";
 import { ChartTable, ChartColumn, ChartRow } from "../../ChartClient"
@@ -8,6 +8,7 @@ import { coalesce, Dic } from "@framework/Globals";
 import { getTypeInfo, parseDuration, tryGetTypeInfo } from "@framework/Reflection";
 import { ChartRequestModel } from "../../Signum.Entities.Chart";
 import { isFilterGroupOption, isFilterGroupOptionParsed, FilterConditionOptionParsed, FilterOptionParsed, QueryToken, FilterConditionOption } from "@framework/FindOptions";
+import { MemoRepository } from "./ReactChart";
 
 
 
@@ -140,7 +141,7 @@ export function completeValues(column: ChartColumn<unknown>, values: unknown[], 
     };
   }
 
-  function durationUnit(lastPart: string): DurationUnit {
+  function durationUnit(lastPart: string): DateTimeUnit {
     switch (lastPart) {
       case "SecondStart": return "second";
       case "MinuteStart": return "minute";
@@ -152,7 +153,7 @@ export function completeValues(column: ChartColumn<unknown>, values: unknown[], 
     }
   }
 
-  function tryCeil(date: string | null | undefined, unit: DurationUnit) {
+  function tryCeil(date: string | null | undefined, unit: DateTimeUnit) {
     if (date == null)
       return undefined;
 
@@ -160,7 +161,7 @@ export function completeValues(column: ChartColumn<unknown>, values: unknown[], 
   }
 
 
-  function ceil(date: DateTime, unit: DurationUnit) {
+  function ceil(date: DateTime, unit: DateTimeUnit) {
 
     if (date.toMillis() == date.startOf(unit).toMillis())
       return date;
@@ -168,14 +169,14 @@ export function completeValues(column: ChartColumn<unknown>, values: unknown[], 
     return date.startOf(unit).plus({ [unit]: 1 });
   }
  
-  function tryFloor(date: string | null | undefined, unit: DurationUnit) {
+  function tryFloor(date: string | null | undefined, unit: DateTimeUnit) {
     if (date == null)
       return undefined;
 
     return floor(DateTime.fromISO(date), unit).toISO();
   }
 
-  function floor(date: DateTime, unit: DurationUnit) {
+  function floor(date: DateTime, unit: DateTimeUnit) {
 
     return date.startOf(unit);
   }
@@ -490,32 +491,18 @@ interface CachedColorOrdinal {
   scale: d3.ScaleOrdinal<string, string>;
 }
 
-export function colorCategory(parameters: { [name: string]: string }, domain: string[]): d3.ScaleOrdinal<string, string> {
-
-  const cacheKey = "_cachedColorOrdinal_"; 
+export function colorCategory(parameters: { [name: string]: string }, domain: string[], memo: MemoRepository, memoKey?: string, deps?: []): d3.ScaleOrdinal<string, string> {
 
   var category = parameters["ColorCategory"];
   var categorySteps = parseInt(parameters["ColorCategorySteps"]);
-  if (parameters[cacheKey]) {
-    const cached = parameters[cacheKey] as any as CachedColorOrdinal;
 
-    if (cached.category == category && cached.categorySteps == categorySteps) {
-      domain.forEach(a => cached.scale(a));
-      return cached.scale;
-    }
-  }
+  return memo.memo<d3.ScaleOrdinal<string, string>>(memoKey ?? "colorCategory", [category, categorySteps, ...(deps ?? [])], () => {
 
-  var scheme = getColorScheme(category, categorySteps);
-
-  const newCached: CachedColorOrdinal = {
-    category: category,
-    categorySteps: categorySteps,
-    scale: d3.scaleOrdinal(scheme).domain(domain),
-  };
-
-  parameters[cacheKey] = newCached as any;
-
-  return newCached.scale;
+    var scheme = getColorScheme(category, categorySteps);
+    var scale = d3.scaleOrdinal(scheme);
+    domain.forEach(a => scale(a));
+    return scale;
+  });
 }
 
 

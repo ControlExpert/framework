@@ -117,7 +117,7 @@ namespace Signum.Engine.Basics
                 return entity;
 
             using (ExecutionMode.Global())
-            using (Transaction tr = Transaction.ForceNew())
+            using (var tr = Transaction.ForceNew())
             {
                 entity.Save();
 
