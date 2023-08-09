@@ -15,7 +15,7 @@ namespace Signum.Engine.Migrations
 {
     public class SqlMigrationRunner
     {
-        public static string MigrationsDirectory = @"..\..\..\Migrations";
+        public static string MigrationsDirectory = Path.Combine("..", "..", "..", "Migrations");
 
         public static void SqlMigrations()
         {
@@ -81,7 +81,7 @@ namespace Signum.Engine.Migrations
 
             Regex regex = new Regex(@"(?<version>\d{4}\.\d{2}\.\d{2}\-\d{2}\.\d{2}\.\d{2})(_(?<comment>.+))?\.sql");
 
-            var matches =  Directory.EnumerateFiles(MigrationsDirectory, "*.sql")
+            var matches = Directory.EnumerateFiles(MigrationsDirectory, "*.sql")
                 .Select(fileName => new { fileName, match = regex.Match(Path.GetFileName(fileName)) }).ToList();
 
             var errors = matches.Where(a => !a.match!.Success);
@@ -96,7 +96,7 @@ namespace Signum.Engine.Migrations
                 Version = a.match!.Groups["version"].Value,
                 Comment = a.match!.Groups["comment"].Value,
             }).OrderBy(a => a.Version).ToList();
-            
+
             return list;
         }
 
@@ -134,7 +134,7 @@ namespace Signum.Engine.Migrations
             }
 
             var last = migrations.LastOrDefault() ?? null;
-            if (migrations.All(a=>a.IsExecuted))
+            if (migrations.All(a => a.IsExecuted))
             {
                 if (autoRun || !SafeConsole.Ask("Create new migration?"))
                     return false;
@@ -159,7 +159,7 @@ namespace Signum.Engine.Migrations
 
                     string comment = SafeConsole.AskString("Comment for the new Migration? ", stringValidator: s => null).Trim();
 
-                    string fileName = version + (comment.HasText() ? "_" + FileNameValidatorAttribute.RemoveInvalidCharts(comment): null) + ".sql";
+                    string fileName = version + (comment.HasText() ? "_" + FileNameValidatorAttribute.RemoveInvalidCharts(comment) : null) + ".sql";
 
                     File.WriteAllText(Path.Combine(MigrationsDirectory, fileName), script.ToString(), Encoding.UTF8);
                 }
@@ -245,13 +245,13 @@ namespace Signum.Engine.Migrations
                     throw new InvalidOperationException();
 
 
-                SafeConsole.WriteColor(color,  
-                    mi.IsExecuted?  "- " : 
-                    current == mi ? "->" : 
+                SafeConsole.WriteColor(color,
+                    mi.IsExecuted ? "- " :
+                    current == mi ? "->" :
                                     "  ");
-                
+
                 SafeConsole.WriteColor(color, mi.Version);
-                SafeConsole.WriteLineColor(mi.FileName == null ? ConsoleColor.Red: ConsoleColor.Gray, " " + mi.Comment);
+                SafeConsole.WriteLineColor(mi.FileName == null ? ConsoleColor.Red : ConsoleColor.Gray, " " + mi.Comment);
             }
 
             Console.WriteLine();

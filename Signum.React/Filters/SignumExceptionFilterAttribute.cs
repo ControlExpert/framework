@@ -85,6 +85,7 @@ namespace Signum.React.Filters
                             {
                                 await response.WriteAsync(JsonSerializer.Serialize(error, SignumServer.JsonSerializerOptions));
                             }
+
                             context.ExceptionHandled = true;
                         }
                     }
@@ -162,7 +163,7 @@ namespace Signum.React.Filters
         public string ExceptionMessage;
         public string? ExceptionId;
         public string? StackTrace;
-        public ModelEntity? Model; 
+        public ModelEntity? Model;
         public HttpError? InnerException;
     }
 
