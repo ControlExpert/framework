@@ -1,14 +1,14 @@
 import * as React from 'react'
-import { DateTime } from 'luxon'
+import { DateTime, Duration } from 'luxon'
 import { areEqual, classes } from '../Globals'
 import * as Navigator from '../Navigator'
 import * as Finder from '../Finder'
 import { FindOptions, FindOptionsParsed, SubTokensOptions, QueryToken, QueryValueRequest } from '../FindOptions'
 import { Lite, Entity, getToString, EmbeddedEntity } from '../Signum.Entities'
-import { getQueryKey, toNumberFormat, toLuxonFormat, getEnumInfo, QueryTokenString, getTypeInfo, getTypeName, toDurationFormat, durationToString } from '../Reflection'
+import { getQueryKey, toNumberFormat, toLuxonFormat, getEnumInfo, QueryTokenString, getTypeInfo, getTypeName, toLuxonDurationFormat, timeToString } from '../Reflection'
 import { AbortableRequest } from "../Services";
 import { SearchControlProps } from "./SearchControl";
-import { BsColor } from '../Components';
+import { BsColor, BsSize } from '../Components';
 import { toFilterRequests } from '../Finder';
 import { PropertyRoute } from '../Lines'
 import * as Hooks from '../Hooks'
@@ -32,6 +32,7 @@ export interface ValueSearchControlProps extends React.Props<ValueSearchControl>
   avoidNotifyPendingRequest?: boolean;
   deps?: React.DependencyList;
   searchControlProps?: Partial<SearchControlProps>;
+  modalSize?: BsSize;
   onRender?: (value: any | undefined, vsc: ValueSearchControl) => React.ReactNode;
   htmlAttributes?: React.HTMLAttributes<HTMLElement>,
 }
@@ -294,18 +295,24 @@ export default class ValueSearchControl extends React.Component<ValueSearchContr
     switch (token.filterType) {
       case "Integer":
       case "Decimal":
-        const numbroFormat = toNumberFormat(this.props.format ?? token.format);
-        return numbroFormat.format(value);
+        {
+          const numberFormat = toNumberFormat(this.props.format ?? token.format);
+          return numberFormat.format(value);
+        }
       case "DateTime":
-        const momentFormat = toLuxonFormat(this.props.format ?? token.format, token.type.name as "Date" | "DateTime");
-        return DateTime.fromISO(value).toFormatFixed(momentFormat);
+        {
+          const luxonFormat = toLuxonFormat(this.props.format ?? token.format, token.type.name as "DateOnly" | "DateTime");
+          return toFormatFixed(DateTime.fromISO(value), luxonFormat);
+        }
       case "Time":
-        const durationFormat = toDurationFormat(this.props.format ?? token.format);
-        return durationToString(value, durationFormat);
+        {
+          const luxonFormat = toLuxonDurationFormat(this.props.format ?? token.format);
+          return Duration.fromISOTime(value).toFormat(luxonFormat ?? "hh:mm:ss");
+        }
       case "String": return value;
       case "Lite": return (value as Lite<Entity>).toStr;
       case "Embedded": return getToString(value as EmbeddedEntity);
-      case "Boolean": return <input type="checkbox" disabled={true} checked={value} />
+      case "Boolean": return <input type="checkbox" className="form-check-input" disabled={true} checked={value} />
       case "Enum": return getEnumInfo(token!.type.name, value).niceName;
       case "Guid":
         let str = value as string;
@@ -321,7 +328,7 @@ export default class ValueSearchControl extends React.Component<ValueSearchContr
     if (e.ctrlKey || e.button == 1)
       window.open(Finder.findOptionsPath(this.props.findOptions));
     else
-      Finder.explore(this.props.findOptions, { searchControlProps: this.props.searchControlProps }).then(() => {
+      Finder.explore(this.props.findOptions, { searchControlProps: this.props.searchControlProps, modalSize: this.props.modalSize }).then(() => {
         if (!this.props.avoidAutoRefresh)
           this.refreshValue(this.props);
 
@@ -329,4 +336,8 @@ export default class ValueSearchControl extends React.Component<ValueSearchContr
           this.props.onExplored();
       }).done();
   }
+}
+
+function toFormatFixed(arg0: DateTime, momentFormat: string) {
+    throw new Error('Function not implemented.')
 }

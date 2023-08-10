@@ -74,12 +74,12 @@ export type OperationType =
 
 //https://moment.github.io/luxon/docs/manual/formatting.html#formatting-with-tokens--strings-for-cthulhu-
 //https://docs.microsoft.com/en-us/dotnet/standard/base-types/standard-date-and-time-format-strings
-export function toLuxonFormat(format: string | undefined, type: "Date" | "DateTime"): string {
+export function toLuxonFormat(netFormat: string | undefined, type: "DateOnly" | "DateTime"): string {
 
-  if (!format)
-    return type == "Date" ? "D" : "F";
+  if (!netFormat)
+    return type == "DateOnly" ? "D" : "F";
   
-  switch (format) {
+  switch (netFormat) {
     case "d": return "D"; // toFormatWithFixes
     case "D": return "DDDD";
     case "f": return "fff"
@@ -96,7 +96,7 @@ export function toLuxonFormat(format: string | undefined, type: "Date" | "DateTi
     case "y": return "LLLL yyyy";
     case "Y": return "LLLL yyyy";
     default: {
-      const result = format
+      const result = netFormat
         .replaceAll("f", "S")
         .replaceAll("tt", "A")
         .replaceAll("t", "a")
@@ -108,13 +108,6 @@ export function toLuxonFormat(format: string | undefined, type: "Date" | "DateTi
         .replaceAll("T", "'T'");
       return result;
     }
-  }
-}
-
-
-declare module "luxon/src/DateTime" {
-  interface DateTime {
-    toFormatFixed(format: string, options?: DateTimeFormatOptions): string;
   }
 }
 
@@ -210,36 +203,36 @@ const oneDigitCulture = new Set([
   "zu", "zu-ZA"
 ]);
 
-DateTime.prototype.toFormatFixed = function toFormatWithFixes(this: DateTime, format: string, options ?: Intl.DateTimeFormatOptions){
+export function toFormatWithFixes(dt: DateTime, format: string, options ?: Intl.DateTimeFormatOptions){
 
-  if (!oneDigitCulture.has(this.locale)) {
+  if (!oneDigitCulture.has(dt.locale)) {
 
     if (format == "D")
-      return this.toLocaleString({ year: "numeric", month: "2-digit", day: "2-digit", ...options });
+      return dt.toLocaleString({ year: "numeric", month: "2-digit", day: "2-digit", ...options });
 
     if (format == "f")
-      return this.toLocaleString({ year: "numeric", month: "2-digit", day: "2-digit", hour: "numeric", minute: "numeric", ...options });
+      return dt.toLocaleString({ year: "numeric", month: "2-digit", day: "2-digit", hour: "numeric", minute: "numeric", ...options });
 
     if (format == "F")
-      return this.toLocaleString({ year: "numeric", month: "2-digit", day: "2-digit", hour: "numeric", minute: "numeric", second: "numeric", ...options });
+      return dt.toLocaleString({ year: "numeric", month: "2-digit", day: "2-digit", hour: "numeric", minute: "numeric", second: "numeric", ...options });
   }
 
   if (format == "EE") //missing
-    return this.toFormat("EEE", options).substr(0, 2);
+    return dt.toFormat("EEE", options).substr(0, 2);
 
-  return this.toFormat(format, options)
+  return dt.toFormat(format, options)
 
 }
 
 
 //https://msdn.microsoft.com/en-us/library/ee372286(v=vs.110).aspx
 //https://github.com/jsmreese/moment-duration-format
-export function toDurationFormat(format: string | undefined): string | undefined {
+export function toLuxonDurationFormat(netFormat: string | undefined): string | undefined {
 
-  if (format == undefined)
+  if (netFormat == undefined)
     return undefined;
 
-  return format.replace("\\:", ":");
+  return netFormat.replaceAll("\\:", ":").replaceAll("H", "h");
 }
 
 export namespace NumberFormatSettings {
@@ -341,45 +334,20 @@ export function numberToString(val: any, format?: string) {
   return toNumberFormat(format).format(val);
 }
 
-export function dateToString(val: any, type: "Date" | "DateTime", format?: string) {
+export function dateToString(val: any, type: "DateOnly" | "DateTime", netFormat?: string) {
   if (val == null)
     return "";
 
   var m = DateTime.fromISO(val);
-  return m.toFormat(toLuxonFormat(format, type));
+  return m.toFormat(toLuxonFormat(netFormat, type));
 }
 
-export function durationToString(val: any, format?: string) {
+export function timeToString(val: any, netFormat?: string) {
   if (val == null)
     return "";
 
-  var duration = parseDuration(val);
-  return duration.toFormat(format ?? "hh:mm:ss");
-}
-
-export function parseDuration(timeStampToStr: string, format: string = "hh:mm:ss") {
-  var valParts = timeStampToStr.split(":");
-  var formatParts = format.split(":");
-
-  if (valParts.length > formatParts.length)
-    throw new Error("Invalid Format")
-
-  const result: DurationObjectUnits = {};
-
-  for (let i = 0; i < formatParts.length; i++) {
-    const formP = formatParts[i];
-    const value = parseInt(valParts[i] || "0");
-    switch (formP) {
-      case "h":
-      case "hh": result.hours = value; break;
-      case "m":
-      case "mm": result.minutes = value; break;
-      case "s":
-      case "ss": result.seconds = value; break;
-      default: throw new Error("Unexpected " + formP);
-    }
-  }
-  return Duration.fromObject(result);
+  var duration = Duration.fromISOTime(val);
+  return duration.toFormat(toLuxonDurationFormat(netFormat) ?? "hh:mm:ss");
 }
 
 

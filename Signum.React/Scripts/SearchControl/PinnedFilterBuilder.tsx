@@ -33,7 +33,8 @@ export default function PinnedFilterBuilder(p: PinnedFilterBuilderProps) {
       <div className={classes("row", p.extraSmall ? "" : "mt-3 mb-3")}>
         {
           allPinned
-            .groupBy(a => (a.pinned!.column ?? 0).toString())
+            .filter(fo => fo.pinned?.active != "DashboardFilter")
+            .groupBy(fo => (fo.pinned!.column ?? 0).toString())
             .orderBy(gr => parseInt(gr.key))
             .map(gr => <div className="col-sm-3" key={gr.key}>
               {gr.elements.orderBy(a => a.pinned!.row).map((f, i) => <div key={i}>{renderValue(f)}</div>)}
@@ -57,7 +58,7 @@ export default function PinnedFilterBuilder(p: PinnedFilterBuilderProps) {
     if (f.pinned && (f.pinned.active == "Checkbox_StartChecked" || f.pinned.active == "Checkbox_StartUnchecked")) {
       return (
         <div className="checkbox mt-4">
-          <label><input type="checkbox" className="me-1" checked={f.pinned.active == "Checkbox_StartChecked"} readOnly={readOnly} onChange={() => {
+          <label><input type="checkbox" className="form-check-input me-1" checked={f.pinned.active == "Checkbox_StartChecked"} readOnly={readOnly} onChange={() => {
             f.pinned!.active = f.pinned!.active == "Checkbox_StartChecked" ? "Checkbox_StartUnchecked" : "Checkbox_StartChecked";
             p.onFiltersChanged && p.onFiltersChanged(p.filterOptions);
           }} />{labelText}</label>
@@ -80,7 +81,7 @@ export default function PinnedFilterBuilder(p: PinnedFilterBuilderProps) {
         </FormGroup>
       );
 
-    return createFilterValueControl(ctx, f.token!, () => handleValueChange(f), labelText, f.pinned!.active == "WhenHasValue");
+    return createFilterValueControl(ctx, f.token!, () => handleValueChange(f), labelText, f.pinned!.active == "WhenHasValue" || f.pinned!.active == "DashboardFilter");
   }
 
 

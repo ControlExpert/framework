@@ -5,7 +5,7 @@ import * as Navigator from '@framework/Navigator'
 import * as AppContext from '@framework/AppContext'
 import * as Finder from '@framework/Finder'
 import { Entity, Lite, liteKey, MList } from '@framework/Signum.Entities'
-import { getQueryKey, getEnumInfo, QueryTokenString, getTypeInfos, tryGetTypeInfos, toDurationFormat, durationToString } from '@framework/Reflection'
+import { getQueryKey, getEnumInfo, QueryTokenString, getTypeInfos, tryGetTypeInfos, timeToString, toFormatWithFixes } from '@framework/Reflection'
 import {
   FilterOption, OrderOption, OrderOptionParsed, QueryRequest, QueryToken, SubTokensOptions, ResultTable, OrderRequest, OrderType, FilterOptionParsed, hasAggregate, ColumnOption, withoutAggregate
 } from '@framework/FindOptions'
@@ -32,6 +32,8 @@ export function start(options: { routes: JSX.Element[], googleMapsApiKey?: strin
 
   options.routes.push(<ImportRoute path="~/chart/:queryName" onImportModule={() => import("./Templates/ChartRequestPage")} />);
 
+  AppContext.clearSettingsActions.push(ButtonBarChart.clearOnButtonBarElements);
+ 
   Finder.ButtonBarQuery.onButtonBarElements.push(ctx => {
     if (!ctx.searchControl.props.showBarExtension ||
       !AuthClient.isPermissionAuthorized(ChartPermission.ViewCharting) ||
@@ -119,6 +121,10 @@ export namespace ButtonBarChart {
 
   export function getButtonBarElements(ctx: ButtonBarChartContext): React.ReactElement<any>[] {
     return onButtonBarElements.map(f => f(ctx)).filter(a => a != undefined).map(a => a!);
+  }
+
+  export function clearOnButtonBarElements() {
+    ButtonBarChart.onButtonBarElements.clear();
   }
 }
 
@@ -236,7 +242,7 @@ export function isChartColumnType(token: QueryToken | undefined, ct: ChartColumn
     case "Groupable": return [
       "RealGroupable",
       "Integer",
-      "Date",
+      "DateOnly",
       "String",
       "Lite",
       "Enum"].contains(type);
@@ -250,7 +256,7 @@ export function isChartColumnType(token: QueryToken | undefined, ct: ChartColumn
       "Integer",
       "Real",
       "RealGroupable",
-      "Date",
+      "DateOnly",
       "DateTime",
       "Time"].contains(type);
   }
@@ -269,7 +275,7 @@ export function getChartColumnType(token: QueryToken): ChartColumnType | undefin
     case "Guid": return "String";
     case "Integer": return "Integer";
     case "Decimal": return token.isGroupable ? "RealGroupable" : "Real";
-    case "DateTime": return token.isGroupable ? "Date" : "DateTime";
+    case "DateTime": return token.isGroupable ? "DateOnly" : "DateTime";
     case "Time": return "Time";
   }
 
@@ -386,6 +392,7 @@ export function handleOrderColumn(cr: IChartBase, col: ChartColumnEmbedded, isSh
     cr.columns.forEach(a => {
       a.element.orderByType = null;
       a.element.orderByIndex = null;
+      a.element.modified = true;
     });
 
     col.orderByType = newOrder;
@@ -592,7 +599,7 @@ export module API {
       case "Guid": return "String";
       case "Integer": return "Integer";
       case "Decimal": return token.isGroupable ? "RealGroupable" : "Real";
-      case "DateTime": return token.isGroupable ? "Date" : "DateTime";
+      case "DateTime": return token.isGroupable ? "DateOnly" : "DateTime";
       case "Time": return "Time";
       default: return null;
     }
@@ -656,15 +663,15 @@ export module API {
     if (token.filterType == "DateTime")
       return v => {
         var date = v as string | null;
-        var format = toLuxonFormat(chartColumn.format || token.format, token.type.name as "Date" | "DateTime");
-        return date == null ? String(null) : DateTime.fromISO(date).toFormatFixed(format);
+        var format = toLuxonFormat(chartColumn.format || token.format, token.type.name as "DateOnly" | "DateTime");
+        return date == null ? String(null) : toFormatWithFixes(DateTime.fromISO(date), format);
       };
 
     if (token.filterType == "Time")
       return v => {
         var date = v as string | null;
-        var format = toDurationFormat(chartColumn.format || token.format);
-        return date == null ? String(null) : durationToString(date, format);
+        var format = chartColumn.format || token.format;
+        return date == null ? String(null) : timeToString(date, format);
       };
 
     if (token.format && (token.filterType == "Decimal" || token.filterType == "Integer"))
