@@ -13,7 +13,7 @@ public interface IAutoCreateUserContext
     public string? EmailAddress { get; }
     public string FirstName { get; }
     public string LastName { get; }
-    public Guid? OID { get;  }
+    public Guid? OID { get; }
     public string? SID { get; }
 }
 
@@ -71,7 +71,7 @@ public class AzureClaimsAutoCreateUserContext : IAutoCreateUserContext
         {
             var name = FullName;
 
-            return name == null ? "Unknown" : 
+            return name == null ? "Unknown" :
                 name.Contains(",") ? name.After(",").Trim() :
                 name.TryBefore(" ")?.Trim() ?? name.DefaultToNull() ?? "Unknown";
         }
@@ -83,13 +83,13 @@ public class AzureClaimsAutoCreateUserContext : IAutoCreateUserContext
         {
             var name = FullName;
 
-            return name == null ? "Unknown" : 
-                name.Contains(",") ? name.Before(",").Trim() : 
-                name.TryAfter(" ")?.Trim() ??  "Unknown";
+            return name == null ? "Unknown" :
+                name.Contains(",") ? name.Before(",").Trim() :
+                name.TryAfter(" ")?.Trim() ?? "Unknown";
         }
     }
 
-  
+
 
     public AzureClaimsAutoCreateUserContext(ClaimsPrincipal claimsPrincipal)
     {

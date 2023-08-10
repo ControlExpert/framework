@@ -579,7 +579,7 @@ public static class AuthLogic
         }
     }
 
-   
+
     public static void AutomaticImportAuthRules()
     {
         AutomaticImportAuthRules("AuthRules.xml");

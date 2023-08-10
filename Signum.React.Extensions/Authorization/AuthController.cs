@@ -138,9 +138,9 @@ public class AuthController : ControllerBase
             return ModelError("newPassword", error);
 
         var user = UserEntity.Current;
-        if(string.IsNullOrEmpty(request.oldPassword))
+        if (string.IsNullOrEmpty(request.oldPassword))
         {
-            if(user.PasswordHash != null)
+            if (user.PasswordHash != null)
                 return ModelError("oldPassword", LoginAuthMessage.PasswordMustHaveAValue.NiceToString());
         }
         else

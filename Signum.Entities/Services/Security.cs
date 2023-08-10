@@ -4,18 +4,18 @@ namespace Signum.Services;
 
 public static class Security
 {
-    public static Func<string, byte[]> EncodePassword = (string originalPassword) => MD5Hash(originalPassword);
+    public static Func<string, string, IList<byte[]>> EncodePassword = (string userName, string originalPassword) => new List<byte[]> { MD5Hash(originalPassword) };
 
     public static byte[] MD5Hash(string saltedPassword)
     {
         byte[] originalBytes = ASCIIEncoding.Default.GetBytes(saltedPassword);
-        byte[] encodedBytes = MD5.Create().ComputeHash(originalBytes);
+        byte[] encodedBytes = new MD5CryptoServiceProvider().ComputeHash(originalBytes);
         return encodedBytes;
     }
 
     public static string GetSHA1(string str)
     {
-        SHA1 sha1 = SHA1.Create();
+        SHA1 sha1 = SHA1Managed.Create();
         ASCIIEncoding encoding = new ASCIIEncoding();
         StringBuilder sb = new StringBuilder();
         byte[] stream = sha1.ComputeHash(encoding.GetBytes(str));
@@ -23,8 +23,6 @@ public static class Security
             sb.AppendFormat("{0:x2}", stream[i]);
         return sb.ToString();
     }
-
- 
 }
 
 public class CryptorEngine

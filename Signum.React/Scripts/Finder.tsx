@@ -1724,6 +1724,7 @@ export interface QuerySettings {
   modalSize?: BsSize;
   showContextMenu?: (fop: FindOptionsParsed) => boolean | "Basic";
   allowSelection?: boolean;
+  showFilters?: boolean;
   getViewPromise?: (e: ModifiableEntity | null) => (undefined | string | Navigator.ViewPromise<ModifiableEntity>);
   onDoubleClick?: (e: React.MouseEvent<any>, row: ResultRow, columns: string[], sc?: SearchControlLoaded) => void;
   simpleFilterBuilder?: (sfbc: SimpleFilterBuilderContext) => React.ReactElement<any> | undefined;

@@ -1375,7 +1375,7 @@ internal class QueryBinder : ExpressionVisitor
 
         Alias tableAlias = NextTableAlias(table.Name);
 
-        Expression exp = 
+        Expression exp =
             table is Table t ? t.GetProjectorExpression(tableAlias, this) :
             table is TableMList tml ? tml.GetProjectorExpression(tableAlias, this) :
             throw new UnexpectedValueException(table);
@@ -1857,7 +1857,7 @@ internal class QueryBinder : ExpressionVisitor
 
                                     return m.Member.Name switch
                                     {
-                                        "Min" => interval.Min ?? new SqlFunctionExpression(interval.ElementType, null, PostgresFunction.lower.ToString(), new [] { interval.PostgresRange! }),
+                                        "Min" => interval.Min ?? new SqlFunctionExpression(interval.ElementType, null, PostgresFunction.lower.ToString(), new[] { interval.PostgresRange! }),
                                         "Max" => interval.Max ?? new SqlFunctionExpression(interval.ElementType, null, PostgresFunction.upper.ToString(), new[] { interval.PostgresRange! }),
                                         _ => throw new InvalidOperationException("The member {0} of MListElement is not accesible on queries".FormatWith(m.Member)),
                                     };
@@ -2631,7 +2631,7 @@ internal class QueryBinder : ExpressionVisitor
         else if (colExpression is ImplementedByExpression colIb && expression is ImplementedByExpression expIb)
         {
             return colIb.Implementations
-                .Select(cImp =>  AssignColumn(cImp.Value.ExternalId.Value, expIb.Implementations.GetOrThrow(cImp.Key).ExternalId.Value))
+                .Select(cImp => AssignColumn(cImp.Value.ExternalId.Value, expIb.Implementations.GetOrThrow(cImp.Key).ExternalId.Value))
                 .ToArray();
         }
         else if (colExpression is ImplementedByAllExpression colIba && expression is ImplementedByAllExpression expIba)

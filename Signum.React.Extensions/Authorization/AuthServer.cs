@@ -20,7 +20,7 @@ public static class AuthServer
     public static Action<ActionContext, UserEntity> UserLogged;
     public static Action<ActionContext, UserEntity> UserLoggingOut;
 
-    
+
     public static void Start(IApplicationBuilder app, Func<AuthTokenConfigurationEmbedded> tokenConfig, string hashableEncryptionKey)
     {
         SignumControllerFactory.RegisterArea(MethodInfo.GetCurrentMethod());
@@ -43,7 +43,7 @@ public static class AuthServer
                 {
                     if (UserEntity.Current == null)
                         return null;
-                    
+
                     var ta = TypeAuthLogic.GetAllowed(t);
 
                     if (ta.MaxUI() == TypeAllowedBasic.None)
@@ -221,7 +221,7 @@ public static class AuthServer
             Omnibox.OmniboxServer.IsNavigable += type => TypeAuthLogic.GetAllowed(type).MaxUI() >= TypeAllowedBasic.Read;
 
         if (SessionLogLogic.IsStarted)
-            AuthServer.UserLogged +=  (ActionContext ac, UserEntity user) =>
+            AuthServer.UserLogged += (ActionContext ac, UserEntity user) =>
             {
                 Microsoft.AspNetCore.Http.HttpRequest re = ac.HttpContext.Request;
                 SessionLogLogic.SessionStart(
