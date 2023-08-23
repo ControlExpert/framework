@@ -51,7 +51,7 @@ public class ComputerEntity : Entity
 {
     [UniqueIndex]
     string serialNumber;
-    [StringLengthValidator(AllowNulls = false, Min = 10, Max = 12)]
+    [StringLengthValidator( Min = 10, Max = 12)]
     public string SerialNumber
     {
         get { return serialNumber; }
