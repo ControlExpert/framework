@@ -181,15 +181,18 @@ export default function FramePage(p: FramePageProps) {
     entityComponent: entityComponent.current,
     pack: state.pack,
     isExecuting: () => state.executing == true,
-    execute: action => {
+    execute: async action => {
       if (state.executing)
         return;
 
       state.executing = true;
       forceUpdate();
-      action()
-        .finally(() => { state.executing = undefined; forceUpdate(); })
-        .done();
+      try {
+        await action();
+      } finally {
+        state.executing = undefined;
+        forceUpdate();
+      }
     },
     onReload: (pack, reloadComponent, callback) => {
 
@@ -288,7 +291,7 @@ export default function FramePage(p: FramePageProps) {
       <h4 className="border-bottom pb-3 mb-2">
         <span className="display-6 sf-entity-title">{getToString(entity)}</span>
         <br />
-        <small className="sf-type-nice-name text-muted">{Navigator.getTypeTitle(entity, undefined)}</small>
+        <small className="sf-type-nice-name text-muted">{Navigator.getTypeSubTitle(entity, undefined)}</small>
       </h4>
     );
   }

@@ -188,6 +188,10 @@ public class FilterCondition : Filter
                 Expression right = Expression.Constant(((string)val!).ToLower(), Token.Type);
                 return QueryUtils.GetCompareExpression(Operation, Expression.Call(left, miToLower), right);
             }
+            else if (Token.Type == typeof(bool) && val == null)
+            {
+                return QueryUtils.GetCompareExpression(Operation, left, Expression.Constant(false, typeof(bool)));
+            }
             else
             {
                 Expression right = Expression.Constant(val, Token.Type);
@@ -264,5 +268,13 @@ public enum PinnedFilterActive
     Checkbox_StartChecked,
     [Description("Checkbox (start unchecked)")]
     Checkbox_StartUnchecked,
-    DashboardFilter,
+}
+
+[InTypeScript(true), DescriptionOptions(DescriptionOptions.Members | DescriptionOptions.Description)]
+public enum DashboardBehaviour
+{
+    //ShowAsPartFilter = 0, //Pinned Filter shown in the Part Widget
+    PromoteToDasboardPinnedFilter = 1, //Pinned Filter promoted to dashboard
+    UseAsInitialSelection, //Filters other parts in the same interaction group as if the user initially selected
+    UseWhenNoFilters
 }

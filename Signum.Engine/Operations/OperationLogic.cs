@@ -329,7 +329,7 @@ Consider the following options:
         }
         catch(Exception e)
         {
-            e.Data["entity"] = entity.BaseToString();
+            e.Data["entity"] = entity;
             throw;
         }
     }
@@ -673,7 +673,7 @@ Consider the following options:
     {
         var getState = Graph<E, S>.GetState;
 
-        var states = lites.GroupsOf(200).SelectMany(list =>
+        var states = lites.Chunk(200).SelectMany(list =>
             Database.Query<T>().Where(e => list.Contains(e.ToLite())).Select(getState).Distinct()).Distinct().ToList();
 
         return (from o in operations.Cast<Graph<E, S>.IGraphFromStatesOperation>()

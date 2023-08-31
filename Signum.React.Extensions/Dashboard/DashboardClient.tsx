@@ -1,20 +1,21 @@
 import * as React from 'react'
 import { IconProp } from '@fortawesome/fontawesome-svg-core'
-import { ajaxGet } from '@framework/Services';
+import { ajaxGet, ajaxPost } from '@framework/Services';
 import * as Constructor from '@framework/Constructor';
 import { EntitySettings } from '@framework/Navigator'
 import * as Navigator from '@framework/Navigator'
+import * as Operations from '@framework/Operations'
 import * as AppContext from '@framework/AppContext'
 import * as Finder from '@framework/Finder'
 import { Entity, Lite, liteKey, toLite, EntityPack, getToString, SelectorMessage } from '@framework/Signum.Entities'
 import * as QuickLinks from '@framework/QuickLinks'
-import { Type } from '@framework/Reflection'
+import { getTypeName, PseudoType, Type } from '@framework/Reflection'
 import { onEmbeddedWidgets, EmbeddedWidget } from '@framework/Frames/Widgets'
 import * as AuthClient from '../Authorization/AuthClient'
 import * as ChartClient from '../Chart/ChartClient'
 import * as UserChartClient from '../Chart/UserChart/UserChartClient'
 import * as UserQueryClient from '../UserQueries/UserQueryClient'
-import { DashboardPermission, DashboardEntity, ValueUserQueryListPartEntity, LinkListPartEntity, UserChartPartEntity, UserQueryPartEntity, IPartEntity, DashboardMessage, PanelPartEmbedded, UserTreePartEntity, CombinedUserChartPartEntity } from './Signum.Entities.Dashboard'
+import { DashboardPermission, DashboardEntity, ValueUserQueryListPartEntity, LinkListPartEntity, UserChartPartEntity, UserQueryPartEntity, IPartEntity, DashboardMessage, PanelPartEmbedded, UserTreePartEntity, CombinedUserChartPartEntity, CachedQueryEntity, DashboardOperation, TokenEquivalenceGroupEntity } from './Signum.Entities.Dashboard'
 import * as UserAssetClient from '../UserAssets/UserAssetClient'
 import { ImportRoute } from "@framework/AsyncImport";
 import { useAPI } from '@framework/Hooks';
@@ -23,6 +24,8 @@ import SelectorModal from '@framework/SelectorModal';
 import { translated } from '../Translation/TranslatedInstanceTools';
 import { DashboardFilterController } from "./View/DashboardFilterController";
 import { EntityFrame } from '../../Signum.React/Scripts/TypeContext';
+import { CachedQueryJS } from './CachedQueryExecutor';
+import { QueryEntity } from '../../Signum.React/Scripts/Signum.Entities.Basics';
 
 
 export interface PanelPartContentProps<T extends IPartEntity> {
@@ -31,6 +34,7 @@ export interface PanelPartContentProps<T extends IPartEntity> {
   entity?: Lite<Entity>;
   deps?: React.DependencyList;
   filterController: DashboardFilterController;
+  cachedQueries: { [userAssetKey: string]: Promise<CachedQueryJS> }
 }
 
 interface IconColor {
@@ -40,9 +44,10 @@ interface IconColor {
 
 export interface PartRenderer<T extends IPartEntity> {
   component: () => Promise<React.ComponentType<PanelPartContentProps<T>>>;
-  defaultIcon: (element: T) => IconColor;
+  defaultIcon: () => IconColor;
   defaultTitle?: (elenent: T) => string;
   withPanel?: (element: T) => boolean;
+  getQueryNames?: (element: T) => QueryEntity[];
   handleTitleClick?: (part: T, entity: Lite<Entity> | undefined, e: React.MouseEvent<any>) => void;
   handleEditClick?: (part: T, entity: Lite<Entity> | undefined, e: React.MouseEvent<any>) => Promise<boolean>;
 }
@@ -58,12 +63,22 @@ export function start(options: { routes: JSX.Element[] }) {
   Constructor.registerConstructor(DashboardEntity, () => DashboardEntity.New({ owner: AppContext.currentUser && toLite(AppContext.currentUser) }));
 
   Navigator.addSettings(new EntitySettings(DashboardEntity, e => import('./Admin/Dashboard')));
+  Navigator.addSettings(new EntitySettings(CachedQueryEntity, e => import('./Admin/CachedQuery')));
 
   Navigator.addSettings(new EntitySettings(ValueUserQueryListPartEntity, e => import('./Admin/ValueUserQueryListPart')));
   Navigator.addSettings(new EntitySettings(LinkListPartEntity, e => import('./Admin/LinkListPart')));
   Navigator.addSettings(new EntitySettings(UserChartPartEntity, e => import('./Admin/UserChartPart')));
   Navigator.addSettings(new EntitySettings(CombinedUserChartPartEntity, e => import('./Admin/CombinedUserChartPart')));
   Navigator.addSettings(new EntitySettings(UserQueryPartEntity, e => import('./Admin/UserQueryPart')));
+
+
+  Operations.addSettings(new Operations.EntityOperationSettings(DashboardOperation.RegenerateCachedQueries, {
+    isVisible: () => false,
+    color: "warning",
+    icon: "cogs",
+    contextual: { isVisible: () => true },
+    contextualFromMany: { isVisible: () => true },
+  }));
 
   Finder.addSettings({
     queryName: DashboardEntity,
@@ -74,16 +89,18 @@ export function start(options: { routes: JSX.Element[] }) {
 
   registerRenderer(ValueUserQueryListPartEntity, {
     component: () => import('./View/ValueUserQueryListPart').then(a => a.default),
-    defaultIcon: () => ({ icon: ["far", "list-alt"], iconColor: "lightblue" })
+    defaultIcon: () => ({ icon: ["fas", "list"], iconColor: "#21618C" }),
+    getQueryNames: p => p.userQueries.map(a => a.element.userQuery?.query).notNull(),
   });
   registerRenderer(LinkListPartEntity, {
     component: () => import('./View/LinkListPart').then(a => a.default),
-    defaultIcon: () => ({ icon: ["far", "list-alt"], iconColor: "forestgreen" })
+    defaultIcon: () => ({ icon: ["fas", "list"], iconColor: "#B9770E" })
   });
   registerRenderer(UserChartPartEntity, {
     component: () => import('./View/UserChartPart').then(a => a.default),
-    defaultIcon: () => ({ icon: "chart-bar", iconColor: "violet" }),
+    defaultIcon: () => ({ icon: "chart-bar", iconColor: "#6C3483" }),
     defaultTitle: e => translated(e.userChart, uc => uc.displayName),
+    getQueryNames: p => [p.userChart?.query].notNull(),
     handleEditClick: !Navigator.isViewable(UserChartPartEntity) || Navigator.isReadOnly(UserChartPartEntity) ? undefined :
       (p, e, ev) => {
         ev.preventDefault();
@@ -101,13 +118,14 @@ export function start(options: { routes: JSX.Element[] }) {
   });
   registerRenderer(CombinedUserChartPartEntity, {
     component: () => import('./View/CombinedUserChartPart').then(a => a.default),
-    defaultIcon: () => ({ icon: "chart-bar", iconColor: "violet" }),
+    defaultIcon: () => ({ icon: "chart-line", iconColor: "#8E44AD" }),
+    getQueryNames: p => p.userCharts.map(a => a.element.userChart?.query).notNull(),
     handleEditClick: !Navigator.isViewable(UserChartPartEntity) || Navigator.isReadOnly(UserChartPartEntity) ? undefined :
       (p, e, ev) => {
         ev.preventDefault();
         return SelectorModal.chooseElement(p.userCharts.map(a => a.element), {
-          buttonDisplay: a => a.displayName ?? "",
-          buttonName: a => a.id!.toString(),
+          buttonDisplay: a => a.userChart.displayName ?? "",
+          buttonName: a => a.userChart.id!.toString(),
           title: SelectorMessage.SelectAnElement.niceToString(),
           message: SelectorMessage.PleaseSelectAnElement.niceToString()
         })
@@ -119,14 +137,14 @@ export function start(options: { routes: JSX.Element[] }) {
         ev.preventDefault();
         ev.persist();
         SelectorModal.chooseElement(p.userCharts.map(a => a.element), {
-          buttonDisplay: a => a.displayName ?? "",
-          buttonName: a => a.id!.toString(),
+          buttonDisplay: a => a.userChart.displayName ?? "",
+          buttonName: a => a.userChart.id!.toString(),
           title: SelectorMessage.SelectAnElement.niceToString(),
           message: SelectorMessage.PleaseSelectAnElement.niceToString()
         }).then(uc => {
           if (uc) {
-            UserChartClient.Converter.toChartRequest(uc, e)
-              .then(cr => ChartClient.Encoder.chartPathPromise(cr, toLite(uc!)))
+            UserChartClient.Converter.toChartRequest(uc.userChart, e)
+              .then(cr => ChartClient.Encoder.chartPathPromise(cr, toLite(uc.userChart)))
               .then(path => AppContext.pushOrOpenInTab(path, ev))
               .done();
           }
@@ -136,9 +154,10 @@ export function start(options: { routes: JSX.Element[] }) {
 
   registerRenderer(UserQueryPartEntity, {
     component: () => import('./View/UserQueryPart').then((a: any) => a.default),
-    defaultIcon: () => ({ icon: ["far", "list-alt"], iconColor: "dodgerblue" }),
+    defaultIcon: () => ({ icon: ["far", "list-alt"], iconColor: "#2E86C1" }),
     defaultTitle: e => translated(e.userQuery, uc => uc.displayName),
     withPanel: p => p.renderMode != "BigValue",
+    getQueryNames: p => [p.userQuery?.query].notNull(),
     handleEditClick: !Navigator.isViewable(UserQueryPartEntity) || Navigator.isReadOnly(UserQueryPartEntity) ? undefined :
       (p, e, ev) => {
         ev.preventDefault();
@@ -157,8 +176,9 @@ export function start(options: { routes: JSX.Element[] }) {
 
   registerRenderer(UserTreePartEntity, {
     component: () => import('./View/UserTreePart').then((a: any) => a.default),
-    defaultIcon: () => ({ icon: ["far", "list-alt"], iconColor: "dodgerblue" }),
+    defaultIcon: () => ({ icon: ["far", "network-wired"], iconColor: "#B7950B" }),
     withPanel: p => true,
+    getQueryNames: p => [p.userQuery?.query].notNull(),
     handleEditClick: !Navigator.isViewable(UserTreePartEntity) || Navigator.isReadOnly(UserTreePartEntity) ? undefined :
       (p, e, ev) => {
         ev.preventDefault();
@@ -216,7 +236,7 @@ export function start(options: { routes: JSX.Element[] }) {
 
               AppContext.pushOrOpenInTab(dashboardUrl(ctx.lite, entity), e);
             }).done();
-      }).done()));
+      }).done(), { group: null, icon: "eye", iconColor: "blue", color: "info" }));
 }
 
 export function home(): Promise<Lite<DashboardEntity> | null> {
@@ -226,8 +246,12 @@ export function home(): Promise<Lite<DashboardEntity> | null> {
   return API.home();
 }
 
-export function defaultIcon<T extends IPartEntity>(part: T) {
-  return partRenderers[part.Type].defaultIcon(part);
+export function defaultIcon(type: PseudoType) {
+  return partRenderers[getTypeName(type)].defaultIcon();
+}
+
+export function getQueryNames(part: IPartEntity) {
+  return partRenderers[getTypeName(part)].getQueryNames?.(part) ?? [];
 }
 
 export function dashboardUrl(lite: Lite<DashboardEntity>, entity?: Lite<Entity>) {
@@ -246,6 +270,15 @@ export module API {
   export function home(): Promise<Lite<DashboardEntity> | null> {
     return ajaxGet({ url: "~/api/dashboard/home" });
   }
+
+  export function get(dashboard: Lite<DashboardEntity>): Promise<DashboardWithCachedQueries | null> {
+    return ajaxPost({ url: "~/api/dashboard/get" }, dashboard);
+  }
+}
+
+export interface DashboardWithCachedQueries {
+  dashboard: DashboardEntity
+  cachedQueries: Array<CachedQueryEntity>;
 }
 
 declare module '@framework/Signum.Entities' {
@@ -273,6 +306,7 @@ export function DashboardWidget(p: DashboardWidgetProps) {
     dashboard: p.dashboard,
     entity: p.pack.entity,
     reload: () => p.frame.onReload(),
+    cachedQueries: {} /*for now*/
   });
 }
 
