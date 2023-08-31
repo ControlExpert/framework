@@ -21,7 +21,7 @@ public class SimpleHttpBroadcast : IServerBroadcast
 
     public SimpleHttpBroadcast(string broadcastSecret, string broadcastUrls)
     {
-        this.bordcastSecretHash = Convert.ToBase64String(Security.EncodePassword(broadcastSecret));
+        this.bordcastSecretHash = Convert.ToBase64String(Security.EncodePassword("", broadcastSecret).Last());
         this.broadcastUrls = broadcastUrls
             .SplitNoEmpty(new char[] { ';', ',' } /*In theory ; and , are valid in a URL, but since we talk only domain names or IPs...*/)
             .Select(a => a.Trim())
@@ -61,7 +61,7 @@ public class SimpleHttpBroadcast : IServerBroadcast
 
         foreach (var url in broadcastUrls)
         {
-            string? errorBody = null; 
+            string? errorBody = null;
             try
             {
                 var fullUrl = url.TrimEnd('/') + "/api/cache/invalidateTable";
@@ -76,7 +76,7 @@ public class SimpleHttpBroadcast : IServerBroadcast
                 }
 
             }
-           
+
             catch (Exception e)
             {
                 e.LogException(a =>
