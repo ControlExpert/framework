@@ -8,7 +8,7 @@ import { ajaxGet, ajaxPost } from './Services';
 import {
   QueryDescription, QueryValueRequest, QueryRequest, QueryEntitiesRequest, FindOptions,
   FindOptionsParsed, FilterOption, FilterOptionParsed, OrderOptionParsed, ValueFindOptionsParsed,
-  QueryToken, ColumnDescription, ColumnOption, ColumnOptionParsed, Pagination, ResultColumn,
+  QueryToken, ColumnDescription, ColumnOption, ColumnOptionParsed, Pagination,
   ResultTable, ResultRow, OrderOption, SubTokensOptions, toQueryToken, isList, ColumnOptionsMode, FilterRequest, ModalFindOptions, OrderRequest, ColumnRequest,
   isFilterGroupOption, FilterGroupOptionParsed, FilterConditionOptionParsed, isFilterGroupOptionParsed, FilterGroupOption, FilterConditionOption, FilterGroupRequest, FilterConditionRequest, PinnedFilter, SystemTime, QueryTokenType, hasAnyOrAll, hasAggregate, hasElement, toPinnedFilterParsed, isActive
 } from './FindOptions';
@@ -680,7 +680,6 @@ export function toFilterOptions(filterOptionsParsed: FilterOptionParsed[]): Filt
 
   function toFilterOption(fop: FilterOptionParsed): FilterOption | null {
 
-
     var pinned = fop.pinned && Dic.simplify({ ...fop.pinned }) as PinnedFilter;
     if (isFilterGroupOptionParsed(fop))
       return ({
@@ -688,6 +687,7 @@ export function toFilterOptions(filterOptionsParsed: FilterOptionParsed[]): Filt
         groupOperation: fop.groupOperation,
         value: fop.value === "" ? undefined : fop.value,
         pinned: pinned,
+        dashboardBehaviour: fop.dashboardBehaviour,
         filters: fop.filters.map(fp => toFilterOption(fp)).filter(fo => !!fo),
       }) as FilterGroupOption;
     else {
@@ -699,7 +699,8 @@ export function toFilterOptions(filterOptionsParsed: FilterOptionParsed[]): Filt
         operation: fop.operation,
         value: fop.value === "" ? undefined : fop.value,
         frozen: fop.frozen ? true : undefined,
-        pinned: pinned
+        pinned: pinned,
+        dashboardBehaviour: fop.dashboardBehaviour,
       }) as FilterConditionOption;
     }
   }
@@ -875,7 +876,7 @@ export function toFilterRequest(fop: FilterOptionParsed, overridenValue?: Overri
   if (fop.pinned && fop.pinned.active == "Checkbox_StartUnchecked")
     return undefined;
 
-  if (fop.pinned && fop.pinned.active == "DashboardFilter")
+  if (fop.dashboardBehaviour == "UseAsInitialSelection")
     return undefined;
 
   if (fop.pinned && overridenValue == null) {
@@ -1190,6 +1191,7 @@ export class TokenCompleter {
         groupOperation: fo.groupOperation,
         value: fo.value,
         pinned: fo.pinned && toPinnedFilterParsed(fo.pinned),
+        dashboardBehaviour: fo.dashboardBehaviour,
         filters: fo.filters.map(f => this.toFilterOptionParsed(f)),
         frozen: false,
         expanded: false,
@@ -1206,6 +1208,7 @@ export class TokenCompleter {
         value: fo.value,
         frozen: fo.frozen || false,
         pinned: fo.pinned && toPinnedFilterParsed(fo.pinned),
+        dashboardBehaviour: fo.dashboardBehaviour,
       } as FilterConditionOptionParsed);
     }
   }
@@ -1412,6 +1415,25 @@ export function useFetchAllLite<T extends Entity>(type: Type<T>, deps?: any[]): 
   return useAPI(() => API.fetchAllLites({ types: type.typeName }), deps ?? []) as Lite<T>[] | undefined;
 }
 
+export function decompress(rt: ResultTable): ResultTable {
+  var rows = rt.rows;
+  var columns = rt.columns;
+
+  for (var i = 0; i < columns.length; i++) {
+    var uniqueValues = rt.uniqueValues[columns[i]];
+
+    if (uniqueValues != null) {
+      for (var j = 0; j < rows.length; j++) {
+        var row = rows[j];
+        var index = row.columns[i] as number | null;
+        if (index != null)
+          row.columns[i] = uniqueValues[index];
+      }
+    }
+  }
+  return rt;
+}
+
 export module API {
 
   export function fetchQueryDescription(queryKey: string): Promise<QueryDescription> {
@@ -1429,8 +1451,9 @@ export module API {
   export function executeQuery(request: QueryRequest, signal?: AbortSignal): Promise<ResultTable> {
   
     const queryUrl = AppContext.history.location.pathname + AppContext.history.location.search;
-    const qr: QueryRequestUrl = { ...request, queryUrl: queryUrl};
-    return ajaxPost({ url: "~/api/query/executeQuery", signal }, qr);
+    const qr: QueryRequestUrl = { ...request, queryUrl: queryUrl };
+    return ajaxPost<ResultTable>({ url: "~/api/query/executeQuery", signal }, qr)
+      .then(rt => decompress(rt));
   }
 
   export function queryValue(request: QueryValueRequest, avoidNotifyPendingRequest: boolean | undefined = undefined, signal?: AbortSignal): Promise<any> {

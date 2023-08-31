@@ -80,6 +80,7 @@ export function andClose<T extends Entity>(eoc: EntityOperationContext<T>, inDro
     onClick: () => {
       eoc.onExecuteSuccess = pack => {
         notifySuccess();
+        Navigator.raiseEntityChanged(pack.entity);
         eoc.frame.onClose(pack);
         return Promise.resolve(undefined);
       };
@@ -100,7 +101,7 @@ export function andNew<T extends Entity>(eoc: EntityOperationContext<T>, inDropd
     onClick: () => {
       eoc.onExecuteSuccess = pack => {
         notifySuccess();
-
+        Navigator.raiseEntityChanged(pack.entity);
         return (eoc.frame.createNew!(pack) ?? Promise.resolve(undefined))
           .then(newPack => newPack && eoc.frame.onReload(newPack, reloadComponent));
       };
@@ -129,10 +130,11 @@ interface OperationButtonProps extends ButtonProps {
   color?: BsColor;
   avoidAlternatives?: boolean;
   onOperationClick?: (eoc: EntityOperationContext<any /*Entity*/>, event: React.MouseEvent) => void;
-  children?: React.ReactNode
+  children?: React.ReactNode;
+  hideOnCanExecute?: boolean;
 }
 
-export function OperationButton({ group, onOperationClick, canExecute, eoc: eocOrNull, outline, color, avoidAlternatives, ...props }: OperationButtonProps): React.ReactElement<any> | null {
+export function OperationButton({ group, onOperationClick, canExecute, eoc: eocOrNull, outline, color, avoidAlternatives, hideOnCanExecute,  ...props }: OperationButtonProps): React.ReactElement<any> | null {
 
   if (eocOrNull == null)
     return null;
@@ -143,6 +145,9 @@ export function OperationButton({ group, onOperationClick, canExecute, eoc: eocO
     canExecute = eoc.settings?.overrideCanExecute ? eoc.settings.overrideCanExecute(eoc) : eoc.canExecute;
 
   const disabled = !!canExecute;
+
+  if (hideOnCanExecute && disabled)
+    return null;
 
   var alternatives = avoidAlternatives ? undefined : eoc.alternatives && eoc.alternatives.filter(a => a.isVisible != false);
 
@@ -312,7 +317,9 @@ export function defaultConstructFromEntity<T extends Entity>(eoc: EntityOperatio
     return API.constructFromEntity(eoc.entity, eoc.operationInfo.key, ...args)
       .then(eoc.onConstructFromSuccess ?? (pack => {
         notifySuccess();
-        return Navigator.createNavigateOrTab(pack, eoc.event!);
+        if (pack?.entity.id != null)
+          Navigator.raiseEntityChanged(pack.entity);
+        return Navigator.createNavigateOrTab(pack, eoc.event ?? ({} as React.MouseEvent));
       }))
       .catch(ifError(ValidationError, e => eoc.frame.setError(e.modelState, "entity")));
   });
@@ -327,7 +334,9 @@ export function defaultConstructFromLite<T extends Entity>(eoc: EntityOperationC
     return API.constructFromLite(toLite(eoc.entity), eoc.operationInfo.key, ...args)
       .then(eoc.onConstructFromSuccess ?? (pack => {
         notifySuccess();
-        return Navigator.createNavigateOrTab(pack, eoc.event!);
+        if (pack?.entity.id != null)
+          Navigator.raiseEntityChanged(pack.entity);
+        return Navigator.createNavigateOrTab(pack, eoc.event ?? ({} as React.MouseEvent));
       }))
       .catch(ifError(ValidationError, e => eoc.frame.setError(e.modelState, "entity")))
   });
@@ -343,6 +352,8 @@ export function defaultExecuteEntity<T extends Entity>(eoc: EntityOperationConte
     return API.executeEntity(eoc.entity, eoc.operationInfo.key, ...args)
       .then(eoc.onExecuteSuccess ?? (pack => {
         eoc.frame.onReload(pack);
+        if (pack?.entity.id != null)
+          Navigator.raiseEntityChanged(pack.entity);
         notifySuccess();
         return;
       }))
@@ -359,6 +370,8 @@ export function defaultExecuteLite<T extends Entity>(eoc: EntityOperationContext
     return API.executeLite(toLite(eoc.entity), eoc.operationInfo.key, ...args)
       .then(eoc.onExecuteSuccess ?? (pack => {
         eoc.frame.onReload(pack);
+        if (pack?.entity.id != null)
+          Navigator.raiseEntityChanged(pack.entity);
         notifySuccess();
         return;
       }))
@@ -375,6 +388,7 @@ export function defaultDeleteEntity<T extends Entity>(eoc: EntityOperationContex
     return API.deleteEntity(eoc.entity, eoc.operationInfo.key, ...args)
       .then(eoc.onDeleteSuccess ?? (() => {
         eoc.frame.onClose();
+        Navigator.raiseEntityChanged(eoc.entity.Type);
         notifySuccess();
         return;
       }))
@@ -391,6 +405,7 @@ export function defaultDeleteLite<T extends Entity>(eoc: EntityOperationContext<
     return API.deleteLite(toLite(eoc.entity), eoc.operationInfo.key, ...args)
       .then(eoc.onDeleteSuccess ?? (() => {
         eoc.frame.onClose();
+        Navigator.raiseEntityChanged(eoc.entity.Type);
         notifySuccess();
         return;
       }))

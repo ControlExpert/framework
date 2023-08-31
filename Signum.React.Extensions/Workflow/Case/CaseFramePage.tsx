@@ -164,14 +164,16 @@ export default class CaseFramePage extends React.Component<CaseFramePageProps, C
       allowExchangeEntity: false,
       prefix: "caseFrame",
       isExecuting: () => this.state.executing == true,
-      execute: action => {
+      execute: async action => {
         if (this.state.executing)
           return;
 
         this.setState({ executing: true });
-        action()
-          .finally(() => { this.setState({ executing: undefined }) })
-          .done();
+        try {
+          await action();
+        } finally {
+          this.setState({ executing: undefined });
+        }
       }
     };
 
@@ -204,7 +206,7 @@ export default class CaseFramePage extends React.Component<CaseFramePageProps, C
       <h3 className="border-bottom pb-3">
         <span className="sf-entity-title">{getToString(activity)}</span>
         {CaseFramePage.showSubTitle && <br />}
-        {CaseFramePage.showSubTitle && <small className="sf-type-nice-name text-muted">{Navigator.getTypeTitle(activity, undefined)}</small>}
+        {CaseFramePage.showSubTitle && <small className="sf-type-nice-name text-muted">{Navigator.getTypeSubTitle(activity, undefined)}</small>}
       </h3>
     );
   }
@@ -245,14 +247,16 @@ export default class CaseFramePage extends React.Component<CaseFramePageProps, C
       allowExchangeEntity: false,
       prefix: "caseFrame",
       isExecuting: () => this.state.executing == true,
-      execute: action => {
+      execute: async action => {
         if (this.state.executing)
           return;
 
         this.setState({ executing: true });
-        action()
-          .finally(() => this.setState({ executing: undefined }))
-          .done();
+        try {
+          await action();
+        } finally {
+          this.setState({ executing: undefined });
+        }
       }
     };
 

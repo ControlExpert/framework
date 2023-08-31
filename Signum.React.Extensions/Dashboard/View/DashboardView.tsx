@@ -4,7 +4,7 @@ import { classes } from '@framework/Globals'
 import { Entity, getToString, is, Lite, MListElement, SearchMessage, toLite } from '@framework/Signum.Entities'
 import { TypeContext, mlistItemContext } from '@framework/TypeContext'
 import * as DashboardClient from '../DashboardClient'
-import { DashboardEntity, PanelPartEmbedded, IPartEntity, DashboardMessage } from '../Signum.Entities.Dashboard'
+import { DashboardEntity, PanelPartEmbedded, IPartEntity, DashboardMessage, CachedQueryEntity } from '../Signum.Entities.Dashboard'
 import "../Dashboard.css"
 import { ErrorBoundary } from '@framework/Components';
 import { coalesceIcon } from '@framework/Operations/ContextualOperations';
@@ -13,13 +13,14 @@ import { parseIcon } from '../../Basics/Templates/IconTypeahead'
 import { translated } from '../../Translation/TranslatedInstanceTools'
 
 import { DashboardFilterController } from './DashboardFilterController'
+import { FilePathEmbedded } from '../../Files/Signum.Entities.Files'
+import { CachedQueryJS } from '../CachedQueryExecutor'
+import PinnedFilterBuilder from '../../../Signum.React/Scripts/SearchControl/PinnedFilterBuilder'
 
-
-
-export default function DashboardView(p: { dashboard: DashboardEntity, entity?: Entity, deps?: React.DependencyList; reload: () => void;  }) {
+export default function DashboardView(p: { dashboard: DashboardEntity, cachedQueries: { [userAssetKey: string]: Promise<CachedQueryJS> }, entity?: Entity, deps?: React.DependencyList; reload: () => void; }) {
 
   const forceUpdate = useForceUpdate();
-  var filterController = React.useMemo(() => new DashboardFilterController(forceUpdate), [p.dashboard]);
+  var filterController = React.useMemo(() => new DashboardFilterController(forceUpdate, p.dashboard), [p.dashboard]);
 
 
   function renderBasic() {
@@ -27,27 +28,29 @@ export default function DashboardView(p: { dashboard: DashboardEntity, entity?: 
     const ctx = TypeContext.root(db);
 
     return (
-      <div className="sf-dashboard-view">
-        {
-          mlistItemContext(ctx.subCtx(a => a.parts))
-            .groupBy(c => c.value.row!.toString())
-            .orderBy(gr => Number(gr.key))
-            .map(gr =>
-              <div className="row row-control-panel" key={"row" + gr.key}>
-                {gr.elements.orderBy(ctx => ctx.value.startColumn).map((c, j, list) => {
+      <div>
+        <div className="sf-dashboard-view">
+          {
+            mlistItemContext(ctx.subCtx(a => a.parts))
+              .groupBy(c => c.value.row!.toString())
+              .orderBy(gr => Number(gr.key))
+              .map(gr =>
+                <div className="row row-control-panel" key={"row" + gr.key}>
+                  {gr.elements.orderBy(ctx => ctx.value.startColumn).map((c, j, list) => {
 
-                  const prev = j == 0 ? undefined : list[j - 1].value;
+                    const prev = j == 0 ? undefined : list[j - 1].value;
 
-                  const offset = c.value.startColumn! - (prev ? (prev.startColumn! + prev.columns!) : 0);
+                    const offset = c.value.startColumn! - (prev ? (prev.startColumn! + prev.columns!) : 0);
 
-                  return (
-                    <div key={j} className={`col-sm-${c.value.columns} offset-sm-${offset}`}>
-                      <PanelPart ctx={c} entity={p.entity} filterController={filterController} reload={p.reload} />
-                    </div>
-                  );
-                })}
-              </div>)
-        }
+                    return (
+                      <div key={j} className={`col-sm-${c.value.columns} offset-sm-${offset}`}>
+                        <PanelPart ctx={c} entity={p.entity} filterController={filterController} reload={p.reload} cachedQueries={p.cachedQueries} />
+                      </div>
+                    );
+                  })}
+                </div>)
+          }
+        </div>
       </div>
     );
   }
@@ -78,7 +81,7 @@ export default function DashboardView(p: { dashboard: DashboardEntity, entity?: 
               const offset = c.startColumn! - (last ? (last.startColumn! + last.columnWidth!) : 0);
               return (
                 <div key={j} className={`col-sm-${c.columnWidth} offset-sm-${offset}`}>
-                  {c.parts.map((pctx, i) => <PanelPart key={i} ctx={pctx} entity={p.entity} filterController={filterController} reload={p.reload} />)}
+                  {c.parts.map((pctx, i) => <PanelPart key={i} ctx={pctx} entity={p.entity} filterController={filterController} reload={p.reload} cachedQueries={p.cachedQueries} />)}
                 </div>
               );
             })}
@@ -89,10 +92,18 @@ export default function DashboardView(p: { dashboard: DashboardEntity, entity?: 
   }
 
 
-  if (p.dashboard.combineSimilarRows)
-    return renderCombinedRows();
-  else
-    return renderBasic();
+  return (
+    <div>
+      {filterController.pinnedFilters.size > 0 && <PinnedFilterBuilder
+        filterOptions={Array.from(filterController.pinnedFilters.values()).flatMap(a => a.pinnedFilters)}
+        onFiltersChanged={forceUpdate} />}
+      {
+        p.dashboard.combineSimilarRows ?
+          renderCombinedRows() :
+          renderBasic()
+      }
+    </div>
+  );
 }
 
 function combineRows(rows: CombinedRow[]): CombinedRow[] {
@@ -174,6 +185,7 @@ export interface PanelPartProps {
   deps?: React.DependencyList;
   filterController: DashboardFilterController;
   reload: () => void;
+  cachedQueries: { [userAssetKey: string]: Promise<CachedQueryJS> }
 }
 
 export function PanelPart(p: PanelPartProps) {
@@ -197,12 +209,13 @@ export function PanelPart(p: PanelPartProps) {
       part: content,
       entity: lite,
       deps: p.deps,
-      filterController: p.filterController
-    });
+      filterController: p.filterController,
+      cachedQueries: p.cachedQueries
+    } as DashboardClient.PanelPartContentProps<IPartEntity>);
   }
 
   const titleText = translated(part, p => p.title) ?? (renderer.defaultTitle ? renderer.defaultTitle(content) : getToString(content));
-  const defaultIcon = renderer.defaultIcon(content);
+  const defaultIcon = renderer.defaultIcon();
   const icon = coalesceIcon(parseIcon(part.iconName), defaultIcon?.icon);
   const color = part.iconColor ?? defaultIcon?.iconColor;
 
@@ -216,7 +229,7 @@ export function PanelPart(p: PanelPartProps) {
   var dashboardFilter = p.filterController?.filters.get(p.ctx.value);
 
   function handleClearFilter(e: React.MouseEvent) {
-    p.filterController.clear(p.ctx.value);
+    p.filterController.clearFilters(p.ctx.value);
   }
 
   return (
@@ -234,7 +247,7 @@ export function PanelPart(p: PanelPartProps) {
           <a className="sf-pointer" onMouseUp={e => renderer.handleTitleClick!(content, lite, e)}>{title}</a>
         }
         {
-          dashboardFilter && <span className="badge bg-light border ms-2 sf-filter-pill">
+          dashboardFilter && <span className="badge bg-light text-dark border ms-2 sf-filter-pill">
             {dashboardFilter.rows.length} {DashboardMessage.RowsSelected.niceToString().forGenderAndNumber(dashboardFilter.rows.length)}
             <button type="button" aria-label="Close" className="btn-close" onClick={handleClearFilter}/>
           </span>
@@ -248,7 +261,8 @@ export function PanelPart(p: PanelPartProps) {
               part: content,
               entity: lite,
               deps: p.deps,
-              filterController: p.filterController
+              filterController: p.filterController,
+              cachedQueries: p.cachedQueries,
             } as DashboardClient.PanelPartContentProps<IPartEntity>)
           }
         </ErrorBoundary>

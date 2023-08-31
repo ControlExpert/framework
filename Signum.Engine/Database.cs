@@ -2,6 +2,7 @@ using Signum.Engine.Linq;
 using Signum.Engine.Maps;
 using Signum.Entities.Basics;
 using Signum.Entities.Internal;
+using Signum.Utilities;
 using Signum.Utilities.Reflection;
 using System.Collections;
 using System.Collections.ObjectModel;
@@ -57,7 +58,7 @@ public static class Database
         }
         catch (Exception e)
         {
-            e.Data["entity"] = ((Entity)(IEntity)entity).BaseToString();
+            e.Data["entity"] = entity;
 
             throw;
         }
@@ -79,7 +80,9 @@ VALUES ({parameters.ToString(p => p.ParameterName, ", ")})";
     #region Retrieve
 
 
-
+    /// <summary>
+    /// Returns Lite.Entitiy field if set, othwerise Retrieves the entity from the database and sets the Lite.Entity field.
+    /// </summary>
     public static T RetrieveAndRemember<T>(this Lite<T> lite) where T : class, IEntity
     {
         if (lite == null)
@@ -91,6 +94,9 @@ VALUES ({parameters.ToString(p => p.ParameterName, ", ")})";
         return lite.EntityOrNull!;
     }
 
+    /// <summary>
+    /// Returns Lite.Entitiy field if set, othwerise Retrieves the entity from the database asynchronously and sets the Lite.Entity field.
+    /// </summary>
     public static async Task<T> RetrieveAndRememberAsyc<T>(this Lite<T> lite, CancellationToken token) where T : class, IEntity
     {
         if (lite == null)
@@ -102,7 +108,9 @@ VALUES ({parameters.ToString(p => p.ParameterName, ", ")})";
         return lite.EntityOrNull!;
     }
 
-
+    /// <summary>
+    /// Always retrieves the entity from the database WITHOUT reading or writing in the Lite.Entity field.
+    /// </summary>
     public static T Retrieve<T>(this Lite<T> lite) where T : class, IEntity
     {
         if (lite == null)
@@ -111,6 +119,9 @@ VALUES ({parameters.ToString(p => p.ParameterName, ", ")})";
         return (T)(object)Retrieve(lite.EntityType, lite.Id);
     }
 
+    /// <summary>
+    /// Always retrieves the entity from the database asynchronously WITHOUT reading or writing in the Lite.Entity field.
+    /// </summary>
     public static async Task<T> RetrieveAsync<T>(this Lite<T> lite, CancellationToken token) where T : class, IEntity
     {
         if (lite == null)
@@ -701,7 +712,7 @@ VALUES ({parameters.ToString(p => p.ParameterName, ", ")})";
         }
 
         if (message == null)
-            return ids.GroupsOf(Schema.Current.Settings.MaxNumberOfParameters)
+            return ids.Chunk(Schema.Current.Settings.MaxNumberOfParameters)
                 .SelectMany(gr => Database.Query<T>().Where(a => gr.Contains(a.Id)))
                 .ToList();
         else
@@ -709,8 +720,8 @@ VALUES ({parameters.ToString(p => p.ParameterName, ", ")})";
             SafeConsole.WriteLineColor(ConsoleColor.Cyan, message == "auto" ? "Retriving " + typeof(T).Name : message);
 
             var result = new List<T>();
-            var groups = ids.GroupsOf(Schema.Current.Settings.MaxNumberOfParameters).ToList();
-            groups.ProgressForeach(gr => gr.Count.ToString(), gr =>
+            var groups = ids.Chunk(Schema.Current.Settings.MaxNumberOfParameters).ToList();
+            groups.ProgressForeach(gr => gr.Length.ToString(), gr =>
             {
                 result.AddRange(Database.Query<T>().Where(a => gr.Contains(a.Id)));
             });
@@ -794,7 +805,7 @@ VALUES ({parameters.ToString(p => p.ParameterName, ", ")})";
             }
         }
 
-        var tasks = ids.GroupsOf(Schema.Current.Settings.MaxNumberOfParameters)
+        var tasks = ids.Chunk(Schema.Current.Settings.MaxNumberOfParameters)
             .Select(gr => Database.Query<T>().Where(a => gr.Contains(a.Id)).ToListAsync(token))
             .ToList();
 
@@ -837,7 +848,7 @@ VALUES ({parameters.ToString(p => p.ParameterName, ", ")})";
                 return ids.Select(id => (Lite<T>)new LiteImp<T>(id, cc.GetToString(id))).ToList();
             }
 
-            var retrieved = ids.GroupsOf(Schema.Current.Settings.MaxNumberOfParameters).SelectMany(gr => Database.Query<T>().Where(a => gr.Contains(a.Id)).Select(a => a.ToLite())).ToDictionary(a => a.Id);
+            var retrieved = ids.Chunk(Schema.Current.Settings.MaxNumberOfParameters).SelectMany(gr => Database.Query<T>().Where(a => gr.Contains(a.Id)).Select(a => a.ToLite())).ToDictionary(a => a.Id);
 
             var missing = ids.Except(retrieved.Keys);
 
@@ -865,7 +876,7 @@ VALUES ({parameters.ToString(p => p.ParameterName, ", ")})";
                 return ids.Select(id => (Lite<T>)new LiteImp<T>(id, cc.GetToString(id))).ToList();
             }
 
-            var tasks = ids.GroupsOf(Schema.Current.Settings.MaxNumberOfParameters)
+            var tasks = ids.Chunk(Schema.Current.Settings.MaxNumberOfParameters)
                 .Select(gr => Database.Query<T>().Where(a => gr.Contains(a.Id)).Select(a => a.ToLite()).ToListAsync(token))
                 .ToList();
 
@@ -1059,7 +1070,7 @@ VALUES ({parameters.ToString(p => p.ParameterName, ", ")})";
         {
             using (var tr = new Transaction())
             {
-                var groups = ids.GroupsOf(Schema.Current.Settings.MaxNumberOfParameters);
+                var groups = ids.Chunk(Schema.Current.Settings.MaxNumberOfParameters);
                 int result = 0;
                 foreach (var group in groups)
                     result += Database.Query<T>().Where(a => group.Contains(a.Id)).UnsafeDelete();
