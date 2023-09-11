@@ -43,11 +43,11 @@ public static class AzureADLogic
 
     public static List<Guid> CurrentADGroups()
     {
-        var oid = UserEntity.Current.Mixin<UserADMixin>().OID;
+        var oid = UserADMixin.CurrentOID;
         if (oid == null)
             return new List<Guid>();
 
-        var tuple = ADGroupsCache.AddOrUpdate(UserEntity.Current.ToLite(),
+        var tuple = ADGroupsCache.AddOrUpdate(UserEntity.Current,
             addValueFactory: user => (Clock.Now, CurrentADGroupsInternal(oid.Value)),
             updateValueFactory: (user, old) => old.date.Add(CacheADGroupsFor) > Clock.Now ? old : (Clock.Now, CurrentADGroupsInternal(oid.Value)));
 
@@ -166,6 +166,9 @@ public static class AzureADLogic
                              u.GivenName,
                              u.Surname,
                              u.JobTitle,
+                             u.Department,
+                             u.OfficeLocation,
+                             u.EmployeeType,
                              OnPremisesExtensionAttributes = u.OnPremisesExtensionAttributes?.Let(ea => new OnPremisesExtensionAttributesModel
                              {
                                  ExtensionAttribute1 = ea.ExtensionAttribute1,
@@ -276,7 +279,7 @@ public static class AzureADLogic
             value is DateOnly date ? $"'{date.ToIsoString()}'" :
             value is DateTime dt ? $"'{dt.ToIsoString()}'" :
             value is DateTimeOffset dto ? $"'{dto.DateTime.ToIsoString()}'" :
-            value is Guid guid ? $"'{guid.ToString()}'" :
+            value is Guid guid ? $"'{guid}'" :
             value is bool b ? b.ToString().ToLower() :
             value?.ToString() ?? "";
     }
@@ -466,24 +469,27 @@ public static class AzureADLogic
 
         using (ExecutionMode.Global())
         {
-            var user = Database.Query<UserEntity>().SingleOrDefaultEx(a => a.Mixin<UserADMixin>().OID == acuCtx.OID);
-            if (user == null)
+            using (var tr = new Transaction())
             {
-                user = Database.Query<UserEntity>().SingleOrDefault(a => a.UserName == acuCtx.UserName) ??
-                       (acuCtx.UserName.Contains("@") && config.AllowMatchUsersBySimpleUserName ? Database.Query<UserEntity>().SingleOrDefault(a => a.Email == acuCtx.UserName || a.UserName == acuCtx.UserName.Before("@")) : null);
-            }
+                var user = Database.Query<UserEntity>().SingleOrDefaultEx(a => a.Mixin<UserADMixin>().OID == acuCtx.OID);
+                if (user == null)
+                {
+                    user = Database.Query<UserEntity>().SingleOrDefault(a => a.UserName == acuCtx.UserName) ??
+                           (acuCtx.UserName.Contains("@") && config.AllowMatchUsersBySimpleUserName ? Database.Query<UserEntity>().SingleOrDefault(a => a.Email == acuCtx.UserName || a.UserName == acuCtx.UserName.Before("@")) : null);
+                }
 
-            if (user != null)
-            {
-                adAuthorizer.UpdateUser(user, acuCtx);
+                if (user != null)
+                {
+                    adAuthorizer.UpdateUser(user, acuCtx);
 
-                return user;
+                    return user;
+                }
+
+                var result = adAuthorizer.OnCreateUser(acuCtx);
+
+                return tr.Commit(result);
             }
         }
-
-        var result = adAuthorizer.OnAutoCreateUser(acuCtx);
-
-        return result ?? throw new InvalidOperationException(ReflectionTools.GetPropertyInfo((ActiveDirectoryConfigurationEmbedded e) => e.AutoCreateUsers).NiceName() + " is not activated");
     }
 
     private static MicrosoftGraphCreateUserContext GetMicrosoftGraphContext(ActiveDirectoryUser adUser)

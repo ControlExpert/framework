@@ -4,31 +4,32 @@ using Signum.Engine.Authorization;
 using Signum.Entities.Basics;
 using Signum.Entities.Isolation;
 using System.Collections.Concurrent;
+using Signum.Engine.UserAssets;
 
 namespace Signum.Engine.Scheduler;
 
 public static class SchedulerLogic
 {
     public static Action<ScheduledTaskLogEntity>? OnFinally;
-    
+
     [AutoExpressionField]
-    public static IQueryable<ScheduledTaskLogEntity> Executions(this ITaskEntity t) => 
+    public static IQueryable<ScheduledTaskLogEntity> Executions(this ITaskEntity t) =>
         As.Expression(() => Database.Query<ScheduledTaskLogEntity>().Where(a => a.Task == t));
 
     [AutoExpressionField]
-    public static ScheduledTaskLogEntity? LastExecution(this ITaskEntity t) => 
+    public static ScheduledTaskLogEntity? LastExecution(this ITaskEntity t) =>
         As.Expression(() => t.Executions().OrderByDescending(a => a.StartTime).FirstOrDefault());
 
     [AutoExpressionField]
-    public static IQueryable<ScheduledTaskLogEntity> Executions(this ScheduledTaskEntity st) => 
+    public static IQueryable<ScheduledTaskLogEntity> Executions(this ScheduledTaskEntity st) =>
         As.Expression(() => Database.Query<ScheduledTaskLogEntity>().Where(a => a.ScheduledTask.Is(st)));
 
 
     [AutoExpressionField]
-    public static IQueryable<SchedulerTaskExceptionLineEntity> ExceptionLines(this ScheduledTaskLogEntity e) => 
+    public static IQueryable<SchedulerTaskExceptionLineEntity> ExceptionLines(this ScheduledTaskLogEntity e) =>
         As.Expression(() => Database.Query<SchedulerTaskExceptionLineEntity>().Where(a => a.SchedulerTaskLog.Is(e)));
 
-    public static Polymorphic<Func<ITaskEntity, ScheduledTaskContext, Lite<IEntity>?>> ExecuteTask = 
+    public static Polymorphic<Func<ITaskEntity, ScheduledTaskContext, Lite<IEntity>?>> ExecuteTask =
         new Polymorphic<Func<ITaskEntity, ScheduledTaskContext, Lite<IEntity>?>>();
 
     public class ScheduledTaskPair
@@ -86,7 +87,7 @@ public static class SchedulerLogic
                 });
 
             sb.Include<ScheduledTaskLogEntity>()
-                .WithIndex(s => s.ScheduledTask, includeFields: s=> s.StartTime)
+                .WithIndex(s => s.ScheduledTask, includeFields: s => s.StartTime)
                 .WithQuery(() => cte => new
                 {
                     Entity = cte,
@@ -127,10 +128,10 @@ public static class SchedulerLogic
                     Holidays = st.Holidays.Count,
                 });
 
-            QueryLogic.Expressions.Register((ITaskEntity ct) => ct.Executions(), () => ITaskMessage.Executions.NiceToString());
-            QueryLogic.Expressions.Register((ITaskEntity ct) => ct.LastExecution(), () => ITaskMessage.LastExecution.NiceToString());
-            QueryLogic.Expressions.Register((ScheduledTaskEntity ct) => ct.Executions(), () => ITaskMessage.Executions.NiceToString());
-            QueryLogic.Expressions.Register((ScheduledTaskLogEntity ct) => ct.ExceptionLines(), () => ITaskMessage.ExceptionLines.NiceToString());
+            QueryLogic.Expressions.Register((ITaskEntity ct) => ct.Executions(), ITaskMessage.Executions);
+            QueryLogic.Expressions.Register((ITaskEntity ct) => ct.LastExecution(), ITaskMessage.LastExecution);
+            QueryLogic.Expressions.Register((ScheduledTaskEntity ct) => ct.Executions(), ITaskMessage.Executions);
+            QueryLogic.Expressions.Register((ScheduledTaskLogEntity ct) => ct.ExceptionLines(), ITaskMessage.ExceptionLines);
 
             new Graph<HolidayCalendarEntity>.Execute(HolidayCalendarOperation.Save)
             {
@@ -156,24 +157,26 @@ public static class SchedulerLogic
                 Delete = (st, _) =>
                 {
                     st.Executions().UnsafeUpdate().Set(l => l.ScheduledTask, l => null).Execute();
-                    var rule = st.Rule; st.Delete(); rule.Delete();
+                    var rule = st.Rule; 
+                    st.Delete(); 
+                    rule.Delete();
                 },
             }.Register();
 
 
             new Graph<ScheduledTaskLogEntity>.ConstructFrom<ITaskEntity>(ITaskOperation.ExecuteSync)
             {
-                Construct = (task, _) => ExecuteSync(task, null, UserHolder.Current)
+                Construct = (task, _) => ExecuteSync(task, null, UserHolder.Current.User.Retrieve())
             }.Register();
 
             new Graph<ITaskEntity>.Execute(ITaskOperation.ExecuteAsync)
             {
-                Execute = (task, _) => ExecuteAsync(task, null, UserHolder.Current)
+                Execute = (task, _) => ExecuteAsync(task, null, UserHolder.Current.User.Retrieve())
             }.Register();
 
             ScheduledTasksLazy = sb.GlobalLazy(() =>
                 Database.Query<ScheduledTaskEntity>().Where(a => !a.Suspended &&
-                    (a.MachineName == ScheduledTaskEntity.None || a.MachineName == Environment.MachineName && a.ApplicationName == Schema.Current.ApplicationName)).ToList(),
+                    (a.MachineName == ScheduledTaskEntity.None || a.MachineName == Schema.Current.MachineName && a.ApplicationName == Schema.Current.ApplicationName)).ToList(),
                 new InvalidateWith(typeof(ScheduledTaskEntity)));
 
             ScheduledTasksLazy.OnReset += ScheduledTasksLazy_OnReset;
@@ -183,6 +186,11 @@ public static class SchedulerLogic
                 query.SelectMany(e => e.ExceptionLines()).UnsafeDelete();
                 return null;
             };
+
+            UserAssetsImporter.Register<ScheduleRuleMinutelyEntity>("ScheduleRuleMinutely", e => e.Save());
+            UserAssetsImporter.Register<ScheduleRuleMonthsEntity>("ScheduleRuleMonths", e => e.Save());
+            UserAssetsImporter.Register<ScheduleRuleWeekDaysEntity>("ScheduleRuleWeekDays", e => e.Save());
+            UserAssetsImporter.Register<HolidayCalendarEntity>("HolidayCalendar", HolidayCalendarOperation.Save);
 
             ExceptionLogic.DeleteLogs += ExceptionLogic_DeleteLogs;
         }
@@ -226,7 +234,7 @@ public static class SchedulerLogic
     public static void StartScheduledTasks()
     {
         if (running)
-            throw new InvalidOperationException("SchedulerLogic is already Running in {0}".FormatWith(Environment.MachineName));
+            throw new InvalidOperationException("SchedulerLogic is already Running in {0}".FormatWith(Schema.Current.MachineName));
 
         running = true;
 
@@ -248,7 +256,7 @@ public static class SchedulerLogic
     public static void StopScheduledTasks()
     {
         if (!running)
-            throw new InvalidOperationException("SchedulerLogic is already Stopped in {0}".FormatWith(Environment.MachineName));
+            throw new InvalidOperationException("SchedulerLogic is already Stopped in {0}".FormatWith(Schema.Current.MachineName));
 
         lock (priorityQueue)
         {
@@ -280,7 +288,8 @@ public static class SchedulerLogic
                   )).ToDictionary();
 
                 priorityQueue.Clear();
-                priorityQueue.PushAll(ScheduledTasksLazy.Value.Select(st => {
+                priorityQueue.PushAll(ScheduledTasksLazy.Value.Select(st =>
+                {
 
                     var previous = lastExecutions.TryGetS(st);
 
@@ -389,16 +398,10 @@ public static class SchedulerLogic
             });
     }
 
-    public static ScheduledTaskLogEntity ExecuteSync(ITaskEntity task, ScheduledTaskEntity? scheduledTask, IUserEntity? user)
+    public static ScheduledTaskLogEntity ExecuteSync(ITaskEntity task, ScheduledTaskEntity? scheduledTask, IUserEntity user)
     {
-        IUserEntity entityIUser = (user ?? (IUserEntity?)scheduledTask?.User.RetrieveAndRemember())!;
-
-        var isolation = entityIUser.TryIsolation();
-        if (isolation == null)
-        {
-            var ientity = task as IEntity;
-            isolation = ientity?.TryIsolation();
-        }
+        var isolation = !Isolation.IsolationLogic.IsStarted ? null :
+                        user.TryIsolation() ?? (task as IEntity).TryIsolation();
 
         using (IsolationEntity.Override(isolation))
         {
@@ -407,9 +410,9 @@ public static class SchedulerLogic
                 Task = task,
                 ScheduledTask = scheduledTask,
                 StartTime = Clock.Now,
-                MachineName = Environment.MachineName,
+                MachineName = Schema.Current.MachineName,
                 ApplicationName = Schema.Current.ApplicationName,
-                User = entityIUser.ToLite(),
+                User = user.ToLite(),
             };
 
             using (AuthLogic.Disable())
@@ -427,7 +430,7 @@ public static class SchedulerLogic
                 var ctx = new ScheduledTaskContext(stl);
                 RunningTasks.TryAdd(stl, ctx);
 
-                using (UserHolder.UserSession(entityIUser))
+                using (UserHolder.UserSession(user))
                 {
                     using (var tr = Transaction.ForceNew())
                     {
@@ -482,7 +485,7 @@ public static class SchedulerLogic
             Running = Running,
             SchedulerMargin = SchedulerMargin,
             NextExecution = NextExecution,
-            MachineName = Environment.MachineName,     
+            MachineName = Schema.Current.MachineName,
             ApplicationName = Schema.Current.ApplicationName,
             Queue = priorityQueue.GetOrderedList().Select(p => new SchedulerItemState
             {
@@ -517,9 +520,9 @@ public class SchedulerState
     public DateTime? NextExecution;
     public List<SchedulerItemState> Queue;
     public string MachineName;
-    public string ApplicationName; 
+    public string ApplicationName;
 
-    public List<SchedulerRunningTaskState> RunningTask; 
+    public List<SchedulerRunningTaskState> RunningTask;
 }
 
 public class SchedulerItemState
@@ -550,7 +553,7 @@ public class ScheduledTaskContext
     internal CancellationTokenSource CancellationTokenSource { get; } = new CancellationTokenSource();
 
     public CancellationToken CancellationToken => CancellationTokenSource.Token;
-    
+
     public void Foreach<T>(IEnumerable<T> collection, Func<T, string> elementID, Action<T> action)
     {
         foreach (var item in collection)
@@ -567,7 +570,7 @@ public class ScheduledTaskContext
                         tr.Commit();
                     }
                 }
-                catch(OperationCanceledException)
+                catch (OperationCanceledException)
                 {
                     throw;
                 }

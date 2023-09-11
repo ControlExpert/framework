@@ -12,9 +12,14 @@ public static class ExcelExtensions
         return datetime.ToUserInterface().ToOADate().ToString(CultureInfo.InvariantCulture); //Convert to Julean Format
     }
 
+    public static string ToExcelTime(TimeOnly timeOnly)
+    {
+        return timeOnly.ToTimeSpan().TotalDays.ToString(CultureInfo.InvariantCulture);
+    }
+
     public static DateTime FromExcelDate(string datetime)
     {
-        return DateTime.FromOADate(double.Parse(datetime, CultureInfo.InstalledUICulture)).FromUserInterface(); //Convert to Julean Format
+        return DateTime.FromOADate(double.Parse(datetime, CultureInfo.InvariantCulture)).FromUserInterface(); //Convert to Julean Format
     }
 
     public static string ToExcelNumber(decimal number)
@@ -85,21 +90,35 @@ public static class ExcelExtensions
         return sheetData.Descendants<Cell>().FirstEx(c => c.CellReference == addressName);
     }
 
-    public static string GetCellValue(this SpreadsheetDocument document, Worksheet worksheet, string addressName)
+    public static string? GetCellValue(this SpreadsheetDocument document, Worksheet worksheet, string addressName)
     {
         Cell? theCell = worksheet.Descendants<Cell>().
           Where(c => c.CellReference == addressName).FirstOrDefault();
 
         // If the cell doesn't exist, return an empty string:
         if (theCell == null)
-            return "";
+            return null;
 
         return GetCellValue(document, theCell);
     }
 
-    public static string GetCellValue(this SpreadsheetDocument document, Cell theCell)
+    public static string? GetCellValue(this SpreadsheetDocument document, Row row, string addressName)
     {
-        string value = theCell.InnerText;
+        Cell? theCell = row.Descendants<Cell>().
+          Where(c => c.CellReference == addressName).FirstOrDefault();
+
+        // If the cell doesn't exist, return an empty string:
+        if (theCell == null)
+            return null;
+
+        return GetCellValue(document, theCell);
+    }
+
+    public static string? GetCellValue(this SpreadsheetDocument document, Cell theCell)
+    {
+        var cellValue = theCell.GetFirstChild<CellValue>();
+
+        string value = cellValue?.InnerText ?? theCell.InnerText;
 
         // If the cell represents an integer number, you're done. 
         // For dates, this code returns the serialized value that 

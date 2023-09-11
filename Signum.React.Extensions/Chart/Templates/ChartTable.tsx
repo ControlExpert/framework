@@ -16,8 +16,6 @@ interface ChartTableProps {
   lastChartRequest: ChartRequestModel;
   onOrderChanged: () => void;
   onReload?: (e: React.MouseEvent<any>) => void;
-  onCreateNew?: (e: React.MouseEvent<any>) => void;
-  typeInfos?: TypeInfo[];
 }
 
 export default function ChartTableComponent(p: ChartTableProps) {
@@ -107,8 +105,8 @@ export default function ChartTableComponent(p: ChartTableProps) {
   var entityFormatter = qs?.entityFormatter || Finder.entityFormatRules.filter(a => a.isApplicable(undefined)).last("EntityFormatRules").formatter;
 
   return (
-    <div className="sf-scroll-table-container" >
-      <FullscreenComponent onReload={p.onReload} onCreateNew={p.onCreateNew} typeInfos={p.typeInfos}>
+    <div className="sf-scroll-table-container">
+      <FullscreenComponent onReload={p.onReload}>
         <table className="sf-search-results table table-hover table-sm">
           <thead>
             <tr>
@@ -139,7 +137,7 @@ export default function ChartTableComponent(p: ChartTableProps) {
                     }
                     {columns.map((c, j) =>
                       <td key={j} className={c.cellFormatter && c.cellFormatter.cellClass}>
-                        {c.resultIndex == -1 || c.cellFormatter == undefined ? undefined : c.cellFormatter.formatter(row.columns[c.resultIndex], ctx)}
+                        {c.resultIndex == -1 || c.cellFormatter == undefined ? undefined : c.cellFormatter.formatter(row.columns[c.resultIndex], ctx, c.column.token!)}
                       </td>)
                     }
                   </tr>

@@ -5,12 +5,14 @@ import * as Constructor from '../Constructor'
 import * as Finder from '../Finder'
 import { FindOptions } from '../FindOptions'
 import { TypeContext } from '../TypeContext'
-import { PropertyRoute, tryGetTypeInfos, TypeInfo, IsByAll, TypeReference, getTypeInfo, getTypeInfos } from '../Reflection'
-import { ModifiableEntity, Lite, Entity, EntityControlMessage, toLiteFat, is, entityInfo, SelectorMessage, toLite } from '../Signum.Entities'
+import { PropertyRoute, tryGetTypeInfos, TypeInfo, IsByAll, TypeReference, getTypeInfo, getTypeInfos, Type } from '../Reflection'
+import { ModifiableEntity, Lite, Entity, EntityControlMessage, toLiteFat, is, entityInfo, SelectorMessage, toLite, parseLiteList } from '../Signum.Entities'
 import { LineBaseController, LineBaseProps } from './LineBase'
 import SelectorModal from '../SelectorModal'
 import { TypeEntity } from "../Signum.Entities.Basics";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { FindOptionsAutocompleteConfig } from './AutoCompleteConfig'
+import { FilterOption } from '../Search'
 
 export interface EntityBaseProps extends LineBaseProps {
   view?: boolean | ((item: any/*T*/) => boolean);
@@ -19,12 +21,14 @@ export interface EntityBaseProps extends LineBaseProps {
   createOnFind?: boolean;
   find?: boolean;
   remove?: boolean | ((item: any /*T*/) => boolean);
+  paste?: boolean;
 
   onView?: (entity: any /*T*/, pr: PropertyRoute) => Promise<ModifiableEntity | undefined> | undefined;
   onCreate?: (pr: PropertyRoute) => Promise<ModifiableEntity | Lite<Entity> | undefined> | undefined;
   onFind?: () => Promise<ModifiableEntity | Lite<Entity> | undefined> | undefined;
   onRemove?: (entity: any /*T*/) => Promise<boolean>;
   findOptions?: FindOptions;
+  findOptionsDictionary?: { [typeName: string]: FindOptions };
   extraButtonsBefore?: (ec: EntityBaseController<EntityBaseProps>) => React.ReactNode;
   extraButtonsAfter?: (ec: EntityBaseController<EntityBaseProps>) => React.ReactNode;
   liteToString?: (e: any /*T*/) => string;
@@ -42,6 +46,7 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
   static removeIcon = <FontAwesomeIcon icon="times" />;
   static viewIcon = <FontAwesomeIcon icon="arrow-right" />;
   static moveIcon = <FontAwesomeIcon icon="bars" />;
+  static pasteIcon = <FontAwesomeIcon icon="clipboard" />;
 
   static hasChildrens(element: React.ReactElement<any>) {
     return element.props.children && React.Children.toArray(element.props.children).length;
@@ -79,15 +84,14 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
     if (state.type) {
       const type = state.type;
 
-      const customComponent = Boolean(state.getComponent || state.getViewPromise);
-
-      state.create = EntityBaseController.defaultIsCreable(type, customComponent);
-      state.view = EntityBaseController.defaultIsViewable(type, customComponent);
+      state.create = EntityBaseController.defaultIsCreable(type, false);
+      state.view = EntityBaseController.defaultIsViewable(type, false);
       state.find = EntityBaseController.defaultIsFindable(type);
       state.findOptions = Navigator.defaultFindOptions(type);
 
       state.viewOnCreate = true;
       state.remove = true;
+      state.paste = (type.name == IsByAll ? true : undefined);
     }
   }
 
@@ -212,6 +216,13 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
       .then(ti => ti ? ti.name : undefined);
   }
 
+  getFindOptions(typeName: string) {
+    if (this.props.findOptionsDictionary)
+      return this.props.findOptionsDictionary[typeName];
+
+    return this.props.findOptions;
+  }
+
   defaultCreate(pr: PropertyRoute): Promise<ModifiableEntity | Lite<Entity> | undefined> {
 
     return this.chooseType(t => this.props.create /*Hack?*/ || Navigator.isCreable(t, { customComponent: !!this.props.getComponent || !!this.props.getViewPromise, isEmbedded: pr.member!.type.isEmbedded }))
@@ -219,7 +230,7 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
         if (!typeName)
           return Promise.resolve(undefined);
 
-        var fo = this.props.findOptions;
+        var fo = this.getFindOptions(typeName);
 
         return Finder.getPropsFromFindOptions(typeName, fo)
           .then(props => Constructor.construct(typeName, props, pr));
@@ -256,6 +267,52 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
     }).done();
   };
 
+  paste(text: string) {
+    var lites = parseLiteList(text);
+    if (lites.length == 0)
+      return;
+
+    var tis = getTypeInfos(this.props.type!);
+    lites = lites.filter(lite => tis.length == 0 || tis.singleOrNull(ti => ti.name == lite.EntityType) != null);
+    if (lites.length == 0)
+      return;
+
+    tis = lites.map(lite => lite.EntityType).distinctBy().map(tn => getTypeInfo(tn));
+    return SelectorModal.chooseType(tis)
+      .then(ti => {
+        if (!ti)
+          return;
+
+        lites = lites.filter(lite => lite.EntityType == ti.name);
+        return Navigator.API.fillToStrings(...lites)
+          .then(() => SelectorModal.chooseLite(ti.name, lites));
+      })
+      .then(lite => {
+        if (!lite)
+          return;
+
+        const typeName = lite.EntityType;
+        const fo = this.getFindOptions(typeName) ?? { queryName: typeName };
+        const fos = (fo.filterOptions ?? []).concat([{ token: "Entity", operation: "EqualTo", value: lite }]);
+        return Finder.fetchLites({ queryName: typeName, filterOptions: fos })
+          .then(lites => {
+            if (lites.length == 0)
+              return;
+
+            return this.convert(lites[0]).then(m => this.setValue(m));
+          });
+      });
+  }
+
+  handlePasteClick = (event: React.SyntheticEvent<any>) => {
+
+    event.preventDefault();
+
+    navigator.clipboard.readText()
+      .then(text => this.paste(text))
+      .done();
+  }
+
   renderCreateButton(btn: boolean, createMessage?: string) {
     if (!this.props.create || this.props.ctx.readOnly)
       return undefined;
@@ -265,6 +322,19 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
         onClick={this.handleCreateClick}
         title={this.props.ctx.titleLabels ? createMessage ?? EntityControlMessage.Create.niceToString() : undefined}>
         {EntityBaseController.createIcon}
+      </a>
+    );
+  }
+
+  renderPasteButton(btn: boolean) {
+    if (!this.props.paste || this.props.ctx.readOnly)
+      return undefined;
+
+    return (
+      <a href="#" className={classes("sf-line-button", "sf-paste", btn ? "input-group-text" : undefined)}
+        onClick={this.handlePasteClick}
+        title={EntityControlMessage.Paste.niceToString()}>
+        {EntityBaseController.pasteIcon}
       </a>
     );
   }
@@ -283,8 +353,14 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
     }
 
     return this.chooseType(ti => Finder.isFindable(ti, false))
-      .then<ModifiableEntity | Lite<Entity> | undefined>(qn =>
-        qn == undefined ? undefined : Finder.find({ queryName: qn } as FindOptions, { searchControlProps: { create: this.props.createOnFind } }));
+      .then<ModifiableEntity | Lite<Entity> | undefined>(typeName => {
+        if (typeName == null)
+          return undefined;
+
+        var fo: FindOptions = (this.props.findOptionsDictionary && this.props.findOptionsDictionary[typeName]) ?? Navigator.defaultFindOptions({ name: typeName }) ?? { queryName: typeName };
+
+        return Finder.find(fo, { searchControlProps: { create: this.props.createOnFind } })
+      });
   }
 
   handleFindClick = (event: React.SyntheticEvent<any>) => {
@@ -303,6 +379,7 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
       this.convert(entity).then(e => this.setValue(e)).done();
     }).done();
   };
+
   renderFindButton(btn: boolean) {
     if (!this.props.find || this.props.ctx.readOnly)
       return undefined;

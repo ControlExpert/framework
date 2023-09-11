@@ -204,13 +204,22 @@ public class ButtonOptionEmbedded : EmbeddedEntity
                 new XAttribute("Style", Style.ToString())
             );
     }
+
+    public ButtonOptionEmbedded Clone()
+    {
+        return new ButtonOptionEmbedded()
+        {
+            Name = this.Name,
+            Style = this.Style,
+        };
+    }
 }
 
 public class WorkflowActivityInfo
 {
     static readonly WorkflowActivityInfo Empty = new WorkflowActivityInfo();
 
-    public static readonly ThreadVariable<WorkflowActivityInfo> CurrentVariable = Statics.ThreadVariable<WorkflowActivityInfo>("CurrentWorkflowActivity");
+    public static readonly AsyncThreadVariable<WorkflowActivityInfo> CurrentVariable = Statics.ThreadVariable<WorkflowActivityInfo>("CurrentWorkflowActivity");
     public static WorkflowActivityInfo Current => CurrentVariable.Value ?? Empty;
 
     public static IDisposable Scope(WorkflowActivityInfo wa)

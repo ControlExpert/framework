@@ -5,7 +5,7 @@ import * as Finder from '@framework/Finder'
 import * as AppContext from '@framework/AppContext'
 import { QueryEntity } from '@framework/Signum.Entities.Basics'
 import { RefreshCounterEvent, ToolbarConfig, ToolbarResponse } from './ToolbarClient'
-import { ValueSearchControl, FindOptions } from '@framework/Search';
+import { SearchValue, FindOptions } from '@framework/Search';
 import { coalesceIcon } from '@framework/Operations/ContextualOperations';
 import { useDocumentEvent, useInterval } from '@framework/Hooks'
 import { parseIcon } from '../Basics/Templates/IconTypeahead'
@@ -37,8 +37,8 @@ export default class QueryToolbarConfig extends ToolbarConfig<QueryEntity> {
     return Promise.resolve(Finder.findOptionsPath({ queryName: res.content!.toStr! }));
   }
 
-  isCompatibleWithUrl(res: ToolbarResponse<QueryEntity>, location: Location, query: any): boolean {
-    return location.pathname == AppContext.toAbsoluteUrl(Finder.findOptionsPath({ queryName: res.content!.toStr! }));
+  isCompatibleWithUrlPrio(res: ToolbarResponse<QueryEntity>, location: Location, query: any): number {
+    return location.pathname == AppContext.toAbsoluteUrl(Finder.findOptionsPath({ queryName: res.content!.toStr! })) ? 1 : 0;
   }
 }
 
@@ -63,7 +63,7 @@ export function CountIcon(p: CountIconProps) {
     }
   }, [p.findOptions.queryName]);
 
-  return <ValueSearchControl deps={[deps, invalidations]}
+  return <SearchValue deps={[deps, invalidations]}
     findOptions={p.findOptions}
     customClass="icon"
     customStyle={{ color: p.color }}

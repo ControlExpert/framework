@@ -48,6 +48,12 @@ public static class AutocompleteUtils
         if (match.Success)
             return PrimaryKey.TryParse(match.Groups[1].ToString(), type, out id);
 
+        Lite.TryParseLite(value, out Lite<Entity>? lite);
+        if (lite != null && lite.EntityType == type) {
+            id = lite.Id;
+            return true;
+        }
+
         id = default;
         return false;
     }
@@ -63,17 +69,21 @@ public static class AutocompleteUtils
 
         foreach (var t in types)
         {
-            if (TryParsePrimaryKey(subString, t, out PrimaryKey id))
+            var parts = subString.Split("|");
+            foreach (var p in parts)
             {
-                var lite = giLiteById.GetInvoker(t).Invoke(id);
-                if (lite != null)
+                if (TryParsePrimaryKey(p, t, out PrimaryKey id))
                 {
-                    results.Add(lite);
+                    var lite = giLiteById.GetInvoker(t).Invoke(id);
+                    if (lite != null)
+                    {
+                        results.Add(lite);
 
-                    if (results.Count >= count)
-                        return results;
+                        if (results.Count >= count)
+                            return results;
+                    }
                 }
-            }
+            };
         }
 
 
@@ -104,15 +114,19 @@ public static class AutocompleteUtils
 
         foreach (var t in types)
         {
-            if (TryParsePrimaryKey(subString, t, out PrimaryKey id))
+            var parts = subString.Split("|");
+            foreach (var p in parts)
             {
-                var lite = await giLiteByIdAsync.GetInvoker(t).Invoke(id, cancellationToken);
-                if (lite != null)
+                if (TryParsePrimaryKey(p, t, out PrimaryKey id))
                 {
-                    results.Add(lite);
+                    var lite = await giLiteByIdAsync.GetInvoker(t).Invoke(id, cancellationToken);
+                    if (lite != null)
+                    {
+                        results.Add(lite);
 
-                    if (results.Count >= count)
-                        return results;
+                        if (results.Count >= count)
+                            return results;
+                    }
                 }
             }
         }
@@ -228,18 +242,22 @@ public static class AutocompleteUtils
 
             List<Lite<T>> results = new List<Lite<T>>();
 
-            if (TryParsePrimaryKey(subString, typeof(T), out PrimaryKey id))
+            var parts = subString.Split("|");
+            foreach (var p in parts)
             {
-                Lite<T>? entity = query.SingleOrDefaultEx(e => e.Id == id);
+                if (TryParsePrimaryKey(p, typeof(T), out PrimaryKey id))
+                {
+                    Lite<T>? entity = query.SingleOrDefaultEx(e => e.Id == id);
 
-                if (entity != null)
-                    results.Add(entity);
+                    if (entity != null)
+                        results.Add(entity);
 
-                if (results.Count >= count)
-                    return results;
+                    if (results.Count >= count)
+                        return results;
+                }
             }
 
-            var parts = subString.SplitParts();
+            parts = subString.SplitParts();
 
             results.AddRange(query.Where(a => a.ToString()!.ContainsAllParts(parts))
                 .OrderBy(a => a.ToString()!.Length)
@@ -256,18 +274,22 @@ public static class AutocompleteUtils
         {
             List<Lite<T>> results = new List<Lite<T>>();
 
-            if (TryParsePrimaryKey(subString, typeof(T), out PrimaryKey id))
+            var parts = subString.Split("|");
+            foreach (var p in parts)
             {
-                Lite<T> entity = await query.SingleOrDefaultAsync(e => e.Id == id, token);
+                if (TryParsePrimaryKey(p, typeof(T), out PrimaryKey id))
+                {
+                    Lite<T> entity = await query.SingleOrDefaultAsync(e => e.Id == id, token);
 
-                if (entity != null)
-                    results.Add(entity);
+                    if (entity != null)
+                        results.Add(entity);
 
-                if (results.Count >= count)
-                    return results;
+                    if (results.Count >= count)
+                        return results;
+                }
             }
 
-            var parts = subString.SplitParts();
+            parts = subString.SplitParts();
 
             var list = await query.Where(a => a.ToString()!.ContainsAllParts(parts))
                 .OrderBy(a => a.ToString()!.Length)
@@ -287,18 +309,22 @@ public static class AutocompleteUtils
         {
             List<Lite<T>> results = new List<Lite<T>>();
 
-            if (TryParsePrimaryKey(subString, typeof(T), out PrimaryKey id))
+            var parts = subString.Split("|");
+            foreach (var p in parts)
             {
-                Lite<T>? entity = collection.SingleOrDefaultEx(e => e.Id == id);
+                if (TryParsePrimaryKey(subString, typeof(T), out PrimaryKey id))
+                {
+                    Lite<T>? entity = collection.SingleOrDefaultEx(e => e.Id == id);
 
-                if (entity != null)
-                    results.Add(entity);
+                    if (entity != null)
+                        results.Add(entity);
 
-                if (results.Count >= count)
-                    return results;
+                    if (results.Count >= count)
+                        return results;
+                }
             }
 
-            var parts = subString.SplitParts();
+            parts = subString.SplitParts();
 
             var list = collection.Where(a => a.ToString()!.ContainsAllParts(parts))
                 .OrderBy(a => a.ToString()!.Length)

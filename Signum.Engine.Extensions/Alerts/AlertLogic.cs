@@ -11,6 +11,7 @@ using Signum.Engine.Scheduler;
 using Signum.Entities.UserAssets;
 using Microsoft.AspNetCore.Html;
 using System.Text.RegularExpressions;
+using Signum.Entities.Scheduler;
 
 namespace Signum.Engine.Alerts;
 
@@ -22,7 +23,7 @@ public static class AlertLogic
 
     [AutoExpressionField]
     public static IQueryable<AlertEntity> MyActiveAlerts(this Entity e) => 
-        As.Expression(() => e.Alerts().Where(a => a.Recipient.Is(UserHolder.Current.ToLite()) && a.CurrentState == AlertCurrentState.Alerted));
+        As.Expression(() => e.Alerts().Where(a => a.Recipient.Is(UserHolder.Current.User) && a.CurrentState == AlertCurrentState.Alerted));
 
     public static Func<IUserEntity?> DefaultRecipient = () => null;
 
@@ -139,12 +140,16 @@ public static class AlertLogic
                   e.SendBehavior,
               });
 
+        sb.Schema.Settings.AssertImplementedBy((ScheduledTaskEntity a) => a.Task, typeof(SendNotificationEmailTaskEntity));
+        sb.Schema.Settings.AssertImplementedBy((ScheduledTaskLogEntity a) => a.Task, typeof(SendNotificationEmailTaskEntity));
+
         SchedulerLogic.ExecuteTask.Register((SendNotificationEmailTaskEntity task, ScheduledTaskContext ctx) =>
         {
-            var limit = Clock.Now.AddMinutes(-task.SendNotificationsOlderThan);
+            var max = Clock.Now.AddMinutes(-task.SendNotificationsOlderThan);
+            var min = task.IgnoreNotificationsOlderThan == null ? (DateTime?)null : Clock.Now.AddDays(-task.IgnoreNotificationsOlderThan.Value);
 
             var query = Database.Query<AlertEntity>()
-            .Where(a => a.State == AlertState.Saved && a.EmailNotificationsSent == false && a.Recipient != null && a.AlertDate < limit)
+            .Where(a => a.State == AlertState.Saved && a.EmailNotificationsSent == false && a.Recipient != null && (min == null || min < a.AlertDate) && a.AlertDate < max)
             .Where(a => task.SendBehavior == SendAlertTypeBehavior.All ||
                         task.SendBehavior == SendAlertTypeBehavior.Include && task.AlertTypes.Contains(a.AlertType!) ||
                         task.SendBehavior == SendAlertTypeBehavior.Exclude && !task.AlertTypes.Contains(a.AlertType!));
@@ -195,22 +200,29 @@ public static class AlertLogic
 
             var newText = LinkPlaceholder.SplitAfter(text).Select(pair =>
             {
-                var m = pair.match;
-                if (m == null)
-                    return ReplacePlaceHolders(pair.after, alert);
+                try
+                {
+                    var m = pair.match;
+                    if (m == null)
+                        return ReplacePlaceHolders(pair.after, alert);
 
-                var propEx = m.Groups["prop"].Value;
+                    var propEx = m.Groups["prop"].Value;
 
-                var prop = GetPropertyValue(alert, propEx);
+                    var prop = GetPropertyValue(alert, propEx);
 
-                var lite = prop is Entity e ? e.ToLite() :
-                            prop is Lite<Entity> l ? l : null;
+                    var lite = prop is Entity e ? e.ToLite() :
+                                prop is Lite<Entity> l ? l : null;
 
-                var url = ReplacePlaceHolders(m.Groups["url"].Value.DefaultToNull(), alert)?.Replace("~", EmailLogic.Configuration.UrlLeft) ?? (lite != null ? EntityUrl(lite) : "#");
+                    var url = ReplacePlaceHolders(m.Groups["url"].Value.DefaultToNull(), alert)?.Replace("~", EmailLogic.Configuration.UrlLeft) ?? (lite != null ? EntityUrl(lite) : "#");
 
-                var text = ReplacePlaceHolders(m.Groups["text"].Value.DefaultToNull(), alert) ?? (lite?.ToString());
+                    var text = ReplacePlaceHolders(m.Groups["text"].Value.DefaultToNull(), alert) ?? (lite?.ToString());
 
-                return @$"<a href=""{url}"">{text}</a>" + ReplacePlaceHolders(pair.after, alert);
+                    return @$"<a href=""{url}"">{text}</a>" + ReplacePlaceHolders(pair.after, alert);
+                }
+                catch (Exception e)
+                {
+                    return ("<span style='color:red'>ERROR: " + e.Message + "</span>") + pair.match?.Value + pair.after;
+                }
             }).ToString("");
 
             if (text != newText)
@@ -248,7 +260,6 @@ public static class AlertLogic
 
         private static object? GetPropertyValue(AlertEntity alert, string expresion)
         {
-
             var parts = expresion.SplitNoEmpty('.');
 
             var result = SimpleMemberEvaluator.EvaluateExpression(alert, parts);
@@ -298,7 +309,7 @@ public static class AlertLogic
             var result = new AlertEntity
             {
                 AlertDate = alertDate ?? Clock.Now,
-                CreatedBy = createdBy ?? UserHolder.Current?.ToLite(),
+                CreatedBy = createdBy ?? UserHolder.Current?.User,
                 TitleField = title,
                 TextArguments = textArguments?.ToString("\n###\n"),
                 TextField = text,
@@ -310,6 +321,34 @@ public static class AlertLogic
             return result.Execute(AlertOperation.Save);
         }
     }
+
+    public static int? UnsafeInsertAlerts(IQueryable<(Lite<IUserEntity>? recipient, Lite<Entity>? target)> query, AlertTypeSymbol alertType, string? text = null, string?[]? textArguments = null, DateTime? alertDate = null, Lite<IUserEntity>? createdBy = null, string? title = null)
+    {
+        if (Started == false)
+            return null;
+
+        using (AuthLogic.Disable())
+        {
+            alertDate ??= Clock.Now;
+            createdBy ??= UserHolder.Current?.User;
+
+            var txtArgumentJoined = textArguments?.ToString("\n###\n");
+            return query.UnsafeInsert(tuple => new AlertEntity
+            {
+                AlertDate = alertDate,
+                CreatedBy = createdBy,
+                TitleField = title,
+                TextArguments = txtArgumentJoined,
+                TextField = text,
+                Target = tuple.target,
+                AlertType = alertType,
+                Recipient = tuple.recipient,
+                State = AlertState.Saved,
+                EmailNotificationsSent = false,
+            }.SetReadonly(a => a.CreationDate, Clock.Now));
+        }
+    }
+
 
     public static AlertEntity? CreateAlertForceNew(this IEntity entity, AlertTypeSymbol alertType, string? text = null, string?[]? textArguments = null, DateTime? alertDate = null, Lite<IUserEntity>? createdBy = null, string? title = null, Lite<IUserEntity>? recipient = null)
     {
@@ -351,6 +390,17 @@ public static class AlertLogic
         {
             Database.Query<AlertEntity>()
                 .Where(a => a.Target.Is(target) && a.AlertType.Is(alertType) && a.State == AlertState.Saved)
+                .ToList()
+                .ForEach(a => a.Execute(AlertOperation.Attend));
+        }
+    }
+
+    public static void AttendAllAlerts(this IQueryable<AlertEntity> alerts)
+    {
+        using (AuthLogic.Disable())
+        {
+            alerts
+                 .Where(a => a.State == AlertState.Saved)
                 .ToList()
                 .ForEach(a => a.Execute(AlertOperation.Attend));
         }
@@ -398,7 +448,7 @@ public class AlertGraph : Graph<AlertEntity, AlertState>
             Construct = (a, _) => new AlertEntity
             {
                 AlertDate = Clock.Now,
-                CreatedBy = UserHolder.Current.ToLite(),
+                CreatedBy = UserHolder.Current.User,
                 Recipient = AlertLogic.DefaultRecipient()?.ToLite(),
                 TitleField = null,
                 TextField = null,
@@ -413,7 +463,7 @@ public class AlertGraph : Graph<AlertEntity, AlertState>
             Construct = (_) => new AlertEntity
             {
                 AlertDate = Clock.Now,
-                CreatedBy = UserHolder.Current.ToLite(),
+                CreatedBy = UserHolder.Current.User,
                 Recipient = AlertLogic.DefaultRecipient()?.ToLite(),
                 TitleField = null,
                 TextField = null,
@@ -439,7 +489,7 @@ public class AlertGraph : Graph<AlertEntity, AlertState>
             {
                 a.State = AlertState.Attended;
                 a.AttendedDate = Clock.Now;
-                a.AttendedBy = UserEntity.Current.ToLite();
+                a.AttendedBy = UserHolder.Current.User;
             }
         }.Register();
 

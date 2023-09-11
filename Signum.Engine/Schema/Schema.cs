@@ -42,6 +42,13 @@ public class Schema : IImplementationsFinder
         set { applicationName = value; }
     }
 
+    string? machineName;
+    public string MachineName
+    {
+        get { return machineName ??= Environment.MachineName; }
+        set { machineName = value; }
+    }
+
     public SchemaSettings Settings { get; private set; }
 
     public SchemaAssets Assets { get; private set; }
@@ -318,6 +325,11 @@ public class Schema : IImplementationsFinder
     {
         using (userInterface ? ExecutionMode.UserInterface() : null)
         {
+            var error = this.IsAllowed(typeof(T), userInterface);
+
+            if (error.HasText())
+                throw new InvalidOperationException(error);
+
             EntityEvents<T>? ee = (EntityEvents<T>?)entityEvents.TryGetC(typeof(T));
             if (ee == null)
                 return a => true;
@@ -447,14 +459,17 @@ public class Schema : IImplementationsFinder
         return ViewBuilder.NewView(viewType);
     }
 
+   
+
     public event Func<SqlPreCommand?> Generating;
-    internal SqlPreCommand? GenerationScipt()
+    public SqlPreCommand? GenerationScipt(string? databaseNameReplacement = null)
     {
         OnBeforeDatabaseAccess();
 
         if (Generating == null)
             return null;
 
+        using (databaseNameReplacement == null ? null : ObjectName.OverrideOptions(new ObjectNameOptions { DatabaseNameReplacement = databaseNameReplacement }))
         using (CultureInfoUtils.ChangeBothCultures(ForceCultureInfo))
         using (ExecutionMode.Global())
         {
@@ -490,6 +505,32 @@ public class Schema : IImplementationsFinder
             if (this.Tables.ContainsKey(typeof(T)))
                 action();
         };
+    }
+
+    public static void CheckImplementedByAllPrimaryKeyTypes()
+    {
+        var schema = Schema.Current;
+
+        var should = schema.tables.Values.GroupToDictionary(a => a.PrimaryKey.Type);
+
+        var current = schema.Settings.ImplementedByAllPrimaryKeyTypes;
+
+        var missing = should.Where(kvp => !current.Contains(kvp.Key));
+
+        var extra = current.Except(should.Keys);
+
+        if (extra.Any() || missing.Any())
+        {
+            throw new InvalidOperationException($"{nameof(SchemaSettings)}.{nameof(SchemaSettings.ImplementedByAllPrimaryKeyTypes)}" +
+               (missing.Any() ? $" does not contain " + missing.CommaAnd(kvp => $"'{kvp.Key.TypeName()}' (required for {kvp.Value.CommaAnd(a => a.Type.TypeName())})") : null) +
+               (extra.Any() ? $" contains {extra.CommaAnd(a => "'" + a.TypeName() + "'")} that are not needed" : null) +
+               "\n\nConsider writing something like this at the beginning of your Starter.Start method:\n" +
+               missing.Select(kvp => $"sb.Schema.Settings.ImplementedByAllPrimaryKeyTypes.Add(typeof({kvp.Key.TypeName()}))")
+               .Concat(extra.Select(t => $"sb.Schema.Settings.ImplementedByAllPrimaryKeyTypes.Remove(typeof({t.TypeName()}))"))
+               .ToString("\n")
+               .Indent(4)
+               );
+        }
     }
 
     public event Action? BeforeDatabaseAccess;
@@ -567,6 +608,8 @@ public class Schema : IImplementationsFinder
         Synchronizing += Assets.Schema_Synchronizing;
 
         InvalidateCache += GlobalLazy.ResetAll;
+
+        SchemaCompleted += Schema.CheckImplementedByAllPrimaryKeyTypes;
     }
 
     public static Schema Current
@@ -810,7 +853,7 @@ public interface ICacheController
     void Complete(Entity entity, IRetriever retriver);
 
     string GetToString(PrimaryKey id);
-    string? TryGetToString(PrimaryKey?/*CSBUG*/ id);
+    string? TryGetToString(PrimaryKey? id);
 }
 
 public class InvalidateEventArgs : EventArgs { }
@@ -831,9 +874,11 @@ public abstract class CacheControllerBase<T> : ICacheController
 
     public abstract void Complete(T entity, IRetriever retriver);
 
+    public abstract bool Exists(PrimaryKey id);
+
     public abstract string GetToString(PrimaryKey id);
 
-    public virtual string? TryGetToString(PrimaryKey?/*CSBUG*/ id) => null;
+    public abstract string? TryGetToString(PrimaryKey? id);
 
     public abstract List<T> RequestByBackReference<R>(IRetriever retriever, Expression<Func<T, Lite<R>?>> backReference, Lite<R> lite)
         where R : Entity;

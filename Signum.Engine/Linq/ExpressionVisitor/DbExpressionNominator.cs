@@ -138,7 +138,7 @@ internal class DbExpressionNominator : DbExpressionVisitor
             if (lite.Reference is ImplementedByExpression ib)
                 return Add(GetImplmentedById(ib));
             if (lite.Reference is ImplementedByAllExpression iba)
-                return Add(iba.Id);
+                return Add(iba.TypeId.TypeColumn.Value);
         }
 
         return base.VisitLiteReference(lite);
@@ -187,7 +187,7 @@ internal class DbExpressionNominator : DbExpressionVisitor
     protected internal override Expression VisitImplementedByAll(ImplementedByAllExpression iba)
     {
         if (iba == isNotNullRoot)
-            return Add(iba.Id);
+            return Add(iba.TypeId.TypeColumn.Value);
 
         return base.VisitImplementedByAll(iba);
     }
@@ -1129,6 +1129,11 @@ internal class DbExpressionNominator : DbExpressionVisitor
             return base.Visit(u.Operand); //Could make sense to simulate a similar convert (nullify / unnullify)
         }
 
+        if(this.isFullNominate && u.Operand is ToDayOfWeekExpression && (u.Type.UnNullify() == typeof(int) || u.Type.UnNullify() == typeof(DayOfWeek)))
+        {
+            return base.Visit(u.Operand); //Could make sense to simulate a similar convert (nullify / unnullify)
+        }
+
         if (u.NodeType == ExpressionType.Convert && u.Type.IsNullable() && u.Type.UnNullify() == u.Operand.Type && u.Operand.NodeType == ExpressionType.Conditional)
         {
             ConditionalExpression ce = (ConditionalExpression)u.Operand;
@@ -1415,9 +1420,6 @@ internal class DbExpressionNominator : DbExpressionVisitor
                     var exp = m.Expression!;
                     if (exp is UnaryExpression ue)
                         exp = ue.Operand;
-
-                    if (exp is PrimaryKeyStringExpression)
-                        return null;
 
                     var pk = (PrimaryKeyExpression)exp;
 

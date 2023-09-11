@@ -85,7 +85,7 @@ public static class ExceptionLogic
         entity.Environment = CurrentEnvironment;
         try
         {
-            entity.User = UserHolder.Current?.ToLite(); //Session special situations
+            entity.User = UserHolder.Current?.User; //Session special situations
         }
         catch { }
 

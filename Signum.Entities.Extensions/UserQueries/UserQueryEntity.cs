@@ -1,5 +1,6 @@
 using Signum.Entities.Authorization;
 using Signum.Entities.Basics;
+using Signum.Entities.Chart;
 using Signum.Entities.DynamicQuery;
 using Signum.Entities.UserAssets;
 using System.ComponentModel;
@@ -8,10 +9,14 @@ using System.Xml.Linq;
 namespace Signum.Entities.UserQueries;
 
 [EntityKind(EntityKind.Main, EntityData.Master)]
-public class UserQueryEntity : Entity, IUserAssetEntity
+public class UserQueryEntity : Entity, IUserAssetEntity, IHasEntityType
 {
-    public UserQueryEntity() { }
-    public UserQueryEntity(object queryName)
+    public UserQueryEntity()
+    {
+        this.RebindEvents();
+    }
+
+    public UserQueryEntity(object queryName) : this()
     {
         this.queryName = queryName;
     }
@@ -19,7 +24,7 @@ public class UserQueryEntity : Entity, IUserAssetEntity
     [Ignore]
     internal object queryName;
 
-    
+
     public QueryEntity Query { get; set; }
 
     public bool GroupResults { get; set; }
@@ -102,7 +107,7 @@ public class UserQueryEntity : Entity, IUserAssetEntity
             new XAttribute("DisplayName", DisplayName),
             new XAttribute("Query", Query.Key),
             EntityType == null ? null! : new XAttribute("EntityType", ctx.TypeToName(EntityType)),
-            Owner == null ? null! : new XAttribute("Owner", Owner.Key()),
+            Owner == null ? null! : new XAttribute("Owner", Owner.KeyLong()),
             !HideQuickLink ? null! : new XAttribute("HideQuickLink", HideQuickLink),
             IncludeDefaultFilters == null ? null! : new XAttribute("IncludeDefaultFilters", IncludeDefaultFilters.Value),
             !AppendFilters ? null! : new XAttribute("AppendFilters", AppendFilters),
@@ -121,7 +126,7 @@ public class UserQueryEntity : Entity, IUserAssetEntity
         Query = ctx.GetQuery(element.Attribute("Query")!.Value);
         DisplayName = element.Attribute("DisplayName")!.Value;
         EntityType = element.Attribute("EntityType")?.Let(a => ctx.GetType(a.Value).ToLite());
-        Owner = element.Attribute("Owner")?.Let(a => Lite.Parse(a.Value))!;
+        Owner = element.Attribute("Owner")?.Let(a => ctx.ParseLite(a.Value, this, uq => uq.Owner))!;
         HideQuickLink = element.Attribute("HideQuickLink")?.Let(a => bool.Parse(a.Value)) ?? false;
         IncludeDefaultFilters = element.Attribute("IncludeDefaultFilters")?.Let(a => bool.Parse(a.Value));
         AppendFilters = element.Attribute("AppendFilters")?.Let(a => bool.Parse(a.Value)) ?? false;
@@ -164,7 +169,7 @@ public static class UserQueryOperation
 
 public class QueryOrderEmbedded : EmbeddedEntity
 {
-    
+
     public QueryTokenEmbedded Token { get; set; }
 
     public OrderType OrderType { get; set; }
@@ -204,7 +209,7 @@ public class QueryOrderEmbedded : EmbeddedEntity
 }
 
 public class QueryColumnEmbedded : EmbeddedEntity
-{   
+{
     public QueryTokenEmbedded Token { get; set; }
 
     string? displayName;
@@ -232,7 +237,7 @@ public class QueryColumnEmbedded : EmbeddedEntity
         Token = new QueryTokenEmbedded(element.Attribute("Token")!.Value);
         SummaryToken = element.Attribute("SummaryToken")?.Value.Let(val => new QueryTokenEmbedded(val));
         DisplayName = element.Attribute("DisplayName")?.Value;
-        HiddenColumn = element.Attribute("HiddenColumn")?.Value.ToBool() == false;
+        HiddenColumn = element.Attribute("HiddenColumn")?.Value.ToBool() ?? false;
     }
 
     public void ParseData(Entity context, QueryDescription description, SubTokensOptions options)
@@ -250,7 +255,7 @@ public class QueryColumnEmbedded : EmbeddedEntity
 
         if (pi.Name == nameof(SummaryToken) && SummaryToken != null && SummaryToken.ParseException == null)
         {
-            return QueryUtils.CanColumn(SummaryToken.Token) ?? 
+            return QueryUtils.CanColumn(SummaryToken.Token) ??
                 (SummaryToken.Token is not AggregateToken ? SearchMessage.SummaryHeaderMustBeAnAggregate.NiceToString() : null);
         }
 
@@ -289,7 +294,7 @@ public class QueryFilterEmbedded : EmbeddedEntity
 
     [StringLengthValidator(Max = 300)]
     public string? ValueString { get; set; }
-    
+
     public PinnedQueryFilterEmbedded? Pinned { get; set; }
 
     public DashboardBehaviour? DashboardBehaviour { get; set; }
@@ -310,7 +315,7 @@ public class QueryFilterEmbedded : EmbeddedEntity
                 return ValidationMessage._0IsNotSet.NiceToString(pi.NiceName());
 
 
-            if(token != null && token.ParseException == null)
+            if (token != null && token.ParseException == null)
             {
                 if (pi.Name == nameof(Token))
                 {
@@ -346,8 +351,10 @@ public class QueryFilterEmbedded : EmbeddedEntity
 
                 if (pi.Name == nameof(ValueString))
                 {
-                    var result = FilterValueConverter.TryParse(ValueString, Token!.Token.Type, Operation!.Value.IsList());
-                    return result is Result<object>.Error e ? e.ErrorText : null;
+                    var parent = this.TryGetParentEntity<ModifiableEntity>() as IHasEntityType;
+
+                    var result = FilterValueConverter.IsValidExpression(ValueString, Token!.Token.Type, Operation!.Value.IsList(), parent?.EntityType?.ToType());
+                    return result is Result<Type>.Error e ? e.ErrorText : null;
                 }
             }
         }
@@ -514,7 +521,7 @@ public static class UserQueryUtils
             if (filter.IsGroup)
                 return gr.GetDashboardPinnedFilterTokens(indent + 1);
             else
-                return Enumerable.Empty<(QueryToken, bool prototedToDashboard)>(); 
+                return Enumerable.Empty<(QueryToken, bool prototedToDashboard)>();
         }).ToList();
     }
 }

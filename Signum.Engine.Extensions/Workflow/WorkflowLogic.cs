@@ -199,6 +199,7 @@ public static class WorkflowLogic
         {
             PermissionAuthLogic.RegisterPermissions(WorkflowPermission.ViewWorkflowPanel);
             PermissionAuthLogic.RegisterPermissions(WorkflowPermission.ViewCaseFlow);
+            PermissionAuthLogic.RegisterPermissions(WorkflowPermission.WorkflowToolbarMenu);
 
             WorkflowLogic.getConfiguration = getConfiguration;
 
@@ -227,7 +228,7 @@ public static class WorkflowLogic
 
             WorkflowGraph.Register();
             QueryLogic.Expressions.Register((WorkflowEntity wf) => wf.WorkflowStartEvent());
-            QueryLogic.Expressions.Register((WorkflowEntity wf) => wf.HasExpired(), () => WorkflowMessage.HasExpired.NiceToString());
+            QueryLogic.Expressions.Register((WorkflowEntity wf) => wf.HasExpired(), WorkflowMessage.HasExpired);
             sb.AddIndex((WorkflowEntity wf) => wf.ExpirationDate);
 
             DynamicCode.GetCustomErrors += GetCustomErrors;
@@ -784,9 +785,9 @@ public static class WorkflowLogic
             .Execute();
     }
 
-    public static Func<UserEntity, Lite<Entity>, bool> IsUserActor = (user, actor) =>
-        actor.Is(user) ||
-        (actor is Lite<RoleEntity> && AuthLogic.IndirectlyRelated(user.Role).Contains((Lite<RoleEntity>)actor));
+    public static Func<Lite<Entity>, bool> IsCurrentUserActor = (actor) =>
+        actor.Is(UserEntity.Current) ||
+        (actor is Lite<RoleEntity> && AuthLogic.IndirectlyRelated(RoleEntity.Current).Contains((Lite<RoleEntity>)actor));
 
     public static Expression<Func<UserEntity, Lite<Entity>, bool>> IsUserActorForNotifications = (user, actorConstant) =>
         actorConstant.Is(user) ||

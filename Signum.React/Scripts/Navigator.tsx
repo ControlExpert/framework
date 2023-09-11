@@ -1,18 +1,18 @@
 import * as React from "react"
-import { Dic, classes, } from './Globals';
+import { Dic, classes, softCast, } from './Globals';
 import { ajaxGet, ajaxPost, clearContextHeaders } from './Services';
-import { Lite, Entity, ModifiableEntity, EntityPack, isEntity, isLite, isEntityPack, toLite, liteKey } from './Signum.Entities';
+import { Lite, Entity, ModifiableEntity, EntityPack, isEntity, isLite, isEntityPack, toLite, liteKey, FrameMessage } from './Signum.Entities';
 import { IUserEntity, TypeEntity, ExceptionEntity } from './Signum.Entities.Basics';
 import { PropertyRoute, PseudoType, Type, getTypeInfo, tryGetTypeInfos, getTypeName, isTypeModel, OperationType, TypeReference, IsByAll, isTypeEntity, tryGetTypeInfo, getTypeInfos, newLite, TypeInfo } from './Reflection';
 import { TypeContext } from './TypeContext';
 import * as AppContext from './AppContext';
 import * as Finder from './Finder';
 import * as Operations from './Operations';
+import * as Constructor from './Constructor';
 import { ViewReplacer } from './Frames/ReactVisitor'
-import { AutocompleteConfig, FindOptionsAutocompleteConfig, LiteAutocompleteConfig } from './Lines/AutoCompleteConfig'
+import { AutocompleteConfig, FindOptionsAutocompleteConfig, getLitesWithSubStr, LiteAutocompleteConfig, MultiAutoCompleteConfig } from './Lines/AutoCompleteConfig'
 import { FindOptions } from './FindOptions'
 import { ImportRoute } from "./AsyncImport";
-import { NormalWindowMessage } from "./Signum.Entities";
 import { BsSize } from "./Components/Basic";
 import { ButtonBarManager } from "./Frames/ButtonBar";
 import { clearWidgets } from "./Frames/Widgets";
@@ -20,6 +20,7 @@ import { clearCustomConstructors } from "./Constructor";
 import { toAbsoluteUrl, currentUser } from "./AppContext";
 import { useForceUpdate, useAPI, useAPIWithReload } from "./Hooks";
 import { ErrorModalOptions, RenderServiceMessageDefault, RenderValidationMessageDefault, RenderMessageDefault } from "./Modals/ErrorModal";
+import CopyLiteButton from "./Components/CopyLiteButton";
 
 if (!window.__allowNavigatorWithoutUser && (currentUser == null || currentUser.toStr == "Anonymous"))
   throw new Error("To improve intial performance, no dependency to any module that depends on Navigator should be taken for anonymous user. Review your dependencies or write var __allowNavigatorWithoutUser = true in Index.cshtml to disable this check.");
@@ -32,7 +33,7 @@ export function start(options: { routes: JSX.Element[] }) {
   AppContext.clearSettingsActions.push(clearWidgets)
   AppContext.clearSettingsActions.push(ButtonBarManager.clearButtonBarRenderer);
   AppContext.clearSettingsActions.push(clearCustomConstructors);
-  AppContext.clearSettingsActions.push()
+  AppContext.clearSettingsActions.push(cleanEntityChanged);
   ErrorModalOptions.getExceptionUrl = exceptionId => navigateRoute(newLite(ExceptionEntity, exceptionId));
   ErrorModalOptions.isExceptionViewable = () => isViewable(ExceptionEntity);
 }
@@ -44,6 +45,10 @@ export namespace NavigatorManager {
 
   export function getFrameModal() {
     return import("./Frames/FrameModal");
+  }
+
+  export function onFramePageCreationCancelled() {
+    AppContext.history.replace("~/");
   }
 }
 
@@ -67,7 +72,7 @@ export function getTypeSubTitle(entity: ModifiableEntity, pr: PropertyRoute | un
     const typeInfo = getTypeInfo(entity.Type);
 
     if (entity.isNew)
-      return NormalWindowMessage.New0_G.niceToString().forGenderAndNumber(typeInfo.gender).formatWith(typeInfo.niceName);
+      return FrameMessage.New0_G.niceToString().forGenderAndNumber(typeInfo.gender).formatWith(typeInfo.niceName);
 
     return renderTitle(typeInfo, entity);
   }
@@ -79,7 +84,17 @@ export function getTypeSubTitle(entity: ModifiableEntity, pr: PropertyRoute | un
   }
 }
 
-let renderId = (entity: Entity): React.ReactChild => <span className={classes(getTypeInfo(entity.Type).members["Id"].type!.name == "Guid" ? "sf-guid-id" : "")}>{entity.id}</span>;
+let renderId = (entity: Entity): React.ReactChild => {
+  const guid = getTypeInfo(entity.Type).members["Id"].type!.name == "Guid";
+  return (
+    <>
+      <span className={guid ? "sf-hide-id" : ""}>
+        {entity.id}
+      </span>
+      <CopyLiteButton className={"sf-hide-id"} entity={entity} />
+    </>
+  );
+}
 
 export function setRenderIdFunction(newFunction: (entity: Entity) => React.ReactChild) {
   renderId = newFunction;
@@ -87,7 +102,7 @@ export function setRenderIdFunction(newFunction: (entity: Entity) => React.React
 
 
 let renderTitle = (typeInfo: TypeInfo, entity: ModifiableEntity) => {
-  return NormalWindowMessage.Type0Id1.niceToString().formatHtml(typeInfo.niceName, renderId(entity as Entity));
+  return "{0} {1}".formatHtml(typeInfo.niceName, renderId(entity as Entity));
   return null;
 }
 
@@ -512,48 +527,92 @@ export function defaultFindOptions(type: TypeReference): FindOptions | undefined
   if (types.length == 1 && types[0] != null) {
     var s = getSettings(types[0]);
 
-    if (s?.findOptions) {
-      return s.findOptions;
+    if (s?.defaultFindOptions) {
+      return s.defaultFindOptions;
     }
   }
 
   return undefined;
 }
 
-export function getAutoComplete(type: TypeReference, findOptions: FindOptions | undefined, ctx: TypeContext<any>, create: boolean, showType?: boolean): AutocompleteConfig<any> | null {
+export function getAutoComplete(type: TypeReference, findOptions: FindOptions | undefined, findOptionsDictionary: { [typeName: string]: FindOptions } | undefined, ctx: TypeContext<any>, create: boolean, showType?: boolean): AutocompleteConfig<any> | null {
   if (type.isEmbedded || type.name == IsByAll)
     return null;
 
-  var result: AutocompleteConfig<any> | null | undefined = null;
+  const types = tryGetTypeInfos(type).notNull();
+  showType ??= types.length > 1;
 
-  const types = tryGetTypeInfos(type);
+  if (types.length == 0)
+    return null;
 
-  var s = types.length == 1 && types[0] != null ? getSettings(types[0]) : null;
+  if (types.length == 1)
+    return getAutoCompleteBasic(types[0]!, findOptions, ctx, create, showType);
 
-  if (s && s.autocomplete) {
-    result = s.autocomplete(findOptions)
-  }
+  if (findOptionsDictionary == null && types.every(t => {
+    var s = getSettings(t!);
+    return s?.autocomplete == null && s?.defaultFindOptions == null;
+  })) {
 
-  if (!result) {
-    if (findOptions)
-      result = new FindOptionsAutocompleteConfig(findOptions, {
-        getAutocompleteConstructor: (subStr, rows) => getAutocompleteConstructors(type, subStr, { ctx, foundLites: rows.map(a => a.entity!), findOptions, create: create }) as AutocompleteConstructor<Entity>[]
-      });
-    else
-      result = new LiteAutocompleteConfig((signal, subStr: string) => Finder.API.findLiteLike({
+    var maxDelay = types.map(t => getSettings(t!)?.autocompleteDelay).notNull().max() ?? undefined;
+
+    return new LiteAutocompleteConfig((signal, subStr: string) => {
+      return Finder.API.findLiteLike({
         types: type.name,
         subString: subStr,
         count: 5
       }, signal)
-        .then(lites => [...lites, ...(getAutocompleteConstructors(type, subStr, { ctx, foundLites: lites, create: create }) as AutocompleteConstructor<Entity>[])]),
-        { showType: showType ?? type.name.contains(",") });
+        .then(lites => [
+          ...lites,
+          ...(getAutocompleteConstructors(type, subStr, { ctx, foundLites: lites, create: create }) as AutocompleteConstructor<Entity>[])
+        ]);
+    },
+      {
+        showType: showType,
+        itemsDelay: maxDelay,
+      });
   }
 
-  if (!result.getItemsDelay && s?.autocompleteDelay) {
-    result.getItemsDelay = s.autocompleteDelay;
+  return new MultiAutoCompleteConfig(types.toObject(t => t!.name,
+    t => getAutoCompleteBasic(t!, (findOptionsDictionary && findOptionsDictionary[type?.name]), ctx, create, showType!)
+  ));
+}
+
+
+export function getAutoCompleteBasic(type: TypeInfo, findOptions: FindOptions | undefined, ctx: TypeContext<any>, create: boolean, showType: boolean) {
+
+  var s = getSettings(type);
+
+  if (s?.autocomplete != null) {
+    var acc = s.autocomplete(findOptions, showType);
+
+    if (acc != null)
+      return acc;
   }
 
-  return result;
+  findOptions ??= s?.defaultFindOptions;
+
+  if (findOptions)
+    return new FindOptionsAutocompleteConfig(findOptions, {
+      itemsDelay: s?.autocompleteDelay,
+      getAutocompleteConstructor: (subStr, rows) => getAutocompleteConstructors(type, subStr, { ctx, foundLites: rows.map(a => a.entity!), findOptions, create: create }) as AutocompleteConstructor<Entity>[]
+    });
+
+  return new LiteAutocompleteConfig((signal, subStr: string) => {
+
+    return Finder.API.findLiteLike({
+      types: type.name,
+      subString: subStr,
+      count: 5
+    }, signal)
+      .then(lites => [
+        ...lites,
+        ...(getAutocompleteConstructors(type, subStr, { ctx, foundLites: lites, create: create }) as AutocompleteConstructor<Entity>[])
+      ]);
+  },
+    {
+      showType: showType ?? type.name.contains(","),
+      itemsDelay: s?.autocompleteDelay,
+    });
 }
 
 export interface ViewOptions {
@@ -594,10 +653,16 @@ export function viewDefault(entityOrPack: Lite<Entity> | ModifiableEntity | Enti
     .then(NP => NP.FrameModalManager.openView(entityOrPack, viewOptions ?? {}));
 }
 
-export function createInNewTab(pack: EntityPack<ModifiableEntity>) {
-  var url = createRoute(pack.entity.Type) + "?waitData=true";
+export function createInNewTab(pack: EntityPack<ModifiableEntity>, viewName?: string) {
+  var url = createRoute(pack.entity.Type, viewName) + "?waitOpenerData=true";
   window.dataForChildWindow = pack;
   var win = window.open(url);
+}
+
+export function createInCurrentTab(pack: EntityPack<ModifiableEntity>, viewName?: string) {
+  var url = createRoute(pack.entity.Type, viewName) + "?waitCurrentData=true";
+  window.dataForCurrentWindow = pack;
+  AppContext.history.push(url);
 }
 
 export function createNavigateOrTab(pack: EntityPack<Entity> | undefined, event: React.MouseEvent<any>): Promise<void> {
@@ -610,13 +675,12 @@ export function createNavigateOrTab(pack: EntityPack<Entity> | undefined, event:
     return Promise.resolve();
   }
   else {
-    return view(pack).then(() => undefined);
+    return view(pack, { buttons: "close" }).then(() => undefined);
   }
 }
 
 
 export function toEntityPack(entityOrEntityPack: Lite<Entity> | ModifiableEntity | EntityPack<ModifiableEntity>): Promise<EntityPack<ModifiableEntity>> {
-  debugger;
   if ((entityOrEntityPack as EntityPack<ModifiableEntity>).canExecute)
     return Promise.resolve(entityOrEntityPack as EntityPack<ModifiableEntity>);
 
@@ -687,6 +751,10 @@ export function useLiteToString<T extends Entity>(type: Type<T>, id: number | st
   useAPI(() => API.fillToStrings(lite), [lite]);
 
   return lite;
+}
+
+export function useFillToString<T extends Entity>(lite: Lite<T> | null | undefined, force: boolean = false): void {
+  useAPI(() => lite == null || (lite.toStr != null && !force) ? Promise.resolve(null) : API.fillToStrings(lite), [lite]);
 }
 
 export module API {
@@ -799,9 +867,12 @@ export interface EntitySettingsOptions<T extends ModifiableEntity> {
 
   modalSize?: BsSize;
 
-  autocomplete?: (fo: FindOptions | undefined) => AutocompleteConfig<any> | undefined | null;
+  stickyHeader?: boolean;
+
+  autocomplete?: (fo: FindOptions | undefined, showType: boolean) => AutocompleteConfig<any> | undefined | null;
   autocompleteDelay?: number;
-  autocompleteConstructor?: (str: string, aac: AutocompleteConstructorContext) => AutocompleteConstructor<T> | null;
+  autocompleteConstructor?: (keyof T) | ((str: string, aac: AutocompleteConstructorContext) => AutocompleteConstructor<T> | null);
+  defaultFindOptions?: FindOptions;
 
   getViewPromise?: (entity: T) => ViewPromise<T>;
   onNavigateRoute?: (typeName: string, id: string | number) => string;
@@ -832,7 +903,17 @@ export interface AutocompleteConstructor<T extends ModifiableEntity> {
 export function getAutocompleteConstructors(tr: TypeReference, str: string, aac: AutocompleteConstructorContext): AutocompleteConstructor<ModifiableEntity>[]{
   return getTypeInfos(tr.name).map(ti => {
     var es = getSettings(ti);
-    return es?.autocompleteConstructor && es.autocompleteConstructor(str, aac);
+
+    if (es == null || es.autocompleteConstructor == null)
+      return null;
+
+    if (typeof es.autocompleteConstructor == "string")
+      return softCast<AutocompleteConstructor<ModifiableEntity>>({
+        type: ti.name,
+        onClick: () => Constructor.construct(ti.name, { [es!.autocompleteConstructor as string]: str }).then(a=>a && view(a))
+      });
+
+    return es.autocompleteConstructor(str, aac);
   }).notNull();
 }
 
@@ -854,11 +935,13 @@ export class EntitySettings<T extends ModifiableEntity> {
 
   modalSize?: BsSize;
 
-  autocomplete?: (fo: FindOptions | undefined) => AutocompleteConfig<any> | undefined | null;
-  autocompleteDelay?: number;
-  autocompleteConstructor?: (str: string, aac: AutocompleteConstructorContext) => AutocompleteConstructor<T> | null;
+  stickyHeader?: boolean;
 
-  findOptions?: FindOptions;
+  autocomplete?: (fo: FindOptions | undefined, showType: boolean) => AutocompleteConfig<any> | undefined | null;
+  autocompleteDelay?: number;
+  autocompleteConstructor?: (keyof T) | ((str: string, aac: AutocompleteConstructorContext) => AutocompleteConstructor<T> | null);
+  defaultFindOptions?: FindOptions;
+
   onView?: (entityOrPack: Lite<Entity & T> | T | EntityPack<T>, viewOptions?: ViewOptions) => Promise<T | undefined>;
   onNavigateRoute?: (typeName: string, id: string | number, viewName?: string) => string;
 

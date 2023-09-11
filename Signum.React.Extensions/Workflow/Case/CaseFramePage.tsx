@@ -74,37 +74,36 @@ export default class CaseFramePage extends React.Component<CaseFramePageProps, C
 
   load(props: CaseFramePageProps) {
     this.loadEntity(props)
-      .then(() => this.state.pack && AppContext.setTitle(this.state.pack!.activity.case.toStr))
-      .then(() => this.loadComponent())
+      .then(pack => {
+        if (pack) {
+
+          this.setState({ pack: pack, refreshCount: 0 });
+          AppContext.setTitle(pack.activity.case.toStr);
+          this.loadComponent(pack);
+
+        } else {
+          AppContext.history.goBack();
+        }
+      })
       .done();
   }
 
-  loadEntity(props: CaseFramePageProps): Promise<void> {
+  loadEntity(props: CaseFramePageProps): Promise<WorkflowClient.CaseEntityPack | undefined> {
 
     const routeParams = props.match.params;
     if (routeParams.caseActivityId) {
       return WorkflowClient.API.fetchActivityForViewing({ EntityType: CaseActivityEntity.typeName, id: routeParams.caseActivityId })
-        .then(pack => this.setState({ pack: pack, refreshCount: 0 }));
 
     } else if (routeParams.workflowId) {
       const ti = getTypeInfo(WorkflowEntity);
-      return WorkflowClient.createNewCase(parseId(ti, routeParams.workflowId), (routeParams.mainEntityStrategy as WorkflowMainEntityStrategy))
-        .then(pack => {
-          if (!pack)
-            AppContext.history.goBack();
-          else
-            this.setState({ pack, refreshCount: 0 });
-        });
+      return WorkflowClient.createNewCase(parseId(ti, routeParams.workflowId), (routeParams.mainEntityStrategy as WorkflowMainEntityStrategy));
 
     } else
       throw new Error("No caseActivityId or workflowId set");
   }
 
-  loadComponent(): Promise<void> {
-    if (!this.state.pack)
-      return Promise.resolve(undefined);
-
-    return WorkflowClient.getViewPromiseCompoment(this.state.pack!.activity)
+  loadComponent(pack: WorkflowClient.CaseEntityPack): Promise<void> {
+    return WorkflowClient.getViewPromiseCompoment(pack.activity)
       .then(c => this.setState({ getComponent: c }));
   }
 
@@ -128,7 +127,7 @@ export default class CaseFramePage extends React.Component<CaseFramePageProps, C
     if (!this.state.pack) {
       return (
         <div className="normal-control">
-          {this.renderTitle()}
+          <h3 className="border-bottom pb-3">{JavascriptMessage.loading.niceToString()}</h3>
         </div>
       );
     }
@@ -177,51 +176,8 @@ export default class CaseFramePage extends React.Component<CaseFramePageProps, C
       }
     };
 
-
-    var activityPack = { entity: pack.activity, canExecute: pack.canExecuteActivity };
-
-    return (
-      <div className="normal-control">
-        {this.renderTitle()}
-        <div className="case-activity-widgets mt-2 me-2">
-          {!pack.activity.case.isNew && <div className="mx-2"> <InlineCaseTags case={toLite(pack.activity.case)} avoidHideIcon={true} /></div>}
-          {!pack.activity.case.isNew && AuthClient.isPermissionAuthorized(WorkflowPermission.ViewCaseFlow) && <CaseFlowButton caseActivity={pack.activity} />}
-        </div>
-        <div className="sf-main-control" data-refresh-count={this.state.refreshCount} data-activity-entity={entityInfo(pack.activity)}>
-          {this.renderMainEntity()}
-        </div>
-        {this.entityComponent && <CaseButtonBar frame={activityFrame} pack={activityPack} />}
-      </div>
-    );
-  }
-
-  renderTitle() {
-
-    if (!this.state.pack)
-      return <h3 className="border-bottom pb-3">{JavascriptMessage.loading.niceToString()}</h3>;
-
-    const activity = this.state.pack.activity;
-
-    return (
-      <h3 className="border-bottom pb-3">
-        <span className="sf-entity-title">{getToString(activity)}</span>
-        {CaseFramePage.showSubTitle && <br />}
-        {CaseFramePage.showSubTitle && <small className="sf-type-nice-name text-muted">{Navigator.getTypeSubTitle(activity, undefined)}</small>}
-      </h3>
-    );
-  }
-
-  validationErrorsTop?: ValidationErrorsHandle | null;
-  validationErrorsBottom?: ValidationErrorsHandle | null;
-
-  getMainTypeInfo(): TypeInfo {
-    return getTypeInfo(this.state.pack!.activity.case.mainEntity.Type);
-  }
-
-  renderMainEntity() {
-
-    var pack = this.state.pack!;
     var mainEntity = pack.activity.case.mainEntity;
+
     const mainFrame: EntityFrame = {
       tabs: undefined,
       frameComponent: this,
@@ -260,7 +216,7 @@ export default class CaseFramePage extends React.Component<CaseFramePageProps, C
       }
     };
 
-    var ti = this.getMainTypeInfo();
+    var ti = getTypeInfo(pack.activity.case.mainEntity.Type);
 
     const styleOptions: StyleOptions = {
       readOnly: Navigator.isReadOnly(ti) || Boolean(pack.activity.doneDate),
@@ -269,17 +225,62 @@ export default class CaseFramePage extends React.Component<CaseFramePageProps, C
 
     const ctx = new TypeContext<ICaseMainEntity>(undefined, styleOptions, PropertyRoute.root(ti), new ReadonlyBinding(mainEntity, "caseFrame"));
 
-    var { activity, canExecuteActivity, canExecuteMainEntity, ...extension } = this.state.pack!;
+    var activityPack = { entity: pack.activity, canExecute: pack.canExecuteActivity };
+
+    return (
+      <div className="normal-control">
+        {this.renderTitle(mainFrame, pack, ctx)}
+        <div className="case-activity-widgets mt-2 me-2">
+          {!pack.activity.case.isNew && <div className="mx-2"> <InlineCaseTags case={toLite(pack.activity.case)} avoidHideIcon={true} /></div>}
+          {!pack.activity.case.isNew && AuthClient.isPermissionAuthorized(WorkflowPermission.ViewCaseFlow) && <CaseFlowButton caseActivity={pack.activity} />}
+        </div>
+        <div className="sf-main-control" data-refresh-count={this.state.refreshCount} data-activity-entity={entityInfo(pack.activity)}>
+          {this.renderMainEntity(mainFrame, pack, ctx)}
+        </div>
+        {this.entityComponent && <CaseButtonBar frame={activityFrame} pack={activityPack} />}
+      </div>
+    );
+  }
+
+  renderTitle(mainFrame: EntityFrame, pack: WorkflowClient.CaseEntityPack, ctx: TypeContext<ICaseMainEntity>) {
+
+    var mainEntity = pack.activity.case.mainEntity;
 
     const wc: WidgetContext<ICaseMainEntity> = {
       ctx: ctx,
       frame: mainFrame,
     };
 
+    const widgets = renderWidgets(wc, settings?.stickyHeader);
+    const subTitle = CaseFramePage.showSubTitle ? Navigator.getTypeSubTitle(pack.activity, undefined) : undefined;
+    var settings = mainEntity && Navigator.getSettings(mainEntity.Type);
+
+    return (
+      <h3 className="border-bottom pb-3">
+        <span className="sf-entity-title">{getToString(pack.activity)}</span>
+        {
+          (subTitle || widgets) &&
+          <div className="sf-entity-sub-title">
+            {subTitle && <small className="sf-type-nice-name text-muted"> {subTitle}</small>}
+            {widgets}
+          </div>
+        }
+      </h3>
+    );
+  }
+
+  validationErrorsTop?: ValidationErrorsHandle | null;
+  validationErrorsBottom?: ValidationErrorsHandle | null;
+
+
+
+  renderMainEntity(mainFrame: EntityFrame, pack: WorkflowClient.CaseEntityPack, ctx: TypeContext<ICaseMainEntity>) {
+
+    var mainEntity = pack.activity.case.mainEntity;
+
     return (
       <div className="sf-main-entity case-main-entity" style={this.state.executing == true ? { opacity: ".7" } : undefined} data-main-entity={entityInfo(mainEntity)}>
         <div className="sf-button-widget-container">
-          {renderWidgets(wc)}
           {this.entityComponent && !mainEntity.isNew && !pack.activity.doneBy ? <ButtonBar ref={a => this.buttonBar = a} frame={mainFrame} pack={mainFrame.pack} /> : <br />}
         </div>
         <ValidationErrors entity={mainEntity} ref={ve => this.validationErrorsTop = ve} prefix="caseFrame" />

@@ -23,6 +23,8 @@ public static class UserQueryLogic
 
             PermissionAuthLogic.RegisterPermissions(UserQueryPermission.ViewUserQuery);
 
+            CurrentUserConverter.GetCurrentUserEntity = () => UserEntity.Current.Retrieve();
+
             UserAssetsImporter.Register<UserQueryEntity>("UserQuery", UserQueryOperation.Save);
 
             sb.Schema.Synchronizing += Schema_Synchronizing;
@@ -55,7 +57,7 @@ public static class UserQueryLogic
         }
     }
 
-    public static QueryRequest ToQueryRequest(this UserQueryEntity userQuery)
+    public static QueryRequest ToQueryRequest(this UserQueryEntity userQuery, bool ignoreHidden = false)
     {
         var qr = new QueryRequest()
         {
@@ -64,7 +66,7 @@ public static class UserQueryLogic
         };
 
         qr.Filters = userQuery.Filters.ToFilterList();
-        qr.Columns = MergeColumns(userQuery);
+        qr.Columns = MergeColumns(userQuery, ignoreHidden);
         qr.Orders = userQuery.Orders.Select(qo => new Order(qo.Token.Token, qo.OrderType)).ToList();
 
         qr.Pagination = userQuery.GetPagination() ?? new Pagination.All();
@@ -97,15 +99,15 @@ public static class UserQueryLogic
         return qr;
     }
 
-    static List<Column> MergeColumns(UserQueryEntity uq)
+    static List<Column> MergeColumns(UserQueryEntity uq, bool ignoreHidden)
     {
         QueryDescription qd = QueryLogic.Queries.QueryDescription(uq.Query.ToQueryName());
 
         var result = uq.ColumnsMode switch
         {
-            ColumnOptionsMode.Add => qd.Columns.Where(cd => !cd.IsEntity).Select(cd => new Column(cd, qd.QueryName)).Concat(uq.Columns.Select(co => ToColumn(co))).ToList(),
+            ColumnOptionsMode.Add => qd.Columns.Where(cd => !cd.IsEntity).Select(cd => new Column(cd, qd.QueryName)).Concat(uq.Columns.Where(a => !a.HiddenColumn || !ignoreHidden).Select(co => ToColumn(co))).ToList(),
             ColumnOptionsMode.Remove => qd.Columns.Where(cd => !cd.IsEntity && !uq.Columns.Any(co => co.Token.TokenString == cd.Name)).Select(cd => new Column(cd, qd.QueryName)).ToList(),
-            ColumnOptionsMode.Replace => uq.Columns.Select(co => ToColumn(co)).ToList(),
+            ColumnOptionsMode.Replace => uq.Columns.Where(a => !a.HiddenColumn || !ignoreHidden).Select(co => ToColumn(co)).ToList(),
             _ => throw new InvalidOperationException("{0} is not a valid ColumnOptionMode".FormatWith(uq.ColumnsMode))
         };
 
@@ -230,6 +232,7 @@ public static class UserQueryLogic
 
     static SqlPreCommand? ProcessUserQuery(Replacements replacements, Table table, UserQueryEntity uq)
     {
+
         Console.Write(".");
         try
         {
@@ -256,7 +259,7 @@ public static class UserQueryLogic
                                     continue;
 
                                 QueryTokenEmbedded token = item.Token;
-                                switch (QueryTokenSynchronizer.FixToken(replacements, ref token, qd, options | SubTokensOptions.CanAnyAll, "{0} {1}".FormatWith(item.Operation, item.ValueString), allowRemoveToken: true, allowReCreate: false))
+                                switch (QueryTokenSynchronizer.FixToken(replacements, ref token, qd, options | SubTokensOptions.CanAnyAll, " {0} {1}".FormatWith(item.Operation, item.ValueString), allowRemoveToken: true, allowReCreate: false))
                                 {
                                     case FixTokenResult.Nothing: break;
                                     case FixTokenResult.DeleteEntity: return table.DeleteSqlSync(uq, u => u.Guid == uq.Guid);
@@ -276,7 +279,7 @@ public static class UserQueryLogic
                             foreach (var item in uq.Columns.ToList())
                             {
                                 QueryTokenEmbedded token = item.Token;
-                                switch (QueryTokenSynchronizer.FixToken(replacements, ref token, qd, options, item.DisplayName.HasText() ? "'{0}'".FormatWith(item.DisplayName) : null, allowRemoveToken: true, allowReCreate: false))
+                                switch (QueryTokenSynchronizer.FixToken(replacements, ref token, qd, options, item.DisplayName.HasText() ? " '{0}'".FormatWith(item.DisplayName) : null, allowRemoveToken: true, allowReCreate: false))
                                 {
                                     case FixTokenResult.Nothing: break;
                                     case FixTokenResult.DeleteEntity:; return table.DeleteSqlSync(uq, u => u.Guid == uq.Guid);
@@ -296,7 +299,7 @@ public static class UserQueryLogic
                             foreach (var item in uq.Orders.ToList())
                             {
                                 QueryTokenEmbedded token = item.Token;
-                                switch (QueryTokenSynchronizer.FixToken(replacements, ref token, qd, options, item.OrderType.ToString(), allowRemoveToken: true, allowReCreate: false))
+                                switch (QueryTokenSynchronizer.FixToken(replacements, ref token, qd, options, " " + item.OrderType.ToString(), allowRemoveToken: true, allowReCreate: false))
                                 {
                                     case FixTokenResult.Nothing: break;
                                     case FixTokenResult.DeleteEntity: return table.DeleteSqlSync(uq, u => u.Guid == uq.Guid);
@@ -308,13 +311,16 @@ public static class UserQueryLogic
                             }
                         }
                     }
+
                 }
+
+                var entityType = uq.EntityType == null ? null : TypeLogic.LiteToType.GetOrThrow(uq.EntityType);
 
                 foreach (var item in uq.Filters.Where(f => !f.IsGroup).ToList())
                 {
                     retry:
                     string? val = item.ValueString;
-                    switch (QueryTokenSynchronizer.FixValue(replacements, item.Token!.Token.Type, ref val, allowRemoveToken: true, isList: item.Operation!.Value.IsList()))
+                    switch (QueryTokenSynchronizer.FixValue(replacements, item.Token!.Token.Type, ref val, allowRemoveToken: true, isList: item.Operation!.Value.IsList(), entityType))
                     {
                         case FixTokenResult.Nothing: break;
                         case FixTokenResult.DeleteEntity: return table.DeleteSqlSync(uq, u => u.Guid == uq.Guid);

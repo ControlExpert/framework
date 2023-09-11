@@ -6,11 +6,17 @@ using Signum.Entities.UserAssets;
 using Signum.Entities.UserQueries;
 using System.Xml.Linq;
 using Signum.Utilities.Reflection;
+using System.ComponentModel;
 
 namespace Signum.Entities.Toolbar;
 
+public interface IToolbarEntity: IEntity
+{
+    MList<ToolbarElementEmbedded> Elements { get; }
+}
+
 [EntityKind(EntityKind.Main, EntityData.Master)]
-public class ToolbarEntity : Entity, IUserAssetEntity
+public class ToolbarEntity : Entity, IUserAssetEntity, IToolbarEntity
 {
     [ImplementedBy(typeof(UserEntity), typeof(RoleEntity))]
     public Lite<IEntity>? Owner { get; set; }
@@ -43,8 +49,8 @@ public class ToolbarEntity : Entity, IUserAssetEntity
     public void FromXml(XElement element, IFromXmlContext ctx)
     {
         Name = element.Attribute("Name")!.Value;
-        Location = element.Attribute("Location")!.Value.ToEnum<ToolbarLocation>();
-        Owner = element.Attribute("Owner")?.Let(a => Lite.Parse<Entity>(a.Value));
+        Location = element.Attribute("Location")?.Value.ToEnum<ToolbarLocation>() ?? ToolbarLocation.Side;
+        Owner = element.Attribute("Owner")?.Let(a => ctx.ParseLite(a.Value, this, tb => tb.Owner));
         Priority = element.Attribute("Priority")?.Let(a => int.Parse(a.Value));
         Elements.Synchronize(element.Element("Elements")!.Elements().ToList(), (pp, x) => pp.FromXml(x, ctx));
     }
@@ -56,7 +62,6 @@ public class ToolbarEntity : Entity, IUserAssetEntity
 
 public enum ToolbarLocation
 {
-    Top,
     Side,
     Main,
 }
@@ -81,7 +86,7 @@ public class ToolbarElementEmbedded : EmbeddedEntity
     [StringLengthValidator(Min = 3, Max = 100)]
     public string? IconColor { get; set; }
 
-    [ImplementedBy(typeof(ToolbarMenuEntity), typeof(UserQueryEntity), typeof(UserChartEntity), typeof(QueryEntity), typeof(DashboardEntity), typeof(PermissionSymbol))]
+    [ImplementedBy(typeof(ToolbarMenuEntity), typeof(UserQueryEntity), typeof(UserChartEntity), typeof(QueryEntity), typeof(DashboardEntity), typeof(PermissionSymbol), typeof(ToolbarEntity))]
     public Lite<Entity>? Content { get; set; }
 
     [StringLengthValidator(Min = 1, Max = int.MaxValue), URLValidator(absolute: true, aspNetSiteRelative: true)]
@@ -102,11 +107,11 @@ public class ToolbarElementEmbedded : EmbeddedEntity
             string.IsNullOrEmpty(IconColor) ? null! :  new XAttribute("IconColor", IconColor),
             OpenInPopup ? new XAttribute("OpenInPopup", OpenInPopup) : null!,
             AutoRefreshPeriod == null ? null! : new XAttribute("AutoRefreshPeriod", AutoRefreshPeriod),
-            this.Content == null ? null! : new XAttribute("Content",
-            this.Content is Lite<QueryEntity> ?  ctx.QueryToName((Lite<QueryEntity>)this.Content) :
-            this.Content is Lite<PermissionSymbol> ?  ctx.PermissionToName((Lite<PermissionSymbol>)this.Content) :
-            (object)ctx.Include((Lite<IUserAssetEntity>)this.Content)),
-            string.IsNullOrEmpty(this.Url) ? null! : new XAttribute("Url", this.Url));
+            Content == null ? null! : new XAttribute("Content",
+            Content is Lite<QueryEntity> query ?  ctx.QueryToName(query) :
+            Content is Lite<PermissionSymbol> perm ?  ctx.PermissionToName(perm) :
+            (object)ctx.Include((Lite<IUserAssetEntity>)Content)),
+            string.IsNullOrEmpty(Url) ? null! : new XAttribute("Url", Url));
     }
 
     internal void FromXml(XElement x, IFromXmlContext ctx)
@@ -139,17 +144,17 @@ public class ToolbarElementEmbedded : EmbeddedEntity
 
     protected override string? PropertyValidation(PropertyInfo pi)
     {
-        if(this.Type == ToolbarElementType.Item || this.Type == ToolbarElementType.Header)
+        if(Type == ToolbarElementType.Item || Type == ToolbarElementType.Header)
         {
-            if (pi.Name == nameof(this.Label))
+            if (pi.Name == nameof(Label))
             {
-                if (string.IsNullOrEmpty(this.Label) && this.Content == null)
+                if (string.IsNullOrEmpty(Label) && Content == null)
                     return ValidationMessage._0IsMandatoryWhen1IsNotSet.NiceToString(pi.NiceName(), ReflectionTools.GetPropertyInfo(() => Content).NiceName());
             }
 
-            if(pi.Name == nameof(this.Url))
+            if(pi.Name == nameof(Url))
             { 
-                if (string.IsNullOrEmpty(this.Url) && this.Content == null && this.Type == ToolbarElementType.Item)
+                if (string.IsNullOrEmpty(Url) && Content == null && Type == ToolbarElementType.Item)
                     return ValidationMessage._0IsMandatoryWhen1IsNotSet.NiceToString(pi.NiceName(), ReflectionTools.GetPropertyInfo(() => Content).NiceName());
             }
         }
@@ -169,7 +174,7 @@ public enum ToolbarElementType
 }
 
 [EntityKind(EntityKind.Shared, EntityData.Master)]
-public class ToolbarMenuEntity : Entity, IUserAssetEntity
+public class ToolbarMenuEntity : Entity, IUserAssetEntity, IToolbarEntity
 {
     [ImplementedBy(typeof(UserEntity), typeof(RoleEntity))]
     public Lite<IEntity>? Owner { get; set; }
@@ -198,7 +203,7 @@ public class ToolbarMenuEntity : Entity, IUserAssetEntity
     {
         Name = element.Attribute("Name")!.Value;
         Elements.Synchronize(element.Element("Elements")!.Elements().ToList(), (pp, x) => pp.FromXml(x, ctx));
-        Owner = element.Attribute("Owner")?.Let(a => Lite.Parse<Entity>(a.Value));
+        Owner = element.Attribute("Owner")?.Let(a => ctx.ParseLite(a.Value, this, tm =>tm.Owner));
     }
 
 
@@ -213,3 +218,9 @@ public static class ToolbarMenuOperation
     public static readonly DeleteSymbol<ToolbarMenuEntity> Delete;
 }
 
+public enum ToolbarMessage
+{
+    RecursionDetected,
+    [Description(@"{0} cycles have been found in the Toolbar due to the relationships:")]
+    _0CyclesHaveBeenFoundInTheToolbarDueToTheRelationships
+}

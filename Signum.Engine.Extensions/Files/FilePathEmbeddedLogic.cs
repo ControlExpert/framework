@@ -7,7 +7,7 @@ using System.IO;
 namespace Signum.Engine.Files;
 
 public static class FilePathEmbeddedLogic
-{ 
+{
     public static void AssertStarted(SchemaBuilder sb)
     {
         sb.AssertDefined(ReflectionTools.GetMethodInfo(() => FilePathEmbeddedLogic.Start(null!)));
@@ -23,13 +23,16 @@ public static class FilePathEmbeddedLogic
 
             FilePathEmbedded.OnPreSaving += efp =>
             {
-                if(efp.BinaryFile != null) //First time
+                if (efp.BinaryFile != null) //First time
                 {
                     var task = efp.SaveFileAsync();
                     Transaction.PreRealCommit += data =>
                     {
+                        //https://medium.com/rubrikkgroup/understanding-async-avoiding-deadlocks-e41f8f2c6f5d
                         var a = efp; //For debugging
-                        task.Wait();
+
+                        if (!AvoidWaitingForFileSave)
+                            task.Wait();
                     };
                 }
             };
@@ -39,6 +42,9 @@ public static class FilePathEmbeddedLogic
             sb.Schema.SchemaCompleted += Schema_SchemaCompleted;
         }
     }
+
+
+    public static bool AvoidWaitingForFileSave = false; //Alejandro xUnit deadlock
 
     public static FilePathEmbedded ToFilePathEmbedded(this FileContent fileContent, FileTypeSymbol fileType)
     {
@@ -70,7 +76,7 @@ public static class FilePathEmbeddedLogic
         var updaters = array.Select(pr => GetUpdater<T>(pr)).ToList();
 
 
-        Schema.Current.EntityEvents<T>().Saved += (e, args)=>
+        Schema.Current.EntityEvents<T>().Saved += (e, args) =>
         {
             foreach (var update in updaters)
             {
@@ -114,7 +120,7 @@ public static class FilePathEmbeddedLogic
             return (e) =>
             {
                 var mlist = mlistFunc(e);
-                if(mlist != null)
+                if (mlist != null)
                 {
                     var list = (IList)mlist;
                     for (int i = 0; i < list.Count; i++)
@@ -122,7 +128,7 @@ public static class FilePathEmbeddedLogic
                         var mod = (ModifiableEntity)list[i]!;
 
                         var fpe = fileFunc(mod);
-                        if(fpe != null)
+                        if (fpe != null)
                         {
                             fpe.EntityId = e.Id;
                             fpe.MListRowId = mlist.GetRowId(i);
@@ -135,7 +141,7 @@ public static class FilePathEmbeddedLogic
         }
     }
 
-   
+
 
     static GenericInvoker<Action<PropertyRoute>> giAddBinding = new(pr => AddBinding<Entity>(pr));
     static void AddBinding<T>(PropertyRoute route)
@@ -187,17 +193,15 @@ public static class FilePathEmbeddedLogic
         var alg = efp.FileType.GetAlgorithm();
         alg.ValidateFile(efp);
         alg.SaveFile(efp);
-        efp.BinaryFile = null!;
         return efp;
     }
 
 
-    public static async Task SaveFileAsync(this FilePathEmbedded efp)
+    public static Task SaveFileAsync(this FilePathEmbedded efp)
     {
         var alg = efp.FileType.GetAlgorithm();
         alg.ValidateFile(efp);
-        await alg.SaveFileAsync(efp);
-        efp.BinaryFile = null!;
+        return alg.SaveFileAsync(efp);
     }
 
     public static void DeleteFileOnCommit(this FilePathEmbedded efp)

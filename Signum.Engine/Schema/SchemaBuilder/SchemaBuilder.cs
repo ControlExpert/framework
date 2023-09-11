@@ -3,6 +3,7 @@ using Signum.Engine.Linq;
 using Signum.Entities.Basics;
 using Signum.Engine.Basics;
 using Signum.Utilities.DataStructures;
+using Signum.Entities.DynamicQuery;
 
 namespace Signum.Engine.Maps;
 
@@ -28,6 +29,8 @@ public class SchemaBuilder
                 cleanName => schema.NameToType.TryGetC(cleanName));
 
             FromEnumMethodExpander.miQuery = ReflectionTools.GetMethodInfo(() => Database.Query<Entity>()).GetGenericMethodDefinition();
+            MListElementPropertyToken.miMListElementsLite = ReflectionTools.GetMethodInfo(() => Database.MListElementsLite<Entity, Entity>(null!, null!)).GetGenericMethodDefinition();
+            MListElementPropertyToken.HasAttribute = (pr, type) => this.Settings.FieldAttributes(pr)?.Any(a => a.GetType() == type) ?? false;
         }
 
         Settings.AssertNotIncluded = MixinDeclarations.AssertNotIncluded = t =>
@@ -450,6 +453,8 @@ public class SchemaBuilder
                     return GenerateFieldPrimaryKey((Table)table, route, name);
                 case KindOfField.Ticks:
                     return GenerateFieldTicks((Table)table, route, name);
+                case KindOfField.ToStr:
+                    return GenerateFieldToString((Table)table, route, name);
                 case KindOfField.Value:
                     return GenerateFieldValue(table, route, name, forceNull);
                 case KindOfField.Reference:
@@ -478,6 +483,7 @@ public class SchemaBuilder
     {
         PrimaryKey,
         Ticks,
+        ToStr,
         Value,
         Reference,
         Enum,
@@ -492,6 +498,9 @@ public class SchemaBuilder
 
         if (route.FieldInfo != null && ReflectionTools.FieldEquals(route.FieldInfo, fiTicks))
             return KindOfField.Ticks;
+
+        if (route.FieldInfo != null && ReflectionTools.FieldEquals(route.FieldInfo, fiToStr))
+            return KindOfField.ToStr;
 
         if (Settings.TryGetSqlDbType(Settings.FieldAttribute<DbTypeAttribute>(route), route.Type) != null)
             return KindOfField.Value;
@@ -521,7 +530,7 @@ public class SchemaBuilder
     {
         var attr = GetPrimaryKeyAttribute(table.Type);
 
-        PrimaryKey.PrimaryKeyType.SetDefinition(table.Type, attr.Type);
+        PrimaryKey.PrimaryKeyType.Add(table.Type, attr.Type);
 
         DbTypePair pair = Settings.GetSqlDbType(attr, attr.Type);
 
@@ -572,6 +581,29 @@ public class SchemaBuilder
             Precision = Settings.GetSqlPrecision(ticksAttr, null, pair.DbType),
             Scale = Settings.GetSqlScale(ticksAttr, null, pair.DbType),
             Default = ticksAttr?.GetDefault(Settings.IsPostgres),
+        };
+    }
+
+    protected virtual FieldValue GenerateFieldToString(Table table, PropertyRoute route, NameSequence name)
+    {
+        var toStrAttribute = Settings.TypeAttribute<ToStringColumnAttribute>(table.Type);
+
+        Type type = toStrAttribute?.Type ?? route.Type;
+
+        DbTypePair pair = Settings.GetSqlDbType(toStrAttribute, type);
+
+        string toStrName = toStrAttribute?.Name ?? name.ToString();
+
+        return new FieldValue(route, type, toStrName)
+        {
+            DbType = pair.DbType,
+            Collation = Settings.GetCollate(toStrAttribute),
+            UserDefinedTypeName = pair.UserDefinedTypeName,
+            Nullable = toStrAttribute?.Nullable == false ? IsNullable.No : IsNullable.Yes,
+            Size = Settings.GetSqlSize(toStrAttribute, null, pair.DbType),
+            Precision = Settings.GetSqlPrecision(toStrAttribute, null, pair.DbType),
+            Scale = Settings.GetSqlScale(toStrAttribute, null, pair.DbType),
+            Default = toStrAttribute?.GetDefault(Settings.IsPostgres),
         };
     }
 
@@ -645,7 +677,7 @@ public class SchemaBuilder
 
         bool avoidForeignKey = Settings.FieldAttribute<AvoidForeignKeyAttribute>(route) != null;
 
-        var implementations = types.ToDictionary<Type, Type, ImplementationColumn>(t => t, t =>
+        var implementations = types.ToDictionary(t => t, t =>
         {
             var rt = Include(t, route);
 
@@ -669,11 +701,16 @@ public class SchemaBuilder
     {
         var nullable = Settings.GetIsNullable(route, forceNull);
 
-        var column = new ImplementationStringColumn(preName.ToString())
+        var primaryKeyTypes = Settings.ImplementedByAllPrimaryKeyTypes;
+
+        if(primaryKeyTypes.Count() > 1 && nullable == IsNullable.No)
+            nullable = IsNullable.Forced;
+
+        var columns = Settings.ImplementedByAllPrimaryKeyTypes.Select(t => new ImplementedByAllIdColumn(preName.Add(t.Name).ToString(), nullable.ToBool() ? t.Nullify() : t, Settings.DefaultSqlType(t))
         {
             Nullable = nullable,
-            Size = Settings.DefaultImplementedBySize,
-        };
+            Size = t == typeof(string) ? Settings.ImplementedByAllStringSize : null,
+        });
 
         var columnType = new ImplementationColumn(preName.Add("Type").ToString(), Include(typeof(TypeEntity), route))
         {
@@ -681,7 +718,7 @@ public class SchemaBuilder
             AvoidForeignKey = Settings.FieldAttribute<AvoidForeignKeyAttribute>(route) != null,
         };
 
-        return new FieldImplementedByAll(route, column, columnType)
+        return new FieldImplementedByAll(route, columns, columnType)
         {
             IsLite = route.Type.IsLite(),
             AvoidExpandOnRetrieving = Settings.FieldAttribute<AvoidExpandQueryAttribute>(route) != null
@@ -717,6 +754,8 @@ public class SchemaBuilder
         var keyAttr = Settings.FieldAttribute<PrimaryKeyAttribute>(route) ?? Settings.DefaultPrimaryKeyAttribute;
         TableMList.PrimaryKeyColumn primaryKey;
         {
+            PrimaryKey.MListPrimaryKeyType.Add(route, keyAttr.Type);
+
             var pair = Settings.GetSqlDbType(keyAttr, keyAttr.Type);
 
             primaryKey = new TableMList.PrimaryKeyColumn(keyAttr.Type, keyAttr.Name)
@@ -854,7 +893,7 @@ public class SchemaBuilder
             case KindOfField.Ticks:
             case KindOfField.Value:
             case KindOfField.Embedded:
-            case KindOfField.MList:  //se usa solo para el nombre de la tabla
+            case KindOfField.MList:  //only used for table name
                 return name;
             case KindOfField.Reference:
             case KindOfField.Enum:

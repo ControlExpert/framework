@@ -220,12 +220,12 @@ export default function ChartRequestView(p: ChartRequestViewProps) {
       <div className="sf-chart-tab-container">
         <Tabs id="chartResultTabs" key={showChartSettings + ""}>
           <Tab eventKey="chart" title={ChartMessage.Chart.niceToString()}>
-            <ChartRenderer chartRequest={cr} loading={loading == true} autoRefresh={false} lastChartRequest={result?.lastChartRequest} data={result?.chartResult.chartTable} />
+            <ChartRenderer chartRequest={cr} loading={loading == true} autoRefresh={false} lastChartRequest={result?.lastChartRequest} data={result?.chartResult.chartTable} minHeigh={null} />
           </Tab>
           {result &&
             <Tab eventKey="data" title={<span>{ChartMessage.Data.niceToString()} (
             <span
-              className={maxRowsReached ? "text-danger font-weight-bold" : undefined}
+              className={maxRowsReached ? "text-danger fw-bold" : undefined}
               title={maxRowsReached ? ChartMessage.QueryResultReachedMaxRows0.niceToString(result.chartRequest.maxRows) : undefined}>
                 {(result.chartResult.resultTable.rows.length)}
               </span>
