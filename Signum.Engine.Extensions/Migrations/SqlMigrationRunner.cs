@@ -7,7 +7,7 @@ namespace Signum.Engine.Migrations;
 
 public class SqlMigrationRunner
 {
-    public static string MigrationsDirectory = @"..\..\..\Migrations";
+    public static string MigrationsDirectory = Path.Combine("..", "..", "..", "Migrations");
 
     public static void SqlMigrations()
     {
@@ -114,7 +114,7 @@ public class SqlMigrationRunner
 
         Regex regex = new Regex(@"(?<version>\d{4}\.\d{2}\.\d{2}\-\d{2}\.\d{2}\.\d{2})(_(?<comment>.+))?\.sql");
 
-        var matches =  Directory.EnumerateFiles(MigrationsDirectory, "*.sql")
+        var matches = Directory.EnumerateFiles(MigrationsDirectory, "*.sql")
             .Select(fileName => new { fileName, match = regex.Match(Path.GetFileName(fileName)) }).ToList();
 
         var errors = matches.Where(a => !a.match!.Success);
@@ -129,7 +129,7 @@ public class SqlMigrationRunner
             Version = a.match!.Groups["version"].Value,
             Comment = a.match!.Groups["comment"].Value,
         }).OrderBy(a => a.Version).ToList();
-        
+
         return list;
     }
 
@@ -167,7 +167,7 @@ public class SqlMigrationRunner
         }
 
         var last = migrations.LastOrDefault() ?? null;
-        if (migrations.All(a=>a.IsExecuted))
+        if (migrations.All(a => a.IsExecuted))
         {
             if (autoRun || !SafeConsole.Ask("Create new migration?"))
                 return false;
@@ -192,7 +192,7 @@ public class SqlMigrationRunner
 
                 string comment = SafeConsole.AskString("Comment for the new Migration? ", stringValidator: s => null).Trim();
 
-                string fileName = version + (comment.HasText() ? "_" + FileNameValidatorAttribute.RemoveInvalidCharts(comment): null) + ".sql";
+                string fileName = version + (comment.HasText() ? "_" + FileNameValidatorAttribute.RemoveInvalidCharts(comment) : null) + ".sql";
 
                 File.WriteAllText(Path.Combine(MigrationsDirectory, fileName), script.ToString(), Encoding.UTF8);
             }
@@ -243,7 +243,7 @@ public class SqlMigrationRunner
     {
         string? title = mi.Version + (mi.Comment.HasText() ? " ({0})".FormatWith(mi.Comment) : null);
         string text = File.ReadAllText(mi.FileName!, Encoding.UTF8);
-        
+
         using (var tr = Transaction.ForceNew(System.Data.IsolationLevel.Unspecified))
         {
             string databaseName = Connector.Current.DatabaseName();
@@ -280,13 +280,13 @@ public class SqlMigrationRunner
                 throw new InvalidOperationException();
 
 
-            SafeConsole.WriteColor(color,  
-                mi.IsExecuted?  "- " : 
-                current == mi ? "->" : 
+            SafeConsole.WriteColor(color,
+                mi.IsExecuted ? "- " :
+                current == mi ? "->" :
                                 "  ");
-            
+
             SafeConsole.WriteColor(color, mi.Version);
-            SafeConsole.WriteLineColor(mi.FileName == null ? ConsoleColor.Red: ConsoleColor.Gray, " " + mi.Comment);
+            SafeConsole.WriteLineColor(mi.FileName == null ? ConsoleColor.Red : ConsoleColor.Gray, " " + mi.Comment);
         }
 
         Console.WriteLine();

@@ -153,7 +153,7 @@ public class HttpError
     public string ExceptionMessage;
     public string? ExceptionId;
     public string? StackTrace;
-    public ModelEntity? Model; 
+    public ModelEntity? Model;
     public HttpError? InnerException;
 }
 

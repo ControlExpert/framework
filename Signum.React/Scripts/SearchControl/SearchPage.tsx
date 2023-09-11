@@ -17,7 +17,6 @@ interface SearchPageProps extends RouteComponentProps<{ queryName: string }> {
 }
 
 function SearchPage(p: SearchPageProps) {
-
   const fo = Finder.parseFindOptionsPath(p.match.params.queryName, QueryString.parse(p.location.search));
   const qd = useAPI(() => Finder.getQueryDescription(fo.queryName), [fo.queryName]);
   const forceUpdate = useForceUpdate();

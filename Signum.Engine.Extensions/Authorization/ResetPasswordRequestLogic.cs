@@ -41,33 +41,33 @@ public static class ResetPasswordRequestLogic
         });
 
         new Graph<ResetPasswordRequestEntity>.Execute(ResetPasswordRequestOperation.Execute)
+        {
+            CanBeNew = false,
+            CanBeModified = false,
+            CanExecute = (e) => e.IsValid ? null : AuthEmailMessage.YourResetPasswordRequestHasExpired.NiceToString(),
+            Execute = (e, args) =>
             {
-                CanBeNew = false,
-                CanBeModified = false,
-                CanExecute = (e) => e.IsValid ? null : AuthEmailMessage.YourResetPasswordRequestHasExpired.NiceToString(),
-                Execute = (e, args) =>
+                string password = args.GetArg<string>();
+                e.Used = true;
+                var user = e.User;
+
+                var error = UserEntity.OnValidatePassword(password);
+                if (error != null)
+                    throw new ApplicationException(error);
+
+                if (user.State == UserState.Deactivated)
                 {
-                    string password = args.GetArg<string>();
-                    e.Used = true;
-                    var user = e.User;
-
-                    var error = UserEntity.OnValidatePassword(password);
-                    if (error != null)
-                        throw new ApplicationException(error);
-
-                    if (user.State == UserState.Deactivated)
-                    {
-                        user.Execute(UserOperation.Reactivate);
-                    }
-                    
-                    user.PasswordHash = Security.EncodePassword(password);
-                    user.LoginFailedCounter = 0;
-                    using (AuthLogic.Disable())
-                    {
-                        user.Execute(UserOperation.Save);
-                    }
+                    user.Execute(UserOperation.Reactivate);
                 }
-            }.Register();
+
+                user.PasswordHash = Security.EncodePassword(user.UserName, password).Last();
+                user.LoginFailedCounter = 0;
+                using (AuthLogic.Disable())
+                {
+                    user.Execute(UserOperation.Save);
+                }
+            }
+        }.Register();
     }
 
     public static ResetPasswordRequestEntity ResetPasswordRequestExecute(string code, string password)
@@ -139,7 +139,7 @@ public static class ResetPasswordRequestLogic
         }
     }
 }
-    
+
 public class ResetPasswordRequestEmail : EmailModel<ResetPasswordRequestEntity>
 {
     public string Url;

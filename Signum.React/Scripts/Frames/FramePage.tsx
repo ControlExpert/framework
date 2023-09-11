@@ -3,7 +3,6 @@ import { RouteComponentProps } from 'react-router'
 import * as AppContext from '../AppContext'
 import * as Navigator from '../Navigator'
 import * as Constructor from '../Constructor'
-import { Prompt } from "react-router-dom"
 import * as Finder from '../Finder'
 import { ButtonBar, ButtonBarHandle } from './ButtonBar'
 import { Entity, Lite, getToString, EntityPack, JavascriptMessage, entityInfo, SelectorMessage, is } from '../Signum.Entities'
@@ -296,7 +295,6 @@ export default function FramePage(p: FramePageProps) {
 
   return (
     <div className="normal-control" style={{ opacity: outdated ? .5 : undefined }}>
-      <Prompt when={!(state.pack.entity.isNew && id != null)} message={() => hasChanges(state) ? JavascriptMessage.loseCurrentChanges.niceToString() : true} />
       {renderTitle()}
       <div style={state.executing == true ? { opacity: ".7" } : undefined}>
         <div className="sf-button-widget-container">

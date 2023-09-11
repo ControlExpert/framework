@@ -287,11 +287,11 @@ public static class AuthLogic
         OnRulesChanged?.Invoke();
     }
 
-    public static UserEntity Login(string username, byte[] passwordHash, out string authenticationType)
+    public static UserEntity Login(string username, IList<byte[]> passwordHashes, out string authenticationType)
     {
         using (AuthLogic.Disable())
         {
-            UserEntity user = RetrieveUser(username, passwordHash);
+            UserEntity user = RetrieveUser(username, passwordHashes);
 
             OnUserLogingIn(user);
 
@@ -306,7 +306,7 @@ public static class AuthLogic
         UserLogingIn?.Invoke(user);
     }
 
-    public static UserEntity RetrieveUser(string username, byte[] passwordHash)
+    public static UserEntity RetrieveUser(string username, IList<byte[]> passwordHashes)
     {
         using (AuthLogic.Disable())
         {
@@ -315,7 +315,7 @@ public static class AuthLogic
                 throw new IncorrectUsernameException(LoginAuthMessage.Username0IsNotValid.NiceToString().FormatWith(username));
 
 
-            if (user.PasswordHash == null || !user.PasswordHash.SequenceEqual(passwordHash))
+            if (user.PasswordHash == null || (!passwordHashes.Any(passwordHash => passwordHash.SequenceEqual(user.PasswordHash))))
             {
                 using (UserHolder.UserSession(SystemUser!))
                 {
@@ -352,12 +352,22 @@ public static class AuthLogic
                 }
             }
 
+            if (!user.PasswordHash.SequenceEqual(passwordHashes.Last()))
+            {
+                user.PasswordHash = passwordHashes.Last();
+
+                using (AuthLogic.Disable())
+                using (OperationLogic.AllowSave<UserEntity>())
+                {
+                    user.Save();
+                }
+            }
 
             return user;
         }
     }
 
-    public static UserEntity? TryRetrieveUser(string username, byte[] passwordHash)
+    public static UserEntity? TryRetrieveUser(string username, IList<byte[]> passwordHashes)
     {
         using (AuthLogic.Disable())
         {
@@ -365,7 +375,7 @@ public static class AuthLogic
             if (user == null)
                 return null;
 
-            if (user.PasswordHash == null || !user.PasswordHash.SequenceEqual(passwordHash))
+            if (user.PasswordHash == null || (!passwordHashes.Any(passwordHash => passwordHash.SequenceEqual(user.PasswordHash))))
                 return null;
 
             return user;
@@ -595,7 +605,7 @@ public static class AuthLogic
         }
     }
 
-   
+
     public static void AutomaticImportAuthRules()
     {
         AutomaticImportAuthRules("AuthRules.xml");
