@@ -12,6 +12,7 @@ namespace Signum.React.Selenium;
 
 public static class SeleniumExtensions
 {
+    public static TimeSpan ScrollToTimeout = TimeSpan.FromMilliseconds(500);
     public static TimeSpan DefaultTimeout = TimeSpan.FromMilliseconds(20 * 1000);
     public static TimeSpan ThrowExceptionForDeveloperAfter = TimeSpan.FromMilliseconds(5 * 1000);
     public static TimeSpan DefaultPoolingInterval = TimeSpan.FromMilliseconds(200);
@@ -253,7 +254,7 @@ public static class SeleniumExtensions
         if (element.Selected == isChecked)
             return;
 
-        element.Click();
+        element.SafeClick();
 
         element.GetDriver().Wait(() => element.Selected == isChecked, () => "Set Checkbox to " + isChecked);
     }
@@ -449,8 +450,9 @@ public static class SeleniumExtensions
     public static IWebElement ScrollTo(this IWebElement element)
     {
         IJavaScriptExecutor js = (IJavaScriptExecutor)element.GetDriver();
-        js.ExecuteScript("arguments[0].scrollIntoView(false);", element);
-        Thread.Sleep(500);
+        js.ExecuteScript("arguments[0].scrollIntoView({behavior: 'auto', block: 'center', inline: 'center'});", element);
+        Thread.Sleep(ScrollToTimeout);
+
         return element;
     }
 

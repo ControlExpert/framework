@@ -18,7 +18,7 @@ public class AlertsHub : Hub<IAlertsClient>
     {
         var token = AuthTokenServer.DeserializeToken(tokenString);
 
-        AlertsServer.Connections.Add(token.User.ToLite(), Context.ConnectionId);
+        AlertsServer.Connections.Add(token.User, Context.ConnectionId);
 
         return Task.CompletedTask;
     }
@@ -45,6 +45,12 @@ public class ConnectionMapping<T> where T : class
 
     public int Count => userToConnection.Count;
 
+    public HashSet<T> AllKeys()
+    {
+        lock (this)
+            return userToConnection.Keys.ToHashSet();
+    }
+
     public void Add(T key, string connectionId)
     {
         lock (this)
@@ -58,7 +64,7 @@ public class ConnectionMapping<T> where T : class
 
             connections.Add(connectionId);
 
-            connectionToUser.Add(connectionId, key);
+            connectionToUser[connectionId] = key; //reconnects with same id 
         }
     }
 

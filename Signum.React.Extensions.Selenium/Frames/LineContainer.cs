@@ -270,7 +270,7 @@ public static class LineContainerExtensions
 
     public static void SelectTab(this ILineContainer lineContainer, string eventKey)
     {
-        var element = lineContainer.Element.WaitElementVisible(By.CssSelector($"a.nav-item[data-rb-event-key='{eventKey}']"));
+        var element = lineContainer.Element.WaitElementVisible(By.CssSelector($".nav-tabs .nav-item .nav-link[data-rr-ui-event-key='{eventKey}']"));
 
         element.ScrollTo();
         element.Click();
@@ -285,13 +285,13 @@ public static class LineContainerExtensions
         return new SearchControlProxy(element);
     }
 
-    public static ValueSearchControlLineProxy GetValueSearchControlLine(this ILineContainer lineContainer, object queryName)
+    public static SearchValueLineProxy GetSearchValueLine(this ILineContainer lineContainer, object queryName)
     {
         string queryKey = QueryUtils.GetKey(queryName);
 
         var element = lineContainer.Element.WaitElementVisible(By.CssSelector("[data-value-query-key={0}]".FormatWith(queryKey)));
 
-        return new ValueSearchControlLineProxy(element);
+        return new SearchValueLineProxy(element);
     }
 }
 

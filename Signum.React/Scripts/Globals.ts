@@ -12,6 +12,7 @@ declare global {
     __allowNavigatorWithoutUser?: boolean;
     __baseUrl: string;
     dataForChildWindow?: any;
+    dataForCurrentWindow?: any;
     exploreGraphDebugMode: boolean;
   }
 
@@ -1235,4 +1236,14 @@ export function roundTwoDecimals(num: number) {
     round3m100 -= 0.001;
 
   return Math.round(round3m100) / 100; //https://stackoverflow.com/questions/11832914/round-to-at-most-2-decimal-places-only-if-necessary
+}
+
+
+export function getColorContrasColorBWByHex (hexcolor: string) {
+  hexcolor = hexcolor.replace("#", "");
+  var r = parseInt(hexcolor.substr(0, 2), 16);
+  var g = parseInt(hexcolor.substr(2, 2), 16);
+  var b = parseInt(hexcolor.substr(4, 2), 16);
+  var yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+  return (yiq >= 128) ? 'black' : 'white';
 }

@@ -103,18 +103,18 @@ public class QueryController : ControllerBase
     [HttpPost("api/query/executeQuery"), ProfilerActionSplitter]
     public async Task<ResultTable> ExecuteQuery([Required, FromBody]QueryRequestTS request, CancellationToken token)
     {
-        var result = await QueryLogic.Queries.ExecuteQueryAsync(request.ToQueryRequest(SignumServer.JsonSerializerOptions), token);
+        var result = await QueryLogic.Queries.ExecuteQueryAsync(request.ToQueryRequest(SignumServer.JsonSerializerOptions, this.HttpContext.Request.Headers.Referer), token);
         return result;
     }
 
-    [HttpPost("api/query/entitiesLiteWithFilter"), ProfilerActionSplitter]
-    public async Task<List<Lite<Entity>>> GetEntitiesLiteWithFilter([Required, FromBody]QueryEntitiesRequestTS request, CancellationToken token)
+    [HttpPost("api/query/lites"), ProfilerActionSplitter]
+    public async Task<List<Lite<Entity>>> GetLites([Required, FromBody]QueryEntitiesRequestTS request, CancellationToken token)
     {
         return await QueryLogic.Queries.GetEntitiesLite(request.ToQueryEntitiesRequest(SignumServer.JsonSerializerOptions)).ToListAsync(token);
     }
 
-    [HttpPost("api/query/entitiesFullWithFilter"), ProfilerActionSplitter]
-    public async Task<List<Entity>> GetEntitiesFullWithFilter([Required, FromBody] QueryEntitiesRequestTS request, CancellationToken token)
+    [HttpPost("api/query/entities"), ProfilerActionSplitter]
+    public async Task<List<Entity>> GetEntities([Required, FromBody]QueryEntitiesRequestTS request, CancellationToken token)
     {
         return await QueryLogic.Queries.GetEntitiesFull(request.ToQueryEntitiesRequest(SignumServer.JsonSerializerOptions)).ToListAsync(token);
     }

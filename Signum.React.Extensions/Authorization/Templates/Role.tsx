@@ -2,9 +2,9 @@ import * as React from 'react'
 import { RoleEntity, AuthAdminMessage, UserEntity } from '../Signum.Entities.Authorization'
 import { ValueLine, EntityStrip, TypeContext } from '@framework/Lines'
 import { useForceUpdate } from '@framework/Hooks'
-import { ValueSearchControlLine } from '@framework/Search';
+import { SearchValue, SearchValueLine } from '@framework/Search';
 
-export default function Role(p : { ctx: TypeContext<RoleEntity> }){
+export default function Role(p: { ctx: TypeContext<RoleEntity> }) {
   const forceUpdate = useForceUpdate();
 
   function rolesMessage() {
@@ -25,12 +25,20 @@ export default function Role(p : { ctx: TypeContext<RoleEntity> }){
         }}
         onChange={() => forceUpdate()} />
 
-      {!ctx.value.isNew && <ValueSearchControlLine ctx={ctx} findOptions={{
+
+      <div className="row mt-4">
+        <div className="offset-sm-2">
+          <h4 className="lead">Referenced by</h4>
+        </div>
+      </div>
+
+
+      {!ctx.value.isNew && <SearchValueLine ctx={ctx} findOptions={{
         queryName: UserEntity,
         filterOptions: [{ token: UserEntity.token(u => u.entity.role), value: ctx.value }]
       }} />
       }
-      {!ctx.value.isNew && <ValueSearchControlLine ctx={ctx} findOptions={{
+      {!ctx.value.isNew && <SearchValueLine ctx={ctx} findOptions={{
         queryName: RoleEntity,
         filterOptions: [{ token: RoleEntity.token(a => a.entity).append(u => u.roles).any(), value: ctx.value }]
       }} />

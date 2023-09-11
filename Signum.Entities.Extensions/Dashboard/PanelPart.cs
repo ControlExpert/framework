@@ -30,20 +30,25 @@ public class PanelPartEmbedded : EmbeddedEntity, IGridEntity
 
     public InteractionGroup? InteractionGroup { get; set; }
 
-    public BootstrapStyle Style { get; set; }
+    public string? CustomColor { get; set; }
 
+    public bool UseIconColorForTitle { get; set; }
+
+    [NotifyChildProperty]
     [ImplementedBy(
         typeof(UserChartPartEntity),
         typeof(CombinedUserChartPartEntity),
         typeof(UserQueryPartEntity),
         typeof(ValueUserQueryListPartEntity),
-        typeof(LinkListPartEntity))]
+        typeof(LinkListPartEntity),
+        typeof(ImagePartEntity),
+        typeof(SeparatorPartEntity))]
     public IPartEntity Content { get; set; }
 
     public override string ToString()
     {
         return Title.HasText() ? Title :
-            Content==null?"":
+            Content == null ? "" :
             Content.ToString()!;
     }
 
@@ -67,10 +72,11 @@ public class PanelPartEmbedded : EmbeddedEntity, IGridEntity
             Content = Content.Clone(),
             Title = Title,
             Row = Row,
-            Style = Style,
             InteractionGroup = InteractionGroup,
             IconColor = IconColor,
             IconName = IconName,
+            CustomColor = CustomColor,
+            UseIconColorForTitle = UseIconColorForTitle,
         };
     }
 
@@ -90,7 +96,8 @@ public class PanelPartEmbedded : EmbeddedEntity, IGridEntity
             IconName == null ? null! : new XAttribute("IconName", IconName),
             IconColor == null ? null! : new XAttribute("IconColor", IconColor),
             InteractionGroup == null ? null! : new XAttribute("InteractionGroup", InteractionGroup),
-            new XAttribute("Style", Style),
+            string.IsNullOrEmpty(CustomColor) ? null! : new XAttribute("CustomColor", CustomColor),
+            UseIconColorForTitle == false ? null! : new XAttribute("UseIconColorForTitle", true),
             Content.ToXml(ctx));
     }
 
@@ -102,8 +109,9 @@ public class PanelPartEmbedded : EmbeddedEntity, IGridEntity
         Title = x.Attribute("Title")?.Value;
         IconName = x.Attribute("IconName")?.Value;
         IconColor = x.Attribute("IconColor")?.Value;
-        Style = x.Attribute("Style")?.Value.TryToEnum<BootstrapStyle>() ?? BootstrapStyle.Light;
         InteractionGroup = x.Attribute("InteractionGroup")?.Value.ToEnum<InteractionGroup>();
+        CustomColor = x.Attribute("CustomColor")?.Value;
+        UseIconColorForTitle = x.Attribute("UseIconColorForTitle")?.Let(a => bool.Parse(a.Value)) ?? false;
         Content = ctx.GetPart(Content, x.Elements().Single());
     }
 
@@ -139,6 +147,8 @@ public class UserQueryPartEntity : Entity, IPartEntity
 
     public UserQueryPartRenderMode RenderMode { get; set; }
 
+    public AutoUpdate AutoUpdate { get; set; }
+
     public bool AllowSelection { get; set; }
 
     public bool ShowFooter { get; set; }
@@ -173,7 +183,7 @@ public class UserQueryPartEntity : Entity, IPartEntity
             new XAttribute(nameof(UserQuery), ctx.Include(UserQuery)),
             new XAttribute(nameof(RenderMode), RenderMode),
             new XAttribute(nameof(AllowSelection), AllowSelection),
-            ShowFooter ?  new XAttribute(nameof(ShowFooter), ShowFooter) : null,
+            ShowFooter ? new XAttribute(nameof(ShowFooter), ShowFooter) : null,
             CreateNew ? new XAttribute(nameof(CreateNew), CreateNew) : null,
             IsQueryCached ? new XAttribute(nameof(IsQueryCached), IsQueryCached) : null
             );
@@ -188,6 +198,13 @@ public class UserQueryPartEntity : Entity, IPartEntity
         CreateNew = element.Attribute(nameof(CreateNew))?.Value.ToBool() ?? false;
         IsQueryCached = element.Attribute(nameof(IsQueryCached))?.Value.ToBool() ?? false;
     }
+}
+
+public enum AutoUpdate
+{
+    None,
+    InteractionGroup,
+    Dashboard,
 }
 
 public enum InteractionGroup
@@ -244,7 +261,7 @@ public class UserTreePartEntity : Entity, IPartEntity
 
 [EntityKind(EntityKind.Part, EntityData.Master)]
 public class UserChartPartEntity : Entity, IPartEntity
-{   
+{
     public UserChartEntity UserChart { get; set; }
 
     public bool IsQueryCached { get; set; }
@@ -256,6 +273,9 @@ public class UserChartPartEntity : Entity, IPartEntity
     public bool CreateNew { get; set; } = false;
 
     public bool AutoRefresh { get; set; } = false;
+
+    [Unit("px")]
+    public int? MinHeight { get; set; }
 
     [AutoExpressionField]
     public override string ToString() => As.Expression(() => UserChart + "");
@@ -273,6 +293,7 @@ public class UserChartPartEntity : Entity, IPartEntity
         AllowChangeShowData = this.AllowChangeShowData,
         CreateNew = this.CreateNew,
         AutoRefresh = this.AutoRefresh,
+        MinHeight = this.MinHeight,
     };
 
     public XElement ToXml(IToXmlContext ctx)
@@ -283,17 +304,20 @@ public class UserChartPartEntity : Entity, IPartEntity
             AllowChangeShowData ? new XAttribute(nameof(AllowChangeShowData), AllowChangeShowData) : null,
             IsQueryCached ? new XAttribute(nameof(IsQueryCached), IsQueryCached) : null,
             CreateNew ? new XAttribute(nameof(CreateNew), CreateNew) : null!,
-            AutoRefresh ? new XAttribute(nameof(AutoRefresh), AutoRefresh) : null!
+            AutoRefresh ? new XAttribute(nameof(AutoRefresh), AutoRefresh) : null!,
+            MinHeight.HasValue ? new XAttribute(nameof(MinHeight), MinHeight.Value) : null!
             );
     }
 
     public void FromXml(XElement element, IFromXmlContext ctx)
     {
-        ShowData = element.Attribute("ShowData")?.Value.ToBool() ?? false;
-        AllowChangeShowData = element.Attribute("AllowChangeShowData")?.Value.ToBool() ?? false;
-        CreateNew = element.Attribute("CreateNew")?.Value.ToBool() ?? false;
-        AutoRefresh = element.Attribute("AutoRefresh")?.Value.ToBool() ?? false;
         UserChart = (UserChartEntity)ctx.GetEntity(Guid.Parse(element.Attribute("UserChart")!.Value));
+        ShowData = element.Attribute(nameof(ShowData))?.Value.ToBool() ?? false;
+        AllowChangeShowData = element.Attribute(nameof(AllowChangeShowData))?.Value.ToBool() ?? false;
+        IsQueryCached = element.Attribute(nameof(IsQueryCached))?.Value.ToBool() ?? false;
+        CreateNew = element.Attribute(nameof(CreateNew))?.Value.ToBool() ?? false;
+        AutoRefresh = element.Attribute(nameof(AutoRefresh))?.Value.ToBool() ?? false;
+        MinHeight = element.Attribute(nameof(MinHeight))?.Value.ToInt();
     }
 }
 
@@ -311,6 +335,9 @@ public class CombinedUserChartPartEntity : Entity, IPartEntity
 
     public bool UseSameScale { get; set; }
 
+    [Unit("px")]
+    public int? MinHeight { get; set; }
+
     public override string ToString()
     {
         return UserCharts.ToString(", ");
@@ -323,9 +350,9 @@ public class CombinedUserChartPartEntity : Entity, IPartEntity
 
     public IPartEntity Clone() => new CombinedUserChartPartEntity
     {
-        UserCharts = this.UserCharts.Select(a=>a.Clone()).ToMList(),
+        UserCharts = this.UserCharts.Select(a => a.Clone()).ToMList(),
         ShowData = ShowData,
-        AllowChangeShowData = AllowChangeShowData, 
+        AllowChangeShowData = AllowChangeShowData,
         CombinePinnedFiltersWithSameLabel = CombinePinnedFiltersWithSameLabel,
         UseSameScale = UseSameScale
     };
@@ -337,6 +364,7 @@ public class CombinedUserChartPartEntity : Entity, IPartEntity
             AllowChangeShowData ? new XAttribute(nameof(AllowChangeShowData), AllowChangeShowData) : null,
             CombinePinnedFiltersWithSameLabel ? new XAttribute(nameof(CombinePinnedFiltersWithSameLabel), CombinePinnedFiltersWithSameLabel) : null,
             UseSameScale ? new XAttribute(nameof(UseSameScale), UseSameScale) : null,
+            MinHeight.HasValue ? new XAttribute(nameof(MinHeight), MinHeight) : null,
             UserCharts.Select(uc => new XElement("UserChart",
                 new XAttribute("Guid", ctx.Include(uc.UserChart)),
                 uc.IsQueryCached ? new XAttribute(nameof(uc.IsQueryCached), uc.IsQueryCached) : null))
@@ -349,6 +377,7 @@ public class CombinedUserChartPartEntity : Entity, IPartEntity
         AllowChangeShowData = element.Attribute(nameof(AllowChangeShowData))?.Value.ToBool() ?? false;
         CombinePinnedFiltersWithSameLabel = element.Attribute(nameof(CombinePinnedFiltersWithSameLabel))?.Value.ToBool() ?? false;
         UseSameScale = element.Attribute(nameof(UseSameScale))?.Value.ToBool() ?? false;
+        MinHeight = element.Attribute(nameof(MinHeight))?.Value.ToInt();
         UserCharts.Synchronize(element.Elements("UserChart").ToList(), (cuce, elem) =>
         {
             cuce.UserChart = (UserChartEntity)ctx.GetEntity(Guid.Parse(elem.Attribute("Guid")!.Value));
@@ -373,7 +402,7 @@ public class CombinedUserChartElementEmbedded : EmbeddedEntity
 
 [EntityKind(EntityKind.Part, EntityData.Master)]
 public class ValueUserQueryListPartEntity : Entity, IPartEntity
-{   
+{
     public MList<ValueUserQueryElementEmbedded> UserQueries { get; set; } = new MList<ValueUserQueryElementEmbedded>();
 
     public override string ToString()
@@ -407,7 +436,7 @@ public class ValueUserQueryElementEmbedded : EmbeddedEntity
 {
     [StringLengthValidator(Max = 200)]
     public string? Label { get; set; }
-    
+
     public UserQueryEntity UserQuery { get; set; }
 
     public bool IsQueryCached { get; set; }
@@ -431,7 +460,7 @@ public class ValueUserQueryElementEmbedded : EmbeddedEntity
         return new XElement("ValueUserQueryElement",
             Label == null ? null! : new XAttribute(nameof(Label), Label),
             Href == null ? null! : new XAttribute(nameof(Href), Href),
-            IsQueryCached == false? null! : new XAttribute(nameof(IsQueryCached), IsQueryCached),
+            IsQueryCached == false ? null! : new XAttribute(nameof(IsQueryCached), IsQueryCached),
             new XAttribute("UserQuery", ctx.Include(UserQuery)));
     }
 
@@ -447,7 +476,7 @@ public class ValueUserQueryElementEmbedded : EmbeddedEntity
 [EntityKind(EntityKind.Part, EntityData.Master)]
 public class LinkListPartEntity : Entity, IPartEntity
 {
-    
+
     public MList<LinkElementEmbedded> Links { get; set; } = new MList<LinkElementEmbedded>();
 
     public override string ToString()
@@ -489,6 +518,8 @@ public class LinkElementEmbedded : EmbeddedEntity
     [URLValidator(absolute: true, aspNetSiteRelative: true), StringLengthValidator(Max = int.MaxValue)]
     public string Link { get; set; }
 
+    public bool OpensInNewTab { get; set; }
+
     public LinkElementEmbedded Clone()
     {
         return new LinkElementEmbedded
@@ -502,12 +533,81 @@ public class LinkElementEmbedded : EmbeddedEntity
     {
         return new XElement("LinkElement",
             new XAttribute("Label", Label),
-            new XAttribute("Link", Link));
+            new XAttribute("Link", Link),
+            OpensInNewTab == false ? null! : new XAttribute("OpensInNewTab", OpensInNewTab));
     }
 
     internal void FromXml(XElement element)
     {
         Label = element.Attribute("Label")!.Value;
         Link = element.Attribute("Link")!.Value;
+        OpensInNewTab = (bool?)element.Attribute("OpensInNewTab") ?? false;
+    }
+}
+
+[Serializable, EntityKind(EntityKind.Part, EntityData.Master)]
+public class ImagePartEntity : Entity, IPartEntity
+{
+    [StringLengthValidator(Max = int.MaxValue)]
+    public string ImageSrcContent { get; set; }
+
+    public string? ClickActionURL { get; set; }
+
+    public override string ToString() => "Panel de imágen";
+
+    public bool RequiresTitle => false;
+
+    public IPartEntity Clone()
+    {
+        return new ImagePartEntity
+        {
+            ImageSrcContent = this.ImageSrcContent,
+            ClickActionURL = this.ClickActionURL,
+        };
+    }
+
+    public XElement ToXml(IToXmlContext ctx)
+    {
+        return new XElement("UserQueryPart",
+            new XAttribute("ImageSrcContent", ImageSrcContent),
+            new XAttribute("ClickActionURL", ClickActionURL!)
+            );
+    }
+
+    public void FromXml(XElement element, IFromXmlContext ctx)
+    {
+        ImageSrcContent = element.Attribute("ImageSrcContent")?.Value ?? "";
+        ClickActionURL = element.Attribute("ClickActionURL")?.Value;
+    }
+}
+
+[EntityKind(EntityKind.Part, EntityData.Master)]
+public class SeparatorPartEntity : Entity, IPartEntity
+{
+    public string? Title { get; set; }
+
+    public bool RequiresTitle => Title != null;
+
+    public override string ToString()
+    {
+        return "{0}".FormatWith(Title);
+    }
+
+    public IPartEntity Clone()
+    {
+        return new SeparatorPartEntity
+        {
+            Title = this.Title
+        };
+    }
+
+    public XElement ToXml(IToXmlContext ctx)
+    {
+        throw new NotImplementedException();
+    }
+
+    public void FromXml(XElement element, IFromXmlContext ctx)
+    {
+        throw new NotImplementedException();
     }
 }

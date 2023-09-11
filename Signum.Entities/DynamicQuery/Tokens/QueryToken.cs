@@ -76,8 +76,8 @@ public abstract class QueryToken : IEquatable<QueryToken>
 
     public Expression BuildExpression(BuildExpressionContext context)
     {
-        if (context.Replacemens != null && context.Replacemens.TryGetValue(this, out var result))
-            return result;
+        if (context.Replacements != null && context.Replacements.TryGetValue(this, out var result))
+            return result.GetExpression();
 
         return BuildExpressionInternal(context);
     }
@@ -113,12 +113,12 @@ public abstract class QueryToken : IEquatable<QueryToken>
     {
     }
 
-    static ConcurrentDictionary<(QueryToken, SubTokensOptions), Dictionary<string, QueryToken>> subTokensOverrideCache =
-        new ConcurrentDictionary<(QueryToken, SubTokensOptions), Dictionary<string, QueryToken>>();
+    static ConcurrentDictionary<(QueryToken token, SubTokensOptions options), Dictionary<string, QueryToken>> subTokensOverrideCache =
+        new ConcurrentDictionary<(QueryToken token, SubTokensOptions options), Dictionary<string, QueryToken>>();
 
     public QueryToken? SubTokenInternal(string key, SubTokensOptions options)
     {
-        var result = CachedSubTokensOverride(options).TryGetC(key) ?? OnEntityExtension(this).SingleOrDefaultEx(a => a.Key == key);
+        var result = CachedSubTokensOverride(options).TryGetC(key) ?? OnDynamicEntityExtension(this).SingleOrDefaultEx(a => a.Key == key);
 
         if (result == null)
             return null;
@@ -133,7 +133,7 @@ public abstract class QueryToken : IEquatable<QueryToken>
     public List<QueryToken> SubTokensInternal(SubTokensOptions options)
     {
         return CachedSubTokensOverride(options).Values
-            .Concat(OnEntityExtension(this))
+            .Concat(OnDynamicEntityExtension(this))
             .Where(t => t.IsAllowed() == null)
             .OrderByDescending(a => a.Priority)
             .ThenBy(a => a.ToString())
@@ -142,7 +142,20 @@ public abstract class QueryToken : IEquatable<QueryToken>
 
     Dictionary<string, QueryToken> CachedSubTokensOverride(SubTokensOptions options)
     {
-        return subTokensOverrideCache.GetOrAdd((this, options), (tup) => tup.Item1.SubTokensOverride(tup.Item2).ToDictionaryEx(a => a.Key, "subtokens for " + this.Key));
+        return subTokensOverrideCache.GetOrAdd((this, options), (tup) =>
+        {
+            var dictionary = tup.token.SubTokensOverride(tup.options).ToDictionaryEx(a => a.Key, "subtokens for " + this.Key);
+
+            foreach (var item in OnStaticEntityExtension(tup.Item1))
+            {
+                if (!dictionary.ContainsKey(item.Key)) //Prevent interface extensions overriding normal members
+                {
+                    dictionary.Add(item.Key, item);
+                }
+            }
+
+            return dictionary;
+        });
     }
 
     public static Func<QueryToken, Type, SubTokensOptions, List<QueryToken>> ImplementedByAllSubTokens = (quetyToken, type, options) => throw new NotImplementedException("QueryToken.ImplementedByAllSubTokens not set");
@@ -212,15 +225,25 @@ public abstract class QueryToken : IEquatable<QueryToken>
         };
     }
 
-    public static IEnumerable<QueryToken> OnEntityExtension(QueryToken parent)
+    public static Func<QueryToken, IEnumerable<QueryToken>>? StaticEntityExtensions;
+    public static IEnumerable<QueryToken> OnStaticEntityExtension(QueryToken parent)
     {
-        if (EntityExtensions == null)
-            throw new InvalidOperationException("QuertToken.EntityExtensions function not set");
+        if (StaticEntityExtensions == null)
+            throw new InvalidOperationException("QuertToken.StaticEntityExtensions function not set");
 
-        return EntityExtensions(parent);
+        return StaticEntityExtensions(parent);
     }
 
-    public static Func<QueryToken, IEnumerable<QueryToken>>? EntityExtensions;
+
+    public static Func<QueryToken, IEnumerable<QueryToken>>? DynamicEntityExtensions;
+    public static IEnumerable<QueryToken> OnDynamicEntityExtension(QueryToken parent)
+    {
+        if (DynamicEntityExtensions == null)
+            throw new InvalidOperationException("QuertToken.DynamicEntityExtensions function not set");
+
+        return DynamicEntityExtensions(parent);
+    }
+
 
 
     public static List<QueryToken> DateTimeProperties(QueryToken parent, DateTimePrecision precision)
@@ -496,25 +519,64 @@ public abstract class QueryToken : IEquatable<QueryToken>
 
 public class BuildExpressionContext
 {
-    public BuildExpressionContext(Type tupleType, ParameterExpression parameter, Dictionary<QueryToken, Expression> replacemens)
+    public BuildExpressionContext(Type elementType, ParameterExpression parameter, Dictionary<QueryToken, ExpressionBox> replacements)
     {
-        this.TupleType = tupleType;
+        this.ElementType = elementType;
         this.Parameter = parameter;
-        this.Replacemens = replacemens;
+        this.Replacements = replacements;
     }
 
-    public readonly Type TupleType;
+    public readonly Type ElementType;
     public readonly ParameterExpression Parameter;
-    public readonly Dictionary<QueryToken, Expression> Replacemens;
+    public readonly Dictionary<QueryToken, ExpressionBox> Replacements;
 
-    public Expression<Func<object, Lite<Entity>>> GetEntitySelector()
+    public LambdaExpression GetEntitySelector()
     {
-        return Expression.Lambda<Func<object, Lite<Entity>>>(Replacemens.Single(a=>a.Key.FullKey() == "Entity").Value, Parameter);
+        var entityColumn = Replacements.Single(a => a.Key.FullKey() == "Entity").Value;
+
+        return Expression.Lambda(Expression.Convert(entityColumn.GetExpression(), typeof(Lite<Entity>)       ), Parameter);
     }
 
-    public Expression<Func<object, Entity>> GetEntityFullSelector()
+    public LambdaExpression GetEntityFullSelector()
     {
-        return Expression.Lambda<Func<object, Entity>>(Replacemens.Single(a => a.Key.FullKey() == "Entity").Value.ExtractEntity(false), Parameter);
+        var entityColumn = Replacements.Single(a => a.Key.FullKey() == "Entity").Value;
+
+        return Expression.Lambda(Expression.Convert(entityColumn.GetExpression().ExtractEntity(false), typeof(Entity)), Parameter);
+    }
+
+    internal List<CollectionElementToken> SubQueries()
+    {
+        return Replacements
+            .Where(a => a.Value.SubQueryContext != null)
+            .Select(a => (CollectionElementToken)a.Key)
+            .ToList();
+    }
+}
+
+public struct ExpressionBox
+{
+    public readonly Expression RawExpression;
+    public readonly PropertyRoute? MListElementRoute;
+    public readonly BuildExpressionContext? SubQueryContext;
+
+    public ExpressionBox(Expression rawExpression, PropertyRoute? mlistElementRoute = null, BuildExpressionContext? subQueryContext = null)
+    {
+        this.RawExpression = rawExpression;
+        this.MListElementRoute = mlistElementRoute;
+        this.SubQueryContext = subQueryContext;
+    }
+
+    public Expression GetExpression()
+    {
+        if (RawExpression.Type.IsInstantiationOf(typeof(MListElement<,>)))
+            return Expression.Property(RawExpression, "Element").BuildLiteNullifyUnwrapPrimaryKey(new[] { MListElementRoute! });
+
+        return RawExpression;
+    }
+
+    public override string ToString()
+    {
+        return new { RawExpression, MListElementRoute, SubQueryContext }.ToString()!;
     }
 }
 
@@ -578,8 +640,6 @@ public enum QueryTokenMessage
     MoreThanOneColumnNamed0,
     [Description("number")]
     Number,
-    [Description(" of ")]
-    Of,
     Second,
     [Description("text")]
     Text,
@@ -601,4 +661,12 @@ public enum QueryTokenMessage
     Null,
     Not,
     Distinct,
+    [Description("{0} of {1}")]
+    _0Of1,
+
+    [Description("RowOrder")]
+    RowOrder,
+
+    [Description("RowID")]
+    RowId,
 }

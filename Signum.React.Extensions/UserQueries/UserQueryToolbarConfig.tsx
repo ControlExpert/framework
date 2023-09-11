@@ -3,7 +3,7 @@ import * as React from 'react'
 import * as Navigator from '@framework/Navigator'
 import * as AppContext from '@framework/AppContext'
 import * as Finder from '@framework/Finder'
-import { FindOptions, ValueSearchControl } from '@framework/Search'
+import { FindOptions, SearchValue } from '@framework/Search'
 import { Lite, liteKey } from '@framework/Signum.Entities'
 import { ToolbarConfig, ToolbarResponse } from '../Toolbar/ToolbarClient'
 import * as UserQueryClient from './UserQueryClient'
@@ -23,7 +23,7 @@ export default class UserQueryToolbarConfig extends ToolbarConfig<UserQueryEntit
   getIcon(element: ToolbarResponse<UserQueryEntity>) {
 
     if (element.iconName == "count")
-      return <CountUserQueryIcon userQuery={element.content!} color={element.iconColor ?? "red"} autoRefreshPeriod={element.autoRefreshPeriod} />;
+      return <CountUserQueryIcon userQuery={element.content!} color={element.iconColor} autoRefreshPeriod={element.autoRefreshPeriod} />;
 
     return ToolbarConfig.coloredIcon(coalesceIcon(parseIcon(element.iconName), ["far", "list-alt"]), element.iconColor ?? "dodgerblue");
   }
@@ -50,9 +50,9 @@ export default class UserQueryToolbarConfig extends ToolbarConfig<UserQueryEntit
       });
   }
 
-  isCompatibleWithUrl(res: ToolbarResponse<UserQueryEntity>, location: Location, query: any): boolean {
+  isCompatibleWithUrlPrio(res: ToolbarResponse<UserQueryEntity>, location: Location, query: any): number {
     return query["userQuery"] == liteKey(res.content!) ||
-      location.pathname == AppContext.toAbsoluteUrl(UserQueryClient.userQueryUrl(res.content!));
+      location.pathname == AppContext.toAbsoluteUrl(UserQueryClient.userQueryUrl(res.content!)) ? 2 : 0;
   }
 }
 

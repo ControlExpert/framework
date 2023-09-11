@@ -127,13 +127,24 @@ public static class CacheLogic
 
     static void ServerBroadcast_InvalidateTable(string cleanName)
     {
-        Type type = TypeEntity.TryGetType(cleanName)!;
+        Type type = TypeLogic.GetType(cleanName);
 
-        var c = controllers.GetOrThrow(type)!;
+        var c = controllers.GetOrThrow(type);
 
-        c.CachedTable.ResetAll(forceReset: false);
-
-        c.NotifyInvalidated();
+        if (c != null)
+        {
+            c.CachedTable.ResetAll(forceReset: false);
+            c.NotifyInvalidated();
+        }
+        else
+        {
+            var list = CacheLogic.semiControllers.GetOrThrow(type);
+            foreach (var sc in list)
+            {
+                sc.ResetAll(forceReset: false);
+                sc.controller.NotifyInvalidated();
+            }
+        }
     }
 
     public static TextWriter? LogWriter;
@@ -320,11 +331,12 @@ public static class CacheLogic
                 {
                     try
                     {
+                        //InvalidOperationException throw?...just continue the catch will probably fix it!
                         SqlDependency.Start(sub.ConnectionString);
                     }
                     catch (InvalidOperationException ex)
                     {
-                        string databaseName = database?.ToString() ?? Connector.Current.DatabaseName();
+                        string databaseName = database?.Name ?? Connector.Current.DatabaseName();
 
                         if (ex.Message.Contains("SQL Server Service Broker"))
                         {
@@ -536,11 +548,19 @@ public static class CacheLogic
             return cachedTable.GetToString(id);
         }
 
-        public override string? TryGetToString(PrimaryKey?/*CSBUG*/ id)
+        public override string? TryGetToString(PrimaryKey? id)
         {
             AssertEnabled();
 
             return cachedTable.TryGetToString(id!.Value)!;
+        }
+
+
+        public override bool Exists(PrimaryKey id)
+        {
+            AssertEnabled();
+
+            return cachedTable.Exists(id)!;
         }
 
         public override void Complete(T entity, IRetriever retriver)
@@ -568,6 +588,7 @@ public static class CacheLogic
 
             return ids.Select(id => retriever.Complete<T>(id, e => this.Complete(e, retriever))!).ToList();
         }
+
 
         public Type Type
         {
@@ -862,7 +883,7 @@ Remember that the Start could be called with an empty database!");
     }
 
 
-    internal static ThreadVariable<Dictionary<Type, bool>?> assumeMassiveChangesAsInvalidations = Statics.ThreadVariable<Dictionary<Type, bool>?>("assumeMassiveChangesAsInvalidations");
+    internal static AsyncThreadVariable<Dictionary<Type, bool>?> assumeMassiveChangesAsInvalidations = Statics.ThreadVariable<Dictionary<Type, bool>?>("assumeMassiveChangesAsInvalidations");
 
     public static IDisposable AssumeMassiveChangesAsInvalidations<T>(bool assumeInvalidations) where T : Entity
     {
@@ -880,16 +901,6 @@ Remember that the Start could be called with an empty database!");
             if (dic.IsEmpty())
                 assumeMassiveChangesAsInvalidations.Value = null;
         });
-    }
-
-    internal static bool IsAssumedMassiveChangeAsInvalidation<T>()
-    {
-        var asssumeAsInvalidation = CacheLogic.assumeMassiveChangesAsInvalidations.Value?.TryGetS(typeof(T));
-
-        if (asssumeAsInvalidation == null)
-            throw new InvalidOperationException($"Impossible to determine if the massive operation will affect the semi-cached instances of {typeof(T).TypeName()}. Execute CacheLogic.AssumeMassiveChangesAsInvalidations to desanbiguate.");
-
-        return asssumeAsInvalidation.Value;
     }
 }
 

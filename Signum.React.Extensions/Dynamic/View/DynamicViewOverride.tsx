@@ -2,7 +2,7 @@ import * as React from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { DynamicViewOverrideEntity, DynamicViewMessage } from '../Signum.Entities.Dynamic'
 import { EntityLine, TypeContext, FormGroup } from '@framework/Lines'
-import { Entity, JavascriptMessage, NormalWindowMessage, is, SaveChangesMessage } from '@framework/Signum.Entities'
+import { Entity, JavascriptMessage, SaveChangesMessage } from '@framework/Signum.Entities'
 import { Binding, PropertyRoute, ReadonlyBinding } from '@framework/Reflection'
 import JavascriptCodeMirror from '../../Codemirror/JavascriptCodeMirror'
 import * as DynamicViewClient from '../DynamicViewClient'
@@ -232,7 +232,7 @@ export default function DynamicViewOverrideComponent(p: DynamicViewOverrideCompo
 
   function handleExpressionClick(member: TypeHelpClient.TypeMemberHelp) {
     var paramValue = member.cleanTypeName ? `queryName : "${member.cleanTypeName}Entity"` : `valueToken: "Entity.${member.name}"`;
-    showPropmt("Expression", `modules.React.createElement(ValueSearchControlLine, {ctx: ctx, ${paramValue}})`);
+    showPropmt("Expression", `modules.React.createElement(SearchValueLine, {ctx: ctx, ${paramValue}})`);
   }
 
   function renderExpressionsButtons() {

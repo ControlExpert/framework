@@ -41,7 +41,7 @@ export default function ExcelMenu(p: ExcelMenuProps) {
 
     const rt = p.searchControl.state.resultTable;
 
-    if (request.pagination.mode == "Firsts" || request.pagination.mode == "Paginate") {
+    if (request.pagination.mode == "Firsts" || request.pagination.mode == "Paginate" && (rt == null || rt!.totalElements! > rt!.rows.length)) {
 
       SelectorModal.chooseElement<PaginationMode>([request.pagination.mode, "All"], {
         buttonDisplay: a => <span>{PaginationMode.niceToString(a)} {rt && SearchMessage._0Results_N.niceToString().forGenderAndNumber(rt.totalElements).formatHtml(
@@ -90,10 +90,10 @@ export default function ExcelMenu(p: ExcelMenuProps) {
   const label = <span><FontAwesomeIcon icon={["far", "file-excel"]} />&nbsp;{p.searchControl.props.largeToolbarButtons == true ? " " + ExcelMessage.ExcelReport.niceToString() : undefined}</span>;
 
   if (p.plainExcel && !p.excelReport)
-    return <button className={"sf-query-button sf-search btn btn-light"} onClick={handlePlainExcel}>{label} </button>;
+    return <button className={"sf-query-button sf-search btn btn-light"} title={ExcelMessage.ExcelReport.niceToString() } onClick={handlePlainExcel}>{label} </button>;
 
   return (
-    <Dropdown show={isOpen} onToggle={handleSelectedToggle}>
+    <Dropdown show={isOpen} onToggle={handleSelectedToggle} title={ExcelMessage.ExcelReport.niceToString()}>
       <Dropdown.Toggle id="userQueriesDropDown" className="sf-userquery-dropdown" variant="light">
       {label}
       </Dropdown.Toggle>

@@ -19,6 +19,7 @@ export interface FileUploaderProps {
   accept?: string;
   multiple?: boolean;
   buttonCss?: string;
+  fileDropCssClass?: string;
   divHtmlAttributes?: React.HTMLAttributes<HTMLDivElement>;
   maxSizeInBytes?: number;
 }
@@ -80,13 +81,13 @@ export function FileUploader(p: FileUploaderProps) {
   }
 
   function setNewError(newError: string) {
-    setErrors([...errors, newError]);
+    setErrors(errors => [...errors, newError]);
   }
 
   return (
     <div {...p.divHtmlAttributes}>
       {isLoading ? <div className="sf-file-drop">{JavascriptMessage.loading.niceToString()}</div> :
-        (p.dragAndDrop ? <div className={classes("sf-file-drop", isOver ? "sf-file-drop-over" : undefined)}
+        (p.dragAndDrop ? <div className={classes("sf-file-drop", p.fileDropCssClass, isOver ? "sf-file-drop-over" : undefined)}
           onDragEnter={handleDragOver}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}

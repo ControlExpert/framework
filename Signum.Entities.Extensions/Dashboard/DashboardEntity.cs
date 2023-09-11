@@ -42,6 +42,8 @@ public class DashboardEntity : Entity, IUserAssetEntity, ITaskEntity
     [StringLengthValidator(Min = 2, Max = 200)]
     public string DisplayName { get; set; }
 
+    public bool HideDisplayName { get; set; }
+
     public bool CombineSimilarRows { get; set; } = true;
 
     public CacheQueryConfigurationEmbedded? CacheQueryConfiguration { get; set; }
@@ -83,7 +85,7 @@ public class DashboardEntity : Entity, IUserAssetEntity, ITaskEntity
             {
                 var idents = GraphExplorer.FromRoot((Entity)part.Content).OfType<Entity>();
 
-                string errorsUserQuery = idents.OfType<IHasEntitytype>()
+                string errorsUserQuery = idents.OfType<IHasEntityType>()
                     .Where(uc => uc.EntityType != null && !uc.EntityType.Is(EntityType))
                     .ToString(uc => DashboardMessage._0Is1InstedOf2In3.NiceToString(NicePropertyName(() => EntityType), uc.EntityType, entityType, uc),
                     "\r\n");
@@ -146,6 +148,7 @@ public class DashboardEntity : Entity, IUserAssetEntity, ITaskEntity
             DashboardPriority = DashboardPriority,
             AutoRefreshPeriod = this.AutoRefreshPeriod,
             DisplayName = "Clone {0}".FormatWith(this.DisplayName),
+            HideDisplayName = this.HideDisplayName,
             CombineSimilarRows = this.CombineSimilarRows,
             CacheQueryConfiguration = this.CacheQueryConfiguration?.Clone(),
             Parts = Parts.Select(p => p.Clone()).ToMList(),
@@ -159,7 +162,8 @@ public class DashboardEntity : Entity, IUserAssetEntity, ITaskEntity
             new XAttribute("Guid", Guid),
             new XAttribute("DisplayName", DisplayName),
             EntityType == null ? null! : new XAttribute("EntityType", ctx.TypeToName(EntityType)),
-            Owner == null ? null! : new XAttribute("Owner", Owner.Key()),
+            Owner == null ? null! : new XAttribute("Owner", Owner.KeyLong()),
+            HideDisplayName == false ? null! : new XAttribute("HideDisplayName", HideDisplayName.ToString()),
             DashboardPriority == null ? null! : new XAttribute("DashboardPriority", DashboardPriority.Value.ToString()),
             EmbeddedInEntity == null ? null! : new XAttribute("EmbeddedInEntity", EmbeddedInEntity.Value.ToString()),
             new XAttribute("CombineSimilarRows", CombineSimilarRows),
@@ -174,7 +178,8 @@ public class DashboardEntity : Entity, IUserAssetEntity, ITaskEntity
     {
         DisplayName = element.Attribute("DisplayName")!.Value;
         EntityType = element.Attribute("EntityType")?.Let(a => ctx.GetTypeLite(a.Value));
-        Owner = element.Attribute("Owner")?.Let(a => Lite.Parse<Entity>(a.Value));
+        Owner = element.Attribute("Owner")?.Let(a => ctx.ParseLite(a.Value, this, d => d.Owner));
+        HideDisplayName = element.Attribute("HideDisplayName")?.Let(a => bool.Parse(a.Value)) ?? false;
         DashboardPriority = element.Attribute("DashboardPriority")?.Let(a => int.Parse(a.Value));
         EmbeddedInEntity = element.Attribute("EmbeddedInEntity")?.Let(a => a.Value.ToEnum<DashboardEmbedededInEntity>());
         CombineSimilarRows = element.Attribute("CombineSimilarRows")?.Let(a => bool.Parse(a.Value)) ?? false;

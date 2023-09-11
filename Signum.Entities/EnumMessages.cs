@@ -66,8 +66,8 @@ public enum EngineMessage
     NoWayOfMappingType0Found,
     [Description("The entity {0} is new")]
     TheEntity0IsNew,
-    [Description("There are '{0}' that refer to this entity")]
-    ThereAre0ThatReferThisEntity,
+    [Description("There are '{0}' that refer to this entity by property '{1}'")]
+    ThereAre0ThatReferThisEntityByProperty1,
     [Description("There are records in '{0}' referring to this table by column '{1}'")]
     ThereAreRecordsIn0PointingToThisTableByColumn1,
     [Description("Unauthorized access to {0} because {1}")]
@@ -76,39 +76,14 @@ public enum EngineMessage
     TheresAlreadyA0With1EqualsTo2_G
 }
 
-public enum NormalWindowMessage
+public enum FrameMessage
 {
-    [Description("{0} Errors: {1}")]
-    _0Errors1,
-    [Description("1 Error: {0}")]
-    _1Error,
-    Cancel,
-    [Description("Continue anyway?")]
-    ContinueAnyway,
-    [Description("Continue with errors?")]
-    ContinueWithErrors,
-    [Description("Fix Errors")]
-    FixErrors,
-    [Description(@"Impossible to Save, integrity check failed:
-
-")]
-    ImpossibleToSaveIntegrityCheckFailed,
-    [Description("Loading {0}...")]
-    Loading0,
-    NoDirectErrors,
-    Ok,
-    Reload,
-    [Description(@"The {0} has errors:
-{1}")]
-    The0HasErrors1,
-    ThereAreErrors,
-    Message,
     [Description("New {0}")]
     New0_G,
-    [Description("{0} {1}")]
-    Type0Id1,
-    Main
-
+    Copied,
+    Fullscreen,
+    ThereAreErrors,
+    Main,
 }
 
 public enum EntityControlMessage
@@ -124,7 +99,7 @@ public enum EntityControlMessage
     View,
     [Description("Add…")]
     Add,
-
+    Paste,
 }
 
 [DescriptionOptions(DescriptionOptions.Members), InTypeScript(true)]
@@ -246,6 +221,8 @@ public enum SearchMessage
 
     GroupKey,
     DerivedGroupKey,
+
+    Copy,
 }
 
 public enum SelectorMessage
@@ -372,8 +349,8 @@ public enum JavascriptMessage
     editColumn,
     [Description("Remove column")]
     removeColumn,
-    [Description("Remove other columns")]
-    removeOtherColumns,
+    [Description("Group by this column")]
+    groupByThisColumn,
     [Description("Restore default columns")]
     restoreDefaultColumns,
     [Description("Saved")]
