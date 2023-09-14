@@ -44,17 +44,11 @@ public static class WordImageReplacer
 
         if (adaptSize && !AvoidAdaptSize)
         {
-            images = images.Select(bitmap =>
-            {
-                var part = doc.MainDocumentPart!.GetPartById(blips.First().Embed!);
+            var size = doc.GetBlipBitmapSize(blips.First(), converter);
 
-                using (var stream = part.GetStream())
-                {
-                    TImage oldImage = converter.FromStream(stream);
-                    var size = converter.GetSize(oldImage);
-                    return converter.Resize(bitmap, size.width, size.height);
-                }
-            }).ToArray();
+            images = images
+                .Select(bitmap => converter.Resize(bitmap, size.width, size.height))
+                .ToArray();
         }
 
         doc.MainDocumentPart!.DeletePart(blips.First().Embed!);
