@@ -3,6 +3,9 @@ using DocumentFormat.OpenXml.Drawing;
 using DocumentFormat.OpenXml.Drawing.Wordprocessing;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.IO;
 #pragma warning disable CA1416 // Validate platform compatibility
 
@@ -17,17 +20,17 @@ public static class WordImageReplacer
     /// 
     /// Word Image -> Right Click -> Format Picture -> Alt Text -> Title 
     /// </param>
-    public static void ReplaceImage<TImage>(this WordprocessingDocument doc, string titleOrDescription, TImage image, IImageConverter<TImage> converter, string newImagePartId, bool adaptSize = false, ImagePartType imagePartType = ImagePartType.Png)
+    public static void ReplaceImage(this WordprocessingDocument doc, string titleOrDescription, Bitmap bitmap, string newImagePartId, bool adaptSize = false, ImagePartType imagePartType = ImagePartType.Png)
     {
         var blip = doc.FindBlip(titleOrDescription);
 
         if (adaptSize && AvoidAdaptSize == false)
         {
-            var size = doc.GetBlipBitmapSize(blip, converter);
-            image = converter.Resize(image, size.width, size.height);
+            var size = doc.GetBlipBitmapSize(blip);
+            bitmap = ImageResizer.Resize(bitmap, size.Width, size.Height);
         }
 
-        doc.ReplaceBlipContent(blip, image, converter, newImagePartId, imagePartType);
+        doc.ReplaceBlipContent(blip, bitmap, newImagePartId, imagePartType);
     }
 
     /// <param name="titleOrDescription">
@@ -35,50 +38,52 @@ public static class WordImageReplacer
     /// 
     /// Word Image -> Right Click -> Format Picture -> Alt Text -> Title 
     /// </param>
-    public static void ReplaceMultipleImages<TImage>(WordprocessingDocument doc, string titleOrDescription, TImage[] images, IImageConverter<TImage> converter, string newImagePartId, bool adaptSize = false, ImagePartType imagePartType = ImagePartType.Png)
+    public static void ReplaceMultipleImages(WordprocessingDocument doc, string titleOrDescription, Bitmap[] bitmaps, string newImagePartId, bool adaptSize = false, ImagePartType imagePartType = ImagePartType.Png)
     {
         Blip[] blips = FindAllBlips(doc, d => d.Title == titleOrDescription || d.Description == titleOrDescription);
 
-        if (blips.Count() != images.Length)
+        if (blips.Count() != bitmaps.Length)
             throw new ApplicationException("Images count does not match the images count in word");
 
         if (adaptSize && !AvoidAdaptSize)
         {
-            var size = doc.GetBlipBitmapSize(blips.First(), converter);
+            bitmaps = bitmaps.Select(bitmap =>
+            {
+                var part = doc.MainDocumentPart!.GetPartById(blips.First().Embed!);
 
-            images = images
-                .Select(bitmap => converter.Resize(bitmap, size.width, size.height))
-                .ToArray();
+                using (var stream = part.GetStream())
+                {
+                    Bitmap oldBmp = (Bitmap)Bitmap.FromStream(stream);
+                    return ImageResizer.Resize(bitmap, oldBmp.Width, oldBmp.Height);
+                }
+            }).ToArray();
         }
 
         doc.MainDocumentPart!.DeletePart(blips.First().Embed!);
 
         var i = 0;
-        var bitmapStack = new Stack<TImage>(images.Reverse());
+        var bitmapStack = new Stack<Bitmap>(bitmaps.Reverse());
         foreach (var blip in blips)
         {
-            ImagePart img = CreateImagePart(doc, bitmapStack.Pop(), converter, newImagePartId + i, imagePartType);
+            ImagePart img = CreateImagePart(doc, bitmapStack.Pop(), newImagePartId + i, imagePartType);
             blip.Embed = doc.MainDocumentPart.GetIdOfPart(img);
             i++;
         }
     }
 
-    public static (int width, int height) GetBlipBitmapSize<TImage>(this WordprocessingDocument doc, Blip blip, IImageConverter<TImage> converter)
+    public static Size GetBlipBitmapSize(this WordprocessingDocument doc, Blip blip)
     {
         var part = doc.MainDocumentPart!.GetPartById(blip.Embed!);
 
         using (var str = part.GetStream())
-        {
-            var image = converter.FromStream(str);
-            return converter.GetSize(image);
-        }
+            return Bitmap.FromStream(str).Size;
     }
 
-    public static void ReplaceBlipContent<TImage>(this WordprocessingDocument doc, Blip blip, TImage image, IImageConverter<TImage> converter, string newImagePartId, ImagePartType imagePartType = ImagePartType.Png)
+    public static void ReplaceBlipContent(this WordprocessingDocument doc, Blip blip, Bitmap bitmap, string newImagePartId, ImagePartType imagePartType = ImagePartType.Png)
     {
         if (doc.MainDocumentPart!.Parts.Any(p => p.RelationshipId == blip.Embed))
             doc.MainDocumentPart.DeletePart(blip.Embed!);
-        ImagePart img = CreateImagePart(doc, image, converter, newImagePartId, imagePartType);
+        ImagePart img = CreateImagePart(doc, bitmap, newImagePartId, imagePartType);
         blip.Embed = doc.MainDocumentPart.GetIdOfPart(img);
     }
 
@@ -93,19 +98,35 @@ public static class WordImageReplacer
             blip.Remove();
     }
 
-    static ImagePart CreateImagePart<TImage>(this WordprocessingDocument doc, TImage image, IImageConverter<TImage> converter, string id, ImagePartType imagePartType = ImagePartType.Png)
+    static ImagePart CreateImagePart(this WordprocessingDocument doc, Bitmap bitmap, string id, ImagePartType imagePartType = ImagePartType.Png)
     {
         ImagePart img = doc.MainDocumentPart!.AddImagePart(imagePartType, id);
 
         using (var ms = new MemoryStream())
         {
-            converter.Save(image, ms, imagePartType);
+            bitmap.Save(ms, ToImageFormat(imagePartType));
             ms.Seek(0, SeekOrigin.Begin);
             img.FeedData(ms);
         }
         return img;
     }
 
+    private static ImageFormat ToImageFormat(ImagePartType imagePartType)
+    {
+        switch (imagePartType)
+        {
+            case ImagePartType.Bmp: return ImageFormat.Bmp;
+            case ImagePartType.Emf: return ImageFormat.Emf;
+            case ImagePartType.Gif: return ImageFormat.Gif;
+            case ImagePartType.Icon: return ImageFormat.Icon;
+            case ImagePartType.Jpeg: return ImageFormat.Jpeg;
+            case ImagePartType.Png: return ImageFormat.Png;
+            case ImagePartType.Tiff: return ImageFormat.Tiff;
+            case ImagePartType.Wmf: return ImageFormat.Wmf;
+        }
+
+        throw new InvalidOperationException("Unexpected {0}".FormatWith(imagePartType));
+    }
 
     public static Blip FindBlip(this WordprocessingDocument doc, string titleOrDescription)
     {
@@ -131,6 +152,40 @@ public static class WordImageReplacer
         });
 
         return drawing.Select(d => d.Descendants<Blip>().SingleEx()).ToArray();
+    }
+}
+
+public static class ImageResizer
+{
+
+    //http://stackoverflow.com/a/10445101/38670
+    public static Bitmap Resize(Bitmap image, int? maxWidth, int? maxHeight)
+    {
+        var brush = new SolidBrush(System.Drawing.Color.White);
+
+        float scale = maxWidth.HasValue && maxHeight.HasValue ? Math.Min(maxWidth.Value / (float)image.Width, maxHeight.Value / (float)image.Height) :
+            maxHeight.HasValue ? maxHeight.Value / (float)image.Height :
+            maxWidth.HasValue ? maxWidth.Value / (float)image.Width :
+            throw new ArgumentNullException("maxWidth and maxHeight");
+
+        int scaleWidth = (int)(image.Width * scale);
+        int scaleHeight = (int)(image.Height * scale);
+
+        int width = maxWidth ?? scaleWidth;
+        int height = maxHeight ?? scaleHeight;
+
+        var bmp = new Bitmap(width, height);
+        var graph = Graphics.FromImage(bmp);
+
+        // uncomment for higher quality output
+        graph.InterpolationMode = InterpolationMode.High;
+        graph.CompositingQuality = CompositingQuality.HighQuality;
+        graph.SmoothingMode = SmoothingMode.AntiAlias;
+
+        graph.FillRectangle(brush, new RectangleF(0, 0, width, height));
+        graph.DrawImage(image, new System.Drawing.Rectangle(((int)width - scaleWidth) / 2, ((int)height - scaleHeight) / 2, scaleWidth, scaleHeight));
+
+        return bmp;
     }
 }
 
