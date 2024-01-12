@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.Data.SqlClient;
 using Signum.Engine.Basics;
 using Signum.Entities.Basics;
 using Signum.Entities.Reflection;
@@ -17,7 +18,7 @@ public class SignumExceptionFilterAttribute : IAsyncResourceFilter
 {
     public static Func<Exception, bool> TranslateExceptionMessage = ex => ex is ApplicationException;
 
-    public static Func<Exception, bool> ShouldLogException = e => e is not OperationCanceledException;
+    public static Func<Exception, bool> ShouldLogException = e => !(e is OperationCanceledException || (e is SqlException sqlException && sqlException.Message.Contains("Operation cancelled by user")));
 
     public static Func<Exception, HttpError> CustomHttpErrorFactory = ex => new HttpError(ex);
 
