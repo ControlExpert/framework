@@ -1,6 +1,7 @@
 using Signum.Engine.Maps;
 using Microsoft.SqlServer.Types;
 using Microsoft.Data.SqlClient.Server;
+using Microsoft.SqlServer.Server;
 
 namespace Signum.Test.Environment;
 
@@ -176,6 +177,21 @@ public enum AwardResult
     Nominated
 }
 
+public class AwardLiteModel : ModelEntity
+{
+    [StringLengthValidator(Max = 100)]
+    public string Type { get; set; }
+
+    [StringLengthValidator(Max = 100)]
+    public string Category { get; set; }
+
+    public int Year { get; set; }
+
+
+    [AutoExpressionField]
+    public override string ToString() => As.Expression(() => $"{Category} {Year}");
+}
+
 public class GrammyAwardEntity : AwardEntity
 {
 }
@@ -252,7 +268,7 @@ public class AlbumEntity : Entity, ISecretContainer
     string? ISecretContainer.Secret { get; set; }
 
     [AutoExpressionField]
-    public override string ToString() => As.Expression(() => Name);
+    public override string ToString() => As.Expression(() => $"{Name} ({Author})");
 }
 
 public interface ISecretContainer
@@ -312,7 +328,9 @@ public class AwardNominationEntity : Entity, ICanBeOrdered
     public Lite<IAuthorEntity> Author { get; set; }
 
     [ForceNullable]
-    [ImplementedBy(typeof(GrammyAwardEntity), typeof(PersonalAwardEntity), typeof(AmericanMusicAwardEntity)), NotNullValidator(Disabled = true)]
+    [LiteModel(typeof(AwardLiteModel), ForEntityType = typeof(GrammyAwardEntity))]
+    [ImplementedBy(typeof(GrammyAwardEntity), typeof(PersonalAwardEntity), typeof(AmericanMusicAwardEntity))]
+    [NotNullValidator(Disabled = true)]
     public Lite<AwardEntity> Award { get; set; }
 
     public int Year { get; set; }
@@ -425,4 +443,23 @@ public class FolderEntity : Entity
 
     [AutoExpressionField]
     public override string ToString() => As.Expression(() => Name);
+}
+
+[EntityKind(EntityKind.Main, EntityData.Transactional)]
+public class AlbumReEditionEntity : Entity
+{
+    public Lite<AlbumEntity> Album { get; set; }
+
+    public DateTime Date { get; set; }
+
+
+    [AutoExpressionField]
+    public override string ToString() => As.Expression(() => $"{Album} {Date}");
+}
+
+[AutoInit]
+public static class AlbumReEditionOperation
+{
+    public static readonly ExecuteSymbol<AlbumReEditionEntity> Save;
+    public static readonly DeleteSymbol<AlbumReEditionEntity> Delete;
 }

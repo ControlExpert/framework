@@ -11,6 +11,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.Data.SqlClient.Server;
+using Microsoft.SqlServer.Server;
 
 namespace Signum.Engine.Linq;
 
@@ -172,13 +173,18 @@ internal class QueryBinder : ExpressionVisitor
 
             return new ImplementedByExpression(ib.Type, strategy, ib.Implementations);
         }
-        else if (m.Method.DeclaringType == typeof(Lite) && m.Method.Name == "ToLite")
+        else if (m.Method.DeclaringType == typeof(Lite) && (m.Method.Name == "ToLite" || m.Method.Name == "ToLiteFat"))
         {
-            Expression? toStr = Visit(m.TryGetArgument("toStr")); //could be null
-
             var entity = Visit(m.GetArgument("entity"));
             var converted = EntityCasting(entity, Lite.Extract(m.Type)!)!;
-            return MakeLite(converted, toStr);
+
+
+            Expression? model = Visit(m.TryGetArgument("model")); //could be null
+            Expression? modelType = Visit(m.TryGetArgument("modelType")); //could be null
+
+            return new LiteReferenceExpression(Lite.Generate(entity.Type), entity, model,
+                modelType == null ? null : ToTypeDictionary(modelType, entity.Type),
+                false, eagerEntity: m.Method.Name == "ToLiteFat");
         }
         else if (m.Method.DeclaringType!.IsInstantiationOf(typeof(EnumEntity<>)) && m.Method.Name == "ToEnum")
         {
@@ -231,7 +237,24 @@ internal class QueryBinder : ExpressionVisitor
         return BindMethodCall(result);
     }
 
+    private ReadOnlyDictionary<Type, Type>? ToTypeDictionary(Expression? modelType, Type entityType)
+    {
+        if (modelType == null)
+            return null;
 
+        if (modelType is ConstantExpression ce)
+        {
+            if (ce.IsNull())
+                return null;
+
+            if (ce.Value is Type t)
+            {
+                return new Dictionary<Type, Type> { { entityType, t } }.ToReadOnly();
+            }
+        }
+
+        throw new NotImplementedException("Not implemented " + modelType.ToString());
+    }
 
     private Expression BindExpandEntity(Expression source, LambdaExpression entitySelector, ExpandEntity expandEntity)
     {
@@ -567,7 +590,7 @@ internal class QueryBinder : ExpressionVisitor
         ProjectedColumns pc = ColumnProjector.ProjectColumns(proj, alias, isGroupKey: true, selectTrivialColumns: true);
         return new ProjectionExpression(
             new SelectExpression(alias, true, null, pc.Columns, projection.Select, null, null, null, 0),
-            proj, null, resultType);
+            pc.Projector, null, resultType);
     }
 
     private Expression BindReverse(Type resultType, Expression source)
@@ -933,86 +956,84 @@ internal class QueryBinder : ExpressionVisitor
     {
         bool isAll = method.Name == "All";
 
-        if (source is ParameterExpression p)
-            source = VisitParameter(p);
-
-        if (source is ConstantExpression constSource && !typeof(IQueryable).IsAssignableFrom(constSource.Type))
         {
-            System.Diagnostics.Debug.Assert(!isRoot);
-            Type oType = predicate!.Parameters[0].Type;
-            Expression[] exp = ((IEnumerable)constSource.Value!).Cast<object>().Select(o => Expression.Invoke(predicate, Expression.Constant(o, oType))).ToArray();
+            var newSource = source is ParameterExpression p ? VisitParameter(p) : source;
 
-            Expression where = isAll ? exp.AggregateAnd() : exp.AggregateOr();
+            if (newSource is ConstantExpression constSource && !typeof(IQueryable).IsAssignableFrom(constSource.Type))
+            {
+                System.Diagnostics.Debug.Assert(!isRoot);
+                Type oType = predicate!.Parameters[0].Type;
+                Expression[] exp = ((IEnumerable)constSource.Value!).Cast<object>().Select(o => Expression.Invoke(predicate, Expression.Constant(o, oType))).ToArray();
 
-            return this.Visit(where);
+                Expression where = isAll ? exp.AggregateAnd() : exp.AggregateOr();
+
+                return this.Visit(where);
+            }
         }
+
+        if (isAll)
+            predicate = Expression.Lambda(Expression.Not(predicate!.Body), predicate!.Parameters.ToArray());
+
+        if (predicate != null)
+            source = Expression.Call(typeof(Enumerable), "Where", method.GetGenericArguments(), source, predicate);
+
+        ProjectionExpression projection = this.VisitCastProjection(source);
+        Expression result = new ExistsExpression(projection.Select);
+        if (isAll)
+            result = Expression.Not(result);
+
+        if (isRoot)
+            return GetUniqueProjection(resultType, result, UniqueFunction.SingleOrDefault);
         else
-        {
-            if (isAll)
-                predicate = Expression.Lambda(Expression.Not(predicate!.Body), predicate!.Parameters.ToArray());
-
-            if (predicate != null)
-                source = Expression.Call(typeof(Enumerable), "Where", method.GetGenericArguments(), source, predicate);
-
-            ProjectionExpression projection = this.VisitCastProjection(source);
-            Expression result = new ExistsExpression(projection.Select);
-            if (isAll)
-                result = Expression.Not(result);
-
-            if (isRoot)
-                return GetUniqueProjection(resultType, result, UniqueFunction.SingleOrDefault);
-            else
-                return result;
-        }
+            return result;
     }
 
     private Expression BindContains(Type resultType, Expression source, Expression item, bool isRoot)
     {
         Expression newItem = Visit(item);
 
-        if (source is ParameterExpression pe)
-            source = VisitParameter(pe);
-
-        if (source.NodeType == ExpressionType.Constant && !typeof(IQueryable).IsAssignableFrom(source.Type)) //!isRoot
         {
-            ConstantExpression ce = (ConstantExpression)source;
-            IEnumerable col = (IEnumerable?)ce.Value ?? Array.Empty<object>();
+            var newSource = source is ParameterExpression pe ? VisitParameter(pe) : source;
 
-            if (newItem.Type == typeof(Type))
-                return SmartEqualizer.TypeIn(newItem, col.Cast<Type>().ToList());
+            if (newSource is ConstantExpression ce && !typeof(IQueryable).IsAssignableFrom(ce.Type)) //!isRoot
+            {
+                IEnumerable col = (IEnumerable?)ce.Value ?? Array.Empty<object>();
 
-            if (newItem is LiteReferenceExpression liteRef)
-                return SmartEqualizer.EntityIn(liteRef, col.Cast<Lite<IEntity>>().ToList());
+                if (newItem.Type == typeof(Type))
+                    return SmartEqualizer.TypeIn(newItem, col.Cast<Type>().ToList());
 
-            if (newItem is EntityExpression || newItem is ImplementedByExpression || newItem is ImplementedByAllExpression)
-                return SmartEqualizer.EntityIn(newItem, col.Cast<Entity>().ToList());
+                if (newItem is LiteReferenceExpression liteRef)
+                    return SmartEqualizer.EntityIn(liteRef, col.Cast<Lite<IEntity>>().ToList());
 
-            if (newItem.Type.UnNullify() == typeof(PrimaryKey))
-                return SmartEqualizer.InPrimaryKey(newItem, col.Cast<PrimaryKey>().ToArray());
+                if (newItem is EntityExpression || newItem is ImplementedByExpression || newItem is ImplementedByAllExpression)
+                    return SmartEqualizer.EntityIn(newItem, col.Cast<Entity>().ToList());
 
-            return SmartEqualizer.In(newItem, col.Cast<object>().ToArray(), isPostgres);
+                if (newItem.Type.UnNullify() == typeof(PrimaryKey))
+                    return SmartEqualizer.InPrimaryKey(newItem, col.Cast<PrimaryKey>().ToArray());
+
+                return SmartEqualizer.In(newItem, col.Cast<object>().ToArray(), isPostgres);
+            }
         }
+
+        ProjectionExpression projection = this.VisitCastProjection(source);
+
+        Alias alias = NextSelectAlias();
+        var pc = ColumnProjector.ProjectColumns(projection.Projector, alias, isGroupKey: false, selectTrivialColumns: true);
+
+        SubqueryExpression? se;
+        if (schema.Settings.IsDbType(pc.Projector.Type))
+            se = new InExpression(newItem, new SelectExpression(alias, false, null, pc.Columns, projection.Select, null, null, null, 0));
         else
         {
-            ProjectionExpression projection = this.VisitCastProjection(source);
-
-            Alias alias = NextSelectAlias();
-            var pc = ColumnProjector.ProjectColumns(projection.Projector, alias, isGroupKey: false, selectTrivialColumns: true);
-
-            SubqueryExpression? se;
-            if (schema.Settings.IsDbType(pc.Projector.Type))
-                se = new InExpression(newItem, new SelectExpression(alias, false, null, pc.Columns, projection.Select, null, null, null, 0));
-            else
-            {
-                Expression where = DbExpressionNominator.FullNominate(SmartEqualizer.PolymorphicEqual(projection.Projector, newItem))!;
-                se = new ExistsExpression(new SelectExpression(alias, false, null, pc.Columns, projection.Select, where, null, null, 0));
-            }
-
-            if (isRoot)
-                return this.GetUniqueProjection(resultType, se, UniqueFunction.SingleOrDefault);
-            else
-                return se;
+            Expression where = DbExpressionNominator.FullNominate(SmartEqualizer.PolymorphicEqual(projection.Projector, newItem))!;
+            se = new ExistsExpression(new SelectExpression(alias, false, null, pc.Columns, projection.Select, where, null, null, 0));
         }
+
+        if (isRoot)
+            return this.GetUniqueProjection(resultType, se, UniqueFunction.SingleOrDefault);
+        else
+            return se;
+
     }
 
     private ProjectionExpression GetUniqueProjection(Type resultType, Expression expr, UniqueFunction uniqueFunction)
@@ -1198,10 +1219,21 @@ internal class QueryBinder : ExpressionVisitor
         this.groupByMap.Add(elementAlias, new GroupByInfo(alias, elemExpr, select));
 
         var result = new ProjectionExpression(
-            new SelectExpression(alias, false, null, keyPC.Columns, select, null, null, keyPC.Columns.Select(c => c.Expression), 0),
+            new SelectExpression(alias, false, null, keyPC.Columns, select, null, null, keyPC.Columns.Select(c => c.Expression).Where(e => !IsTrivialGroupKey(e)), 0),
             resultExpr, null, resultType.GetGenericTypeDefinition().MakeGenericType(resultExpr.Type));
 
         return result;
+    }
+
+    private bool IsTrivialGroupKey(Expression e)
+    {
+        if (e is ConstantExpression or SqlConstantExpression)
+            return true;
+
+        if (e.NodeType == ExpressionType.Convert)
+            return IsTrivialGroupKey(((UnaryExpression)e).Operand);
+
+        return false;
     }
 
     class ContainsAggregateVisitor : DbExpressionVisitor
@@ -1297,7 +1329,8 @@ internal class QueryBinder : ExpressionVisitor
 
             Expression[] results = expr switch
             {
-                LiteReferenceExpression lite => lite.Reference is ImplementedByAllExpression iba ? iba.Ids.Values.PreAnd(iba.TypeId).ToArray() :
+                LiteReferenceExpression lite =>
+                    lite.Reference is ImplementedByAllExpression iba ? iba.Ids.Values.PreAnd(iba.TypeId).ToArray() :
                     lite.Reference is EntityExpression e ? new[] { GetExpressionOrder(e), e.ExternalId } :
                     lite.Reference is ImplementedByExpression ib ? ib.Implementations.Values.SelectMany(e => new[] { GetExpressionOrder(e), e.ExternalId }).ToArray() :
                     throw new NotImplementedException(""),
@@ -1314,7 +1347,7 @@ internal class QueryBinder : ExpressionVisitor
 
                 var e => new[] { e },
             };
-            
+
             return results.Select(e =>
             {
                 var clean = e.Type.UnNullify() == typeof(PrimaryKey) ? SmartEqualizer.UnwrapPrimaryKey(e) : e;
@@ -1366,12 +1399,13 @@ internal class QueryBinder : ExpressionVisitor
 
     private ProjectionExpression GetTableProjection(IQueryable query)
     {
-        ITable table = ((ISignumTable)query).Table;
+        var st = (IQuerySignumTable)query;
+        ITable table = st.Table;
 
         Alias tableAlias = NextTableAlias(table.Name);
 
         Expression exp =
-            table is Table t ? t.GetProjectorExpression(tableAlias, this) :
+            table is Table t ? t.GetProjectorExpression(tableAlias, this, st.DisableAssertAllowed) :
             table is TableMList tml ? tml.GetProjectorExpression(tableAlias, this) :
             throw new UnexpectedValueException(table);
 
@@ -1584,7 +1618,7 @@ internal class QueryBinder : ExpressionVisitor
             }
             else if (source is LiteReferenceExpression lite)
             {
-                var toStr = lite.CustomToStr ?? BindMethodCall(Expression.Call(lite.Reference, EntityExpression.ToStringMethod));
+                var toStr = BindMethodCall(Expression.Call(lite.Reference, EntityExpression.ToStringMethod));
 
                 return toStr;
             }
@@ -1641,6 +1675,38 @@ internal class QueryBinder : ExpressionVisitor
             return tablePeriod;
         }
 
+        if (m.Method.DeclaringType == typeof(TypeEntityExtensions) && m.Method.Name == nameof(TypeEntityExtensions.ToTypeEntity))
+        {
+            var arg = m.Arguments[0];
+
+
+            if (arg is TypeEntityExpression type)
+            {
+                var id = Condition(Expression.NotEqual(type.ExternalId, NullId(type.ExternalId.ValueType)),
+              ifTrue: Expression.Constant(TypeLogic.TypeToId.GetOrThrow(type.TypeValue).Object),
+              ifFalse: Expression.Constant(null, PrimaryKey.Type(typeof(TypeEntity)).Nullify()));
+
+                return new EntityExpression(typeof(TypeEntity), new PrimaryKeyExpression(id), null, null, null, null, null, false);
+            }
+
+            if (arg is TypeImplementedByExpression typeIB)
+            {
+                var id = typeIB.TypeImplementations.Aggregate(
+                    (Expression)Expression.Constant(null, PrimaryKey.Type(typeof(TypeEntity)).Nullify()),
+                    (acum, kvp) => Condition(Expression.NotEqual(kvp.Value, NullId(kvp.Value.Value.Type)),
+                   ifTrue: Expression.Constant(TypeLogic.TypeToId.GetOrThrow(kvp.Key).Object),
+                   ifFalse: acum));
+
+                return new EntityExpression(typeof(TypeEntity), new PrimaryKeyExpression(id), null, null, null, null, null, false);
+            }
+
+            if (arg is TypeImplementedByAllExpression typeIBA)
+            {
+                return new EntityExpression(typeof(TypeEntity), typeIBA.TypeColumn, null, null, null, null, null, false);
+            }
+
+        }
+
         Expression PartialEval(Expression ee)
         {
             if (m.Method.IsExtensionMethod())
@@ -1653,41 +1719,45 @@ internal class QueryBinder : ExpressionVisitor
             }
         }
 
-        if (source is TypeEntityExpression type)
         {
-            return Condition(Expression.NotEqual(type.ExternalId, NullId(type.ExternalId.ValueType)),
-              ifTrue: PartialEval(Expression.Constant(type.TypeValue)),
-              ifFalse: Expression.Constant(null, m.Type));
-        }
+            if (source is TypeEntityExpression type)
+            {
+                return Condition(Expression.NotEqual(type.ExternalId, NullId(type.ExternalId.ValueType)),
+                  ifTrue: PartialEval(Expression.Constant(type.TypeValue)),
+                  ifFalse: Expression.Constant(null, m.Type));
+            }
 
-        if(source is TypeImplementedByExpression typeIB)
-        {
-            return typeIB.TypeImplementations.Aggregate(
-               (Expression)Expression.Constant(null, m.Type),
-               (acum, kvp) => Condition(Expression.NotEqual(kvp.Value, NullId(kvp.Value.Value.Type)),
-               ifTrue: PartialEval(Expression.Constant(kvp.Key)),
-               ifFalse: acum));
+            if (source is TypeImplementedByExpression typeIB)
+            {
+                return typeIB.TypeImplementations.Aggregate(
+                   (Expression)Expression.Constant(null, m.Type),
+                   (acum, kvp) => Condition(Expression.NotEqual(kvp.Value, NullId(kvp.Value.Value.Type)),
+                   ifTrue: PartialEval(Expression.Constant(kvp.Key)),
+                   ifFalse: acum));
+            }
         }
 
         return m;
     }
-
-    
 
 
     private ConditionalExpression DispatchConditional(MethodCallExpression m, Expression test, Expression ifTrue, Expression ifFalse)
     {
         if (m.Method.IsExtensionMethod())
         {
+            var argType = m.Arguments.FirstEx().Type;
+
             return Expression.Condition(test,
-                BindMethodCall(Expression.Call(m.Method, m.Arguments.Skip(1).PreAnd(ifTrue))),
-                BindMethodCall(Expression.Call(m.Method, m.Arguments.Skip(1).PreAnd(ifFalse))));
+                BindMethodCall(Expression.Call(m.Method, m.Arguments.Skip(1).PreAnd(ifTrue.TryConvert(argType)))),
+                BindMethodCall(Expression.Call(m.Method, m.Arguments.Skip(1).PreAnd(ifFalse.TryConvert(argType)))));
         }
         else
         {
+            var objType = m.Object!.Type;
+
             return Expression.Condition(test,
-                BindMethodCall(Expression.Call(ifTrue, m.Method, m.Arguments)),
-                BindMethodCall(Expression.Call(ifFalse, m.Method, m.Arguments)));
+                BindMethodCall(Expression.Call(ifTrue.TryConvert(objType), m.Method, m.Arguments)),
+                BindMethodCall(Expression.Call(ifFalse.TryConvert(objType), m.Method, m.Arguments)));
         }
     }
 
@@ -1770,17 +1840,17 @@ internal class QueryBinder : ExpressionVisitor
                     {
                         if (m.Member.Name == "Key")
                             return mce.Arguments[0];
-                        else if(m.Member.Name == "Value")
+                        else if (m.Member.Name == "Value")
                             return mce.Arguments[1];
                     }
-                    else if(mce.Method.IsInstantiationOf(miSetReadonly))
+                    else if (mce.Method.IsInstantiationOf(miSetReadonly))
                     {
                         var pi = ReflectionTools.BasePropertyInfo(mce.Arguments[1].StripQuotes());
                         if (m.Member is PropertyInfo piMember && ReflectionTools.PropertyEquals(pi, piMember))
                             return mce.Arguments[2];
                         else
                             return BindMemberAccess(
-                                m.Member is PropertyInfo pi1 ? Expression.Property(mce.Arguments[0], pi1) : 
+                                m.Member is PropertyInfo pi1 ? Expression.Property(mce.Arguments[0], pi1) :
                                 m.Member is FieldInfo fi1 ? Expression.Field(mce.Arguments[0], fi1) :
                                 throw new InvalidOperationException(nameof(m.Member))
                                 );
@@ -2069,7 +2139,7 @@ internal class QueryBinder : ExpressionVisitor
 
         if (expressions.Any(e => e.Value is ImplementedByAllExpression))
         {
-            var ids = Schema.Current.Settings.ImplementedByAllPrimaryKeyTypes.ToDictionary(t => t, t => 
+            var ids = Schema.Current.Settings.ImplementedByAllPrimaryKeyTypes.ToDictionary(t => t, t =>
                 CombineImplementations(strategy, expressions.SelectDictionary(w => GetIdAsType(w, t)), t.Nullify()));
 
             TypeImplementedByAllExpression typeId = (TypeImplementedByAllExpression)
@@ -2393,7 +2463,7 @@ internal class QueryBinder : ExpressionVisitor
 
             Expression entity = EntityCasting(lite.Reference, Lite.Extract(uType)!)!;
 
-            return MakeLite(entity, lite.CustomToStr);
+            return new LiteReferenceExpression(Lite.Generate(entity.Type), entity, lite.CustomModelExpression, lite.CustomModelTypes, false, false);
         }
 
         return null;
@@ -2418,22 +2488,26 @@ internal class QueryBinder : ExpressionVisitor
         {
             if (b.NodeType == ExpressionType.Coalesce)
                 return Expression.Coalesce(left, right, b.Conversion);
-            else
-            {
-                //if (left is ProjectionExpression && !((ProjectionExpression)left).IsOneCell  ||
-                //    right is ProjectionExpression && !((ProjectionExpression)right).IsOneCell)
-                //    throw new InvalidOperationException("Comparing {0} and {1} is not valid in SQL".FormatWith(b.Left.ToString(), b.Right.ToString()));
 
-                if (left.Type.IsNullable() == right.Type.IsNullable())
-                    return Expression.MakeBinary(b.NodeType, left, right, b.IsLiftedToNull, b.Method);
-                else
-                    return Expression.MakeBinary(b.NodeType, left.Nullify(), right.Nullify());
-            }
+            if (b.NodeType == ExpressionType.Equal)
+                return SmartEqualizer.PolymorphicEqual(left, right);
+
+            if (b.NodeType == ExpressionType.NotEqual)
+                return Expression.Not(SmartEqualizer.PolymorphicEqual(left, right));
+
+            //if (left is ProjectionExpression && !((ProjectionExpression)left).IsOneCell  ||
+            //    right is ProjectionExpression && !((ProjectionExpression)right).IsOneCell)
+            //    throw new InvalidOperationException("Comparing {0} and {1} is not valid in SQL".FormatWith(b.Left.ToString(), b.Right.ToString()));
+
+            if (left.Type.IsNullable() == right.Type.IsNullable())
+                return Expression.MakeBinary(b.NodeType, left, right, b.IsLiftedToNull, b.Method);
+            else
+                return Expression.MakeBinary(b.NodeType, left.Nullify(), right.Nullify());
         }
         return b;
     }
 
-    internal CommandExpression BindDelete(Expression source)
+    internal CommandExpression BindDelete(Expression source, bool avoidMList)
     {
         var isHistory = this.systemTime is SystemTime.HistoryTable;
 
@@ -2445,19 +2519,22 @@ internal class QueryBinder : ExpressionVisitor
         {
             Expression id = ee.Table.GetIdExpression(aliasGenerator.Table(ee.Table.GetName(isHistory)))!;
 
-            commands.AddRange(ee.Table.TablesMList().Select(t =>
+            if (!avoidMList)
             {
-                Expression backId = t.BackColumnExpression(aliasGenerator.Table(t.GetName(isHistory)));
-                return new DeleteExpression(t, isHistory && t.SystemVersioned != null, pr.Select, SmartEqualizer.EqualNullable(backId, ee.ExternalId), returnRowCount: false);
-            }));
+                commands.AddRange(ee.Table.TablesMList().Select(t =>
+                {
+                    Expression backId = t.BackColumnExpression(aliasGenerator.Table(t.GetName(isHistory)));
+                    return new DeleteExpression(t, isHistory && t.SystemVersioned != null, pr.Select, SmartEqualizer.EqualNullable(backId, ee.ExternalId), returnRowCount: false, alias: null);
+                }));
+            }
 
-            commands.Add(new DeleteExpression(ee.Table, isHistory && ee.Table.SystemVersioned != null, pr.Select, SmartEqualizer.EqualNullable(id, ee.ExternalId), returnRowCount: true));
+            commands.Add(new DeleteExpression(ee.Table, isHistory && ee.Table.SystemVersioned != null, pr.Select, SmartEqualizer.EqualNullable(id, ee.ExternalId), returnRowCount: true, alias: null));
         }
         else if (pr.Projector is MListElementExpression mlee)
         {
             Expression id = mlee.Table.RowIdExpression(aliasGenerator.Table(mlee.Table.GetName(isHistory)));
 
-            commands.Add(new DeleteExpression(mlee.Table, isHistory && mlee.Table.SystemVersioned != null, pr.Select, SmartEqualizer.EqualNullable(id, mlee.RowId), returnRowCount: true));
+            commands.Add(new DeleteExpression(mlee.Table, isHistory && mlee.Table.SystemVersioned != null, pr.Select, SmartEqualizer.EqualNullable(id, mlee.RowId), returnRowCount: true, alias: null));
         }
         else if (pr.Projector is EmbeddedEntityExpression eee)
         {
@@ -2465,7 +2542,7 @@ internal class QueryBinder : ExpressionVisitor
 
             Expression id = vn.GetIdExpression(aliasGenerator.Table(vn.Name)).ThrowIfNull(() => $"{vn.Name} has no primary name");
 
-            commands.Add(new DeleteExpression(vn, false, pr.Select, SmartEqualizer.EqualNullable(id, eee.GetViewId()), returnRowCount: true));
+            commands.Add(new DeleteExpression(vn, false, pr.Select, SmartEqualizer.EqualNullable(id, eee.GetViewId()), returnRowCount: true, alias: null));
         }
         else
             throw new InvalidOperationException("Delete not supported for {0}".FormatWith(pr.Projector.GetType().TypeName()));
@@ -2916,9 +2993,9 @@ internal class QueryBinder : ExpressionVisitor
         return new PrimaryKeyExpression(new SqlConstantExpression(null, type.Nullify()));
     }
 
-    public static Expression MakeLite(Expression entity, Expression? customToStr)
+    public static Expression MakeLite(Expression entity, Dictionary<Type, Type>? customModelTypes = null)
     {
-        return new LiteReferenceExpression(Lite.Generate(entity.Type), entity, customToStr, false, false);
+        return new LiteReferenceExpression(Lite.Generate(entity.Type), entity, null, customModelTypes?.ToReadOnly(), false, false);
     }
 
     public PrimaryKeyExpression GetId(Expression expression)
@@ -2929,7 +3006,7 @@ internal class QueryBinder : ExpressionVisitor
         if (expression is ImplementedByExpression ib)
         {
             var type = ib.Implementations.Select(imp => imp.Value.ExternalId.ValueType.Nullify()).Distinct().Only();
-            if(type != null)
+            if (type != null)
             {
                 var aggregate = new PrimaryKeyExpression(Coalesce(type, ib.Implementations.Select(imp => imp.Value.ExternalId.Value)));
                 return aggregate;
@@ -3576,7 +3653,7 @@ class AssignAdapterExpander : DbExpressionVisitor
         {
             var type = node.Method.GetGenericArguments()[0];
             var id = ToPrimaryKey(node.Arguments[0]);
-            return new LiteReferenceExpression(Lite.Generate(type), new EntityExpression(type, id, null, null, null, null, null, false), null, false, false);
+            return new LiteReferenceExpression(Lite.Generate(type), new EntityExpression(type, id, null, null, null, null, null, false), null, null, false, false);
         }
 
         if (node.Method.IsInstantiationOf(miSetId))
@@ -3612,7 +3689,7 @@ class AssignAdapterExpander : DbExpressionVisitor
                 using (this.OverrideColExpression(col.Reference))
                 {
                     var entity = CombineConditional(test, l.Reference, r.Reference)!;
-                    return new LiteReferenceExpression(Lite.Generate(entity.Type), entity, null, false, false);
+                    return new LiteReferenceExpression(Lite.Generate(entity.Type), entity, null, null, false, false);
                 }
             });
         }
@@ -3700,7 +3777,7 @@ class AssignAdapterExpander : DbExpressionVisitor
                     using (this.OverrideColExpression(col.Reference))
                     {
                         var entity = CombineCoalesce(l.Reference, r.Reference)!;
-                        return new LiteReferenceExpression(Lite.Generate(entity!.Type), entity, null, false, false);
+                        return new LiteReferenceExpression(Lite.Generate(entity!.Type), entity, null, null, false, false);
                     }
                 });
             }
@@ -3849,7 +3926,7 @@ class AssignAdapterExpander : DbExpressionVisitor
 
         var newRef = this.OverrideColExpression(reference).Using(_ => Visit(lite.Reference));
         if (newRef != lite.Reference)
-            return new LiteReferenceExpression(Lite.Generate(newRef.Type), newRef, null, false, false);
+            return new LiteReferenceExpression(Lite.Generate(newRef.Type), newRef, null, null, false, false);
 
         return lite;
     }
@@ -3858,7 +3935,7 @@ class AssignAdapterExpander : DbExpressionVisitor
     {
         if (colExpression is ImplementedByAllExpression iba)
             return new ImplementedByAllExpression(colExpression.Type,
-                iba.Ids.Keys.ToDictionary(a=>a, a => PrimaryKey.Type(ee.Type)  == a ? ee.ExternalId.Value : new SqlConstantExpression(null, a)),
+                iba.Ids.Keys.ToDictionary(a => a, a => PrimaryKey.Type(ee.Type) == a ? ee.ExternalId.Value : new SqlConstantExpression(null, a)),
                 new TypeImplementedByAllExpression(new PrimaryKeyExpression(
                     Expression.Condition(Expression.Equal(ee.ExternalId.Value.Nullify(), new SqlConstantExpression(null, ee.ExternalId.ValueType.Nullify())),
                     new SqlConstantExpression(null, PrimaryKey.Type(typeof(TypeEntity)).Nullify()),
@@ -3941,7 +4018,7 @@ class AssignAdapterExpander : DbExpressionVisitor
                     lite == null ? Expression.Constant(null, type) : Expression.Constant(lite.Id.Object, type),
                     lite?.EntityType);
 
-                return new LiteReferenceExpression(colLite.Type, entity, null, false, false);
+                return new LiteReferenceExpression(colLite.Type, entity, null, null, false, false);
             }
         }
 

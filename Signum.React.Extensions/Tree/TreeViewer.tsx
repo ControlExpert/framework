@@ -8,7 +8,7 @@ import * as Finder from '@framework/Finder'
 import ContextMenu from '@framework/SearchControl/ContextMenu'
 import { ContextMenuPosition } from '@framework/SearchControl/ContextMenu'
 import * as Operations from '@framework/Operations'
-import { SearchMessage, JavascriptMessage, EntityControlMessage, toLite, liteKey } from '@framework/Signum.Entities'
+import { SearchMessage, JavascriptMessage, EntityControlMessage, toLite, liteKey, getToString } from '@framework/Signum.Entities'
 import { TreeViewerMessage, TreeEntity, TreeOperation, MoveTreeModel } from './Signum.Entities.Tree'
 import * as TreeClient from './TreeClient'
 import { FilterOptionParsed, QueryDescription, SubTokensOptions, FilterOption } from "@framework/FindOptions";
@@ -136,8 +136,7 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
             this.search(true);
           });
         });
-      })
-      .done();
+      });
   }
 
   handleFullScreenClick = (ev: React.MouseEvent<any>) => {
@@ -183,8 +182,7 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
   handleView = () => {
     const node = this.state.selectedNode!;
     Navigator.view(node.lite)
-      .then(() => this.search(false))
-      .done();
+      .then(() => this.search(false));
   }
 
 
@@ -234,8 +232,7 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
       };
 
       renderContextualItems(options)
-        .then(menuItems => this.setState({ currentMenuItems: menuItems }))
-        .done();
+        .then(menuItems => this.setState({ currentMenuItems: menuItems }));
     }
   }
 
@@ -261,8 +258,8 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
 
     var menuItems = [
       Navigator.isViewable(type, { isSearch: true }) && <Dropdown.Item onClick={this.handleView} className="btn-danger"><FontAwesomeIcon icon="arrow-right" />&nbsp;{EntityControlMessage.View.niceToString()}</Dropdown.Item >,
-      Operations.tryGetOperationInfo(TreeOperation.CreateChild, type) && <Dropdown.Item onClick={this.handleAddChildren}><FontAwesomeIcon icon="caret-square-right" />&nbsp;{TreeViewerMessage.AddChild.niceToString()}</Dropdown.Item>,
-      Operations.tryGetOperationInfo(TreeOperation.CreateNextSibling, type) && <Dropdown.Item onClick={this.handleAddSibling}><FontAwesomeIcon icon="caret-square-down" />&nbsp;{TreeViewerMessage.AddSibling.niceToString()}</Dropdown.Item>,
+      Operations.tryGetOperationInfo(TreeOperation.CreateChild, type) && <Dropdown.Item onClick={this.handleAddChildren}><FontAwesomeIcon icon="square-caret-right" />&nbsp;{TreeViewerMessage.AddChild.niceToString()}</Dropdown.Item>,
+      Operations.tryGetOperationInfo(TreeOperation.CreateNextSibling, type) && <Dropdown.Item onClick={this.handleAddSibling}><FontAwesomeIcon icon="square-caret-down" />&nbsp;{TreeViewerMessage.AddSibling.niceToString()}</Dropdown.Item>,
       <Dropdown.Item onClick={this.handleCopyClick}><FontAwesomeIcon icon="copy" />&nbsp;{SearchMessage.Copy.niceToString()}</Dropdown.Item>,
     ].filter(a => a != false) as React.ReactElement<any>[];
 
@@ -307,8 +304,7 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
 
         if (this.props.onSearch)
           this.props.onSearch();
-      })
-      .done();
+      });
   }
 
   renderSearch() {
@@ -337,8 +333,7 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
           return;
         this.state.treeNodes!.push(toTreeNode(te));
         this.forceUpdate();
-      })
-      .done();
+      });
   }
 
   handleAddChildren = () => {
@@ -353,8 +348,7 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
         parent.childrenCount++;
         fixState(parent);
         this.selectNode(newNode);
-      })
-      .done();
+      });
   }
 
   handleAddSibling = () => {
@@ -371,8 +365,7 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
         const array = parent ? parent.loadedChildren : this.state.treeNodes!;
         array.insertAt(array.indexOf(sibling) + 1, newNode);
         this.selectNode(newNode);
-      })
-      .done();
+      });
   }
 
   handleCopyClick = () => {
@@ -381,7 +374,7 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
       return;
 
     const text = liteKey(this.state.selectedNode!.lite);
-    navigator.clipboard.writeText(text).done();
+    navigator.clipboard.writeText(text);
   }
 
   findParent(childNode: TreeNode) {
@@ -427,7 +420,7 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
           <Dropdown.Toggle id="selectedButton"
             className="sf-query-button sf-tm-selected" disabled={selected == undefined}
             variant="light">
-            {`${JavascriptMessage.Selected.niceToString()} (${selected ? selected.lite.toStr : TreeViewerMessage.None.niceToString()})`}
+            {`${JavascriptMessage.Selected.niceToString()} (${selected ? getToString(selected.lite) : TreeViewerMessage.None.niceToString()})`}
           </Dropdown.Toggle>
           <Dropdown.Menu>
             {menuItems == undefined ? <Dropdown.Item className="sf-tm-selected-loading">{JavascriptMessage.loading.niceToString()}</Dropdown.Item> :
@@ -435,7 +428,7 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
                 menuItems.map((e, i) => React.cloneElement(e, { key: i }))}
           </Dropdown.Menu>
         </Dropdown>
-        <button className="btn btn-light" onClick={this.handleExplore} ><FontAwesomeIcon icon="search" /> &nbsp; {SearchMessage.Explore.niceToString()}</button>
+        <button className="btn btn-light" onClick={this.handleExplore} ><FontAwesomeIcon icon="magnifying-glass" /> &nbsp; {SearchMessage.Explore.niceToString()}</button>
       </div>
     );
   }
@@ -465,7 +458,7 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
     this.getFilterOptionsWithSFB().then(() => {
       this.simpleFilterBuilderInstance = undefined;
       this.setState({ simpleFilterBuilder: undefined, showFilters: !this.state.showFilters });
-    }).done();
+    });
   }
 
 
@@ -534,7 +527,7 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
 
           this.moveOrCopyOperation(nodeParent, dragged, over);
 
-        }).done()
+        })
     else
       this.moveOrCopyOperation(nodeParent, dragged, over);
   }
@@ -559,7 +552,7 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
 
           this.search(false);
         })
-      ).done();
+      );
 
     } else {
       const s = TreeClient.settings[this.props.typeName];
@@ -572,8 +565,7 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
 
             this.search(false);
           })
-        ))
-        .done();
+        ));
     };
   }
 }
@@ -612,11 +604,11 @@ class TreeNodeControl extends React.Component<TreeNodeControlProps> {
     switch (nodeState) {
       case "Collapsed": return (
         <span onClick={() => tv.handleNodeIconClick(node)} className="tree-icon" >
-          <FontAwesomeIcon icon={["far", "plus-square"]} />
+          <FontAwesomeIcon icon={["far", "square-plus"]} />
         </span>);
       case "Expanded": return (
         <span onClick={() => tv.handleNodeIconClick(node)} className="tree-icon" >
-          <FontAwesomeIcon icon={["far", "minus-square"]} />
+          <FontAwesomeIcon icon={["far", "square-minus"]} />
         </span>);
       case "Filtered": return (
         <span onClick={() => tv.handleNodeIconClick(node)} className="tree-icon fa-layers fa-fw" >

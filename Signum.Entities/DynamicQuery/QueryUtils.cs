@@ -370,6 +370,9 @@ public static class QueryUtils
         if (token.Type != typeof(string) && token.Type.ElementType() != null)
             return "You can not filter by collections, continue the sequence";
 
+        if (token is OperationsToken or OperationToken)
+            return $"{token} is not a valid filter";
+
         return null;
     }
 
@@ -387,6 +390,9 @@ public static class QueryUtils
                 CollectionAnyAllType.Any.NiceToString(),
                 CollectionAnyAllType.NoOne.NiceToString(),
                 CollectionAnyAllType.AnyNo.NiceToString());
+
+        if (token is OperationsToken)
+            return $"{token} is not a valid column";
 
         return null;
     }
@@ -421,6 +427,9 @@ public static class QueryUtils
         if (QueryToken.IsCollection(token.Type))
             return "Collections can not be ordered";
 
+        if (token.HasToArray() != null)
+            return "ToArray can not be ordered";
+
         if (token.HasAllOrAny())
             return "'{0}', '{1}', '{2}' or '{3}' can not be ordered".FormatWith(
                 CollectionAnyAllType.All.NiceToString(),
@@ -428,12 +437,15 @@ public static class QueryUtils
                 CollectionAnyAllType.NoOne.NiceToString(),
                 CollectionAnyAllType.AnyNo.NiceToString());
 
+        if (token is OperationsToken or OperationToken)
+            return $"{token} is not a valid order";
+
         return null;
     }
 
 
     static readonly MethodInfo miToLite = ReflectionTools.GetMethodInfo((Entity ident) => ident.ToLite()).GetGenericMethodDefinition();
-    internal static Expression ExtractEntity(this Expression expression, bool idAndToStr)
+    public static Expression ExtractEntity(this Expression expression, bool idAndToStr)
     {
         if (expression.Type.IsLite())
         {
@@ -589,4 +601,6 @@ public enum SubTokensOptions
     CanAggregate = 1,
     CanAnyAll = 2,
     CanElement = 4,
+    CanOperation = 8,
+    CanToArray = 16,
 }

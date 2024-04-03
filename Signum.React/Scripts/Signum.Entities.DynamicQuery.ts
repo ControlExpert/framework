@@ -10,8 +10,9 @@ export const ColumnOptionsMode = new EnumType<ColumnOptionsMode>("ColumnOptionsM
 export type ColumnOptionsMode =
   "Add" |
   "Remove" |
-  "Replace" |
-  "InsertStart";
+  "ReplaceAll" |
+  "InsertStart" |
+  "ReplaceOrAdd";
 
 export const DashboardBehaviour = new EnumType<DashboardBehaviour>("DashboardBehaviour");
 export type DashboardBehaviour =
@@ -72,7 +73,9 @@ export type PinnedFilterActive =
   "Always" |
   "WhenHasValue" |
   "Checkbox_StartChecked" |
-  "Checkbox_StartUnchecked";
+  "Checkbox_StartUnchecked" |
+  "NotCheckbox_StartChecked" |
+  "NotCheckbox_StartUnchecked";
 
 export module QueryTokenMessage {
   export const _0As1 = new MessageKey("QueryTokenMessage", "_0As1");
@@ -128,6 +131,9 @@ export module QueryTokenMessage {
   export const _0Of1 = new MessageKey("QueryTokenMessage", "_0Of1");
   export const RowOrder = new MessageKey("QueryTokenMessage", "RowOrder");
   export const RowId = new MessageKey("QueryTokenMessage", "RowId");
+  export const CellOperation = new MessageKey("QueryTokenMessage", "CellOperation");
+  export const ContainerOfCellOperations = new MessageKey("QueryTokenMessage", "ContainerOfCellOperations");
+  export const EntityType = new MessageKey("QueryTokenMessage", "EntityType");
 }
 
 export const RefreshMode = new EnumType<RefreshMode>("RefreshMode");

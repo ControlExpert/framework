@@ -1,7 +1,7 @@
 import * as React from 'react'
 import {
   FilterOptionParsed, QueryDescription, QueryToken, SubTokensOptions,
-  isList, isFilterGroupOptionParsed
+  isList, isFilterGroupOptionParsed, isCheckBox
 } from '../FindOptions'
 import { ValueLine, FormGroup } from '../Lines'
 import { Binding, IsByAll, tryGetTypeInfos, toLuxonFormat } from '../Reflection'
@@ -43,7 +43,7 @@ export default function PinnedFilterBuilder(p: PinnedFilterBuilderProps) {
       </div>
       {p.showSearchButton &&
         <button className={classes("sf-query-button sf-search btn btn-primary")} onClick={() => p.onSearch && p.onSearch()} title="Enter">
-          <FontAwesomeIcon icon={"search"} />&nbsp;{SearchMessage.Search.niceToString()}
+          <FontAwesomeIcon icon={"magnifying-glass"} />&nbsp;{SearchMessage.Search.niceToString()}
         </button>}
 
     </div>
@@ -53,15 +53,20 @@ export default function PinnedFilterBuilder(p: PinnedFilterBuilderProps) {
 
     const f = filter;
     const readOnly = f.frozen;
-    var labelText = f.pinned!.label || f.token?.niceName;
+    var label = f.pinned!.label || f.token?.niceName;
 
-    if (f.pinned && (f.pinned.active == "Checkbox_StartChecked" || f.pinned.active == "Checkbox_StartUnchecked")) {
+    if (f.pinned && (isCheckBox(f.pinned.active))) {
       return (
         <div className="checkbox mt-4">
-          <label><input type="checkbox" className="form-check-input me-1" checked={f.pinned.active == "Checkbox_StartChecked"} readOnly={readOnly} onChange={() => {
-            f.pinned!.active = f.pinned!.active == "Checkbox_StartChecked" ? "Checkbox_StartUnchecked" : "Checkbox_StartChecked";
+          <label>
+            <input type="checkbox" className="form-check-input me-1" checked={f.pinned.active == "Checkbox_StartChecked" || f.pinned.active == "NotCheckbox_StartChecked"} readOnly={readOnly} onChange={() => {
+              f.pinned!.active =
+                f.pinned!.active == "Checkbox_StartChecked" ? "Checkbox_StartUnchecked" :
+                  f.pinned!.active == "Checkbox_StartUnchecked" ? "Checkbox_StartChecked" :
+                    f.pinned!.active == "NotCheckbox_StartChecked" ? "NotCheckbox_StartUnchecked" :
+                      f.pinned!.active == "NotCheckbox_StartUnchecked" ? "NotCheckbox_StartChecked" : undefined!;
             p.onFiltersChanged && p.onFiltersChanged(p.filterOptions);
-          }} />{labelText}</label>
+          }} />{label}</label>
         </div>
       );
     }
@@ -70,18 +75,18 @@ export default function PinnedFilterBuilder(p: PinnedFilterBuilderProps) {
 
 
     if (isFilterGroupOptionParsed(f)) {
-      return <ValueLine ctx={ctx} type={{ name: "string" }} onChange={() => handleValueChange(f)} labelText={labelText || SearchMessage.Search.niceToString()} />
+      return <ValueLine ctx={ctx} type={{ name: "string" }} onChange={() => handleValueChange(f)} label={label || SearchMessage.Search.niceToString()} />
     }
 
     if (isList(f.operation!))
       return (
-        <FormGroup ctx={ctx} labelText={labelText}>
+        <FormGroup ctx={ctx} label={label}>
           <MultiValue values={f.value} readOnly={readOnly} onChange={() => handleValueChange(f)}
             onRenderItem={ctx => createFilterValueControl(ctx, f.token!, () => handleValueChange(f))} />
         </FormGroup>
       );
 
-    return createFilterValueControl(ctx, f.token!, () => handleValueChange(f), labelText, f.pinned!.active == "WhenHasValue");
+    return createFilterValueControl(ctx, f.token!, () => handleValueChange(f), label, f.pinned!.active == "WhenHasValue");
   }
 
 

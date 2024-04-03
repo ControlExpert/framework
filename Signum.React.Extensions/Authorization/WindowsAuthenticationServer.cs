@@ -16,25 +16,28 @@ public class WindowsAuthenticationServer
         if (config.DirectoryRegistry_Username.HasText())
             return new PrincipalContext(ContextType.Domain, domainName, config.DirectoryRegistry_Username + "@" + config.DomainServer, config.DirectoryRegistry_Password);
 
+        if (config.DomainServer.HasText())
+            return new PrincipalContext(ContextType.Domain, config.DomainServer);
+        
         return new PrincipalContext(ContextType.Domain, domainName); //Uses current user
     }
 
-    public static string? LoginWindowsAuthentication(ActionContext ac)
+    public static Exception? LoginWindowsAuthentication(ActionContext ac)
     {
         using (AuthLogic.Disable())
         {
             try
             {
                 if (!(ac.HttpContext.User is WindowsPrincipal wp))
-                    return $"User is not a WindowsPrincipal ({ac.HttpContext.User.GetType().Name})";
+                    return new InvalidOperationException($"User is not a WindowsPrincipal ({ac.HttpContext.User.GetType().Name})");
 
                 if (AuthLogic.Authorizer is not ActiveDirectoryAuthorizer ada)
-                    return "No AuthLogic.Authorizer set";
+                    return new InvalidOperationException("No AuthLogic.Authorizer set");
 
                 var config = ada.GetConfig();
 
                 if (!config.LoginWithWindowsAuthenticator)
-                    return $"{ReflectionTools.GetPropertyInfo(() => ada.GetConfig().LoginWithWindowsAuthenticator)} is set to false";
+                    return new Exception($"{ReflectionTools.GetPropertyInfo(() => ada.GetConfig().LoginWithWindowsAuthenticator)} is set to false");
 
                 var userName = wp.Identity.Name!;
                 var domainName = config.DomainName.DefaultToNull() ?? userName.TryAfterLast('@') ?? userName.TryBefore('\\')!;
@@ -91,7 +94,7 @@ public class WindowsAuthenticationServer
                 if (user == null)
                 {
                     if (user == null)
-                        return "AutoCreateUsers is false";
+                        return new InvalidOperationException("AutoCreateUsers is false");
                 }
 
 
@@ -102,7 +105,7 @@ public class WindowsAuthenticationServer
             catch (Exception e)
             {
                 e.LogException();
-                return e.Message;
+                return e;
             }
         }
     }

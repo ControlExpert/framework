@@ -229,6 +229,12 @@ public class QueryTokenTS
         if (qt is CollectionAnyAllToken caat)
             return QueryTokenType.AnyOrAll;
 
+        if (qt is CollectionToArrayToken)
+            return QueryTokenType.ToArray;
+
+        if (qt is OperationsToken ot)
+            return QueryTokenType.Operation;
+        
         return null;
     }
 
@@ -257,4 +263,6 @@ public enum QueryTokenType
     Aggregate,
     Element,
     AnyOrAll,
+    Operation,
+    ToArray
 }

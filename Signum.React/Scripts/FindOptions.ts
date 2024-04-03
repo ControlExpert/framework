@@ -70,7 +70,7 @@ export interface FilterConditionOption {
 export interface FilterGroupOption {
   token?: string | QueryTokenString<any>;
   groupOperation: FilterGroupOperation;
-  filters: FilterOption[];
+  filters: (FilterOption | null | undefined)[];
   pinned?: PinnedFilter;
   dashboardBehaviour?: DashboardBehaviour;
   value?: string; /*For search in multiple columns*/
@@ -91,7 +91,14 @@ export function isFilterGroupOptionParsed(fo: FilterOptionParsed): fo is FilterG
 }
 
 export function isActive(fo: FilterOptionParsed) {
-  return !(fo.dashboardBehaviour == "UseAsInitialSelection" || fo.pinned && (fo.pinned.active == "Checkbox_StartUnchecked" || fo.pinned.active == "WhenHasValue" && fo.value == null));
+  return !(fo.dashboardBehaviour == "UseAsInitialSelection" || fo.pinned && (fo.pinned.active == "Checkbox_StartUnchecked" || fo.pinned.active == "NotCheckbox_StartUnchecked" || fo.pinned.active == "WhenHasValue" && fo.value == null));
+}
+
+export function isCheckBox(active: PinnedFilterActive | undefined) {
+  return active == "Checkbox_StartChecked" ||
+    active == "Checkbox_StartUnchecked" ||
+    active == "NotCheckbox_StartChecked" ||
+    active == "NotCheckbox_StartUnchecked";
 }
 
 export interface FilterConditionOptionParsed {
@@ -169,6 +176,8 @@ export enum SubTokensOptions {
   CanAggregate = 1,
   CanAnyAll = 2,
   CanElement = 4,
+  CanOperation = 8,
+  CanToArray = 16,
 }
 
 export interface QueryToken {
@@ -208,7 +217,7 @@ export function tokenStartsWith(token: QueryToken | QueryTokenString<any> | stri
   return token == tokenStart || token.startsWith(tokenStart + ".");
 }
 
-export type QueryTokenType = "Aggregate" | "Element" | "AnyOrAll";
+export type QueryTokenType = "Aggregate" | "Element" | "AnyOrAll" | "Operation"  | "ToArray";
 
 export function hasAnyOrAll(token: QueryToken | undefined): boolean {
   if (token == undefined)
@@ -242,6 +251,26 @@ export function hasElement(token: QueryToken | undefined): boolean {
     return true;
 
   return hasElement(token.parent);
+}
+
+export function hasOperation(token: QueryToken | undefined): boolean {
+  if (token == undefined)
+    return false;
+
+  if (token.queryTokenType == "Operation")
+    return true;
+
+  return hasOperation(token.parent);
+}
+
+export function hasToArray(token: QueryToken | undefined): QueryToken | undefined {
+  if (token == undefined)
+    return undefined;
+
+  if (token.queryTokenType == "ToArray")
+    return token;
+
+  return hasToArray(token.parent);
 }
 
 export function withoutAggregate(fop: FilterOptionParsed): FilterOptionParsed | undefined {
@@ -286,6 +315,24 @@ export function withoutPinned(fop: FilterOptionParsed): FilterOptionParsed | und
     ...fop,
     pinned: undefined
   };
+}
+
+export function mapFilterTokens(fo: FilterOption, mapToken : (token: string) => string): FilterOption {
+  
+  if (isFilterGroupOption(fo)) {
+    return {
+      ...fo,
+      groupOperation: fo.groupOperation,
+      filters: fo.filters.map(f => f && mapFilterTokens(f, mapToken)),
+      token: fo.token && mapToken(fo.token.toString())
+    };
+  }
+  else {
+    return {
+      ...fo,
+      token: fo.token && mapToken(fo.token.toString()),
+    }
+  }
 }
 
 export function getTokenParents(token: QueryToken | null | undefined): QueryToken[] {

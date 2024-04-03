@@ -76,8 +76,7 @@ export default class DynamicViewEntityComponent extends React.Component<DynamicV
 
     if (ctx.value.entityType)
       Navigator.viewDispatcher.getViewOverrides(ctx.value.entityType.cleanName)
-        .then(vos => this.setState({ viewOverrides: vos }))
-        .done();
+        .then(vos => this.setState({ viewOverrides: vos }));
     else
       this.setState({ viewOverrides: undefined });
 
@@ -162,7 +161,7 @@ export default class DynamicViewEntityComponent extends React.Component<DynamicV
         <div className="design-left open">
           <div className="code-container">
             <EntityLine ctx={exampleCtx} create={true} find={true} remove={true} viewOnCreate={false} view={false} onChange={() => this.forceUpdate()} formGroupStyle="Basic"
-              type={{ name: this.props.ctx.value.entityType!.cleanName }} labelText={DynamicViewMessage.ExampleEntity.niceToString()} />
+              type={{ name: this.props.ctx.value.entityType!.cleanName }} label={DynamicViewMessage.ExampleEntity.niceToString()} />
             <DynamicViewTabs ctx={this.props.ctx} rootNode={root} />
             <CollapsableTypeHelp initialTypeName={ctx.value.entityType!.cleanName} />
           </div>

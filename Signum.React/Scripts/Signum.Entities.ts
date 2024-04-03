@@ -16,7 +16,7 @@ export interface ModifiableEntity {
 }
 
 export function liteKeyLong(lite: Lite<Entity>) {
-  return lite.EntityType + ";" + (lite.id == undefined ? "" : lite.id) + ";" + lite.toStr;
+  return lite.EntityType + ";" + (lite.id == undefined ? "" : lite.id) + ";" + getToString(lite);
 }
 
 export interface Entity extends ModifiableEntity {
@@ -64,10 +64,12 @@ export function toMList<T>(array: T[]): MList<T> {
 }
 
 export interface Lite<T extends Entity> {
-  entity?: T;
   EntityType: string;
   id?: number | string;
-  toStr?: string;
+  model?: unknown;
+
+  ModelType?: string;
+  entity?: T;
 }
 
 export interface ModelState {
@@ -93,10 +95,60 @@ export function registerToString<T extends ModifiableEntity>(type: Type<T>, toSt
   toStringDictionary[type.typeName] = toStringFunc as ((e: ModifiableEntity) => string) | null;
 }
 
+
+export function registerCustomModelConsturctor<T extends Entity, M extends ModelEntity>(type: Type<T>, modelType: Type<T>, constructLiteModel: ((e: T) => M)) {
+  var ti = Reflection.tryGetTypeInfo(type.typeName);
+
+  if (ti) {
+    var clm = ti.customLiteModels?.[modelType.typeName];
+
+    if (clm == null)
+      throw new Error(`Type ${type.typeName} has no registered Lite Model '${modelType}'`); 
+
+    clm.constructorFunction = constructLiteModel as any as (e: Entity) => ModelEntity;
+  }
+}
+
 import * as Reflection from './Reflection'
+import { object } from 'prop-types';
 
 export function newNiceName(ti: Reflection.TypeInfo) {
   return FrameMessage.New0_G.niceToString().forGenderAndNumber(ti.gender).formatWith(ti.niceName);
+}
+
+function createLiteModel(e: Entity, modelType?: string): ModelEntity | string {
+
+  var ti = Reflection.tryGetTypeInfo(e.Type);
+
+  if (ti == null)
+    return getToString(e);
+
+  modelType ??= getDefaultLiteModelType(ti);
+
+  if (modelType == "string")
+    return getToString(e);
+
+  var clm = ti.customLiteModels?.[modelType];
+
+  if (clm == null)
+    throw new Error(`Type ${e.Type} has no registered Lite Model '${modelType}'`); 
+  
+  if (clm.constructorFunction)
+    return clm.constructorFunction(e);
+
+  if (clm.constructorFunctionString == null)
+    throw new Error(`No constructor function for '${modelType}' provided`);
+
+  clm.constructorFunction = compileFunction(clm.constructorFunctionString);
+
+  return clm.constructorFunction!(e);
+}
+
+function getDefaultLiteModelType(ti: Reflection.TypeInfo) {
+  if (!ti.customLiteModels)
+    return "string";
+
+  return Object.keys(ti.customLiteModels).singleOrNull(modelType => ti.customLiteModels![modelType].isDefault) ?? "string"
 }
 
 function getOrCreateToStringFunction(type: string) {
@@ -106,27 +158,30 @@ function getOrCreateToStringFunction(type: string) {
 
   const ti = Reflection.tryGetTypeInfo(type);
 
-  const getToString2 = getToString;
-  const newNiceName2 = newNiceName;
-
-  try {
-    const getToString = getToString2;
-    const valToString = Reflection.valToString;
-    const numberToString = Reflection.numberToString;
-    const dateToString = Reflection.dateToString;
-    const timeToString = Reflection.timeToString;
-    const getTypeInfo = Reflection.getTypeInfo;
-    const newNiceName = newNiceName2;
-
-    f = ti && ti.toStringFunction ? eval("(" + ti.toStringFunction + ")") : null;
-  } catch (e) {
-    f = null;
-  }
-
-  toStringDictionary[type] = f;
+  f = toStringDictionary[type] = ti?.toStringFunction ? compileFunction(ti.toStringFunction) : null;
 
   return f;
 }
+
+function compileFunction(functionString: string): (e: any) => any {
+
+  var func = new Function("e", "fd", functionString);
+
+  var funcDeps = {
+    getToString: getToString,
+    valToString: Reflection.valToString,
+    numberToString: Reflection.numberToString,
+    dateToString: Reflection.dateToString,
+    timeToString: Reflection.timeToString,
+    getTypeInfo: Reflection.getTypeInfo,
+    newNiceName: newNiceName,
+    New : Reflection.New,
+    toLite: toLite,
+  };
+
+  return e => func(e, funcDeps);
+}
+
 
 export function getToString(entityOrLite: ModifiableEntity | Lite<Entity> | undefined | null, toStringLite?: (e : Entity) => string): string {
   if (entityOrLite == null)
@@ -140,7 +195,13 @@ export function getToString(entityOrLite: ModifiableEntity | Lite<Entity> | unde
     if (Reflection.isLowPopulationSymbol(lite.EntityType))
       return Reflection.symbolNiceName(lite as Lite<Entity & Reflection.ISymbol>);
 
-    return lite.toStr || lite.EntityType;
+    if (typeof lite.model == "string")
+      return lite.model;
+
+    if (isModifiableEntity(lite.model))
+      return getToString(lite.model);
+
+    return lite.EntityType;
   }
 
   const entity = entityOrLite as ModifiableEntity;
@@ -154,14 +215,14 @@ export function getToString(entityOrLite: ModifiableEntity | Lite<Entity> | unde
   return entity.toStr || entity.Type;
 }
 
-export function toLite<T extends Entity>(entity: T, fat?: boolean, toStr?: string): Lite<T>;
-export function toLite<T extends Entity>(entity: T | null | undefined, fat?: boolean, toStr?: string): Lite<T> | null;
-export function toLite<T extends Entity>(entity: T | null | undefined, fat?: boolean, toStr?: string): Lite<T> | null {
+export function toLite<T extends Entity>(entity: T, fat?: boolean, model?: unknown): Lite<T>;
+export function toLite<T extends Entity>(entity: T | null | undefined, fat?: boolean, model?: unknown): Lite<T> | null;
+export function toLite<T extends Entity>(entity: T | null | undefined, fat?: boolean, model?: unknown): Lite<T> | null {
 
   if (!entity)
     return null;
   if (fat)
-    return toLiteFat(entity, toStr);
+    return toLiteFat(entity, model);
 
   if (entity.id == undefined)
     throw new Error(`The ${entity.Type} has no Id`);
@@ -169,17 +230,17 @@ export function toLite<T extends Entity>(entity: T | null | undefined, fat?: boo
   return {
     EntityType: entity.Type,
     id: entity.id,
-    toStr: toStr || getToString(entity),
+    model: model || createLiteModel(entity),
   }
 }
 
-export function toLiteFat<T extends Entity>(entity: T, toStr?: string): Lite<T> {
+export function toLiteFat<T extends Entity>(entity: T, model?: unknown): Lite<T> {
 
   return {
     entity: entity,
     EntityType: entity.Type,
     id: entity.id,
-    toStr: toStr || getToString(entity),
+    model: model || createLiteModel(entity),
   }
 }
 
@@ -317,7 +378,11 @@ export module EntityControlMessage {
   export const Detail = new MessageKey("EntityControlMessage", "Detail");
   export const MoveDown = new MessageKey("EntityControlMessage", "MoveDown");
   export const MoveUp = new MessageKey("EntityControlMessage", "MoveUp");
+  export const MoveRight = new MessageKey("EntityControlMessage", "MoveRight");
+  export const MoveLeft = new MessageKey("EntityControlMessage", "MoveLeft");
   export const Move = new MessageKey("EntityControlMessage", "Move");
+  export const MoveWithDragAndDropOrCtrlUpDown = new MessageKey("EntityControlMessage", "MoveWithDragAndDropOrCtrlUpDown");
+  export const MoveWithDragAndDropOrCtrlLeftRight = new MessageKey("EntityControlMessage", "MoveWithDragAndDropOrCtrlLeftRight");
   export const Navigate = new MessageKey("EntityControlMessage", "Navigate");
   export const Remove = new MessageKey("EntityControlMessage", "Remove");
   export const View = new MessageKey("EntityControlMessage", "View");
@@ -399,17 +464,21 @@ export interface ModelEntity extends ModifiableEntity {
 export module NormalControlMessage {
   export const ViewForType0IsNotAllowed = new MessageKey("NormalControlMessage", "ViewForType0IsNotAllowed");
   export const SaveChangesFirst = new MessageKey("NormalControlMessage", "SaveChangesFirst");
+  export const CopyEntityTypeAndIdForAutocomplete = new MessageKey("NormalControlMessage", "CopyEntityTypeAndIdForAutocomplete");
+  export const CopyEntityUrl = new MessageKey("NormalControlMessage", "CopyEntityUrl");
 }
 
 export module OperationMessage {
   export const Create = new MessageKey("OperationMessage", "Create");
   export const CreateFromRegex = new MessageKey("OperationMessage", "CreateFromRegex");
+  export const Create0 = new MessageKey("OperationMessage", "Create0");
   export const StateShouldBe0InsteadOf1 = new MessageKey("OperationMessage", "StateShouldBe0InsteadOf1");
   export const TheStateOf0ShouldBe1InsteadOf2 = new MessageKey("OperationMessage", "TheStateOf0ShouldBe1InsteadOf2");
   export const InUserInterface = new MessageKey("OperationMessage", "InUserInterface");
   export const Operation01IsNotAuthorized = new MessageKey("OperationMessage", "Operation01IsNotAuthorized");
   export const Confirm = new MessageKey("OperationMessage", "Confirm");
   export const PleaseConfirmYouWouldLikeToDelete0FromTheSystem = new MessageKey("OperationMessage", "PleaseConfirmYouWouldLikeToDelete0FromTheSystem");
+  export const PleaseConfirmYouWouldLikeTo01 = new MessageKey("OperationMessage", "PleaseConfirmYouWouldLikeTo01");
   export const TheOperation0DidNotReturnAnEntity = new MessageKey("OperationMessage", "TheOperation0DidNotReturnAnEntity");
   export const Logs = new MessageKey("OperationMessage", "Logs");
   export const PreviousOperationLog = new MessageKey("OperationMessage", "PreviousOperationLog");
@@ -421,6 +490,9 @@ export module OperationMessage {
   export const Setters = new MessageKey("OperationMessage", "Setters");
   export const AddSetter = new MessageKey("OperationMessage", "AddSetter");
   export const MultiSetter = new MessageKey("OperationMessage", "MultiSetter");
+  export const Deleting = new MessageKey("OperationMessage", "Deleting");
+  export const Executing0 = new MessageKey("OperationMessage", "Executing0");
+  export const _0Errors = new MessageKey("OperationMessage", "_0Errors");
 }
 
 export const OperationSymbol = new Type<OperationSymbol>("Operation");
@@ -486,6 +558,7 @@ export module SearchMessage {
   export const Field = new MessageKey("SearchMessage", "Field");
   export const AddColumn = new MessageKey("SearchMessage", "AddColumn");
   export const CollectionsCanNotBeAddedAsColumns = new MessageKey("SearchMessage", "CollectionsCanNotBeAddedAsColumns");
+  export const InvalidColumnExpression = new MessageKey("SearchMessage", "InvalidColumnExpression");
   export const AddFilter = new MessageKey("SearchMessage", "AddFilter");
   export const AddGroup = new MessageKey("SearchMessage", "AddGroup");
   export const AddValue = new MessageKey("SearchMessage", "AddValue");
@@ -552,6 +625,7 @@ export module SearchMessage {
   export const GroupKey = new MessageKey("SearchMessage", "GroupKey");
   export const DerivedGroupKey = new MessageKey("SearchMessage", "DerivedGroupKey");
   export const Copy = new MessageKey("SearchMessage", "Copy");
+  export const MoreThanOne0Selected = new MessageKey("SearchMessage", "MoreThanOne0Selected");
 }
 
 export module SelectorMessage {
@@ -567,6 +641,8 @@ export module SelectorMessage {
   export const _0Selector = new MessageKey("SelectorMessage", "_0Selector");
   export const PleaseChooseA0ToContinue = new MessageKey("SelectorMessage", "PleaseChooseA0ToContinue");
   export const CreationOf0Cancelled = new MessageKey("SelectorMessage", "CreationOf0Cancelled");
+  export const ChooseValues = new MessageKey("SelectorMessage", "ChooseValues");
+  export const PleaseSelectAtLeastOneValueToContinue = new MessageKey("SelectorMessage", "PleaseSelectAtLeastOneValueToContinue");
 }
 
 export interface Symbol extends Entity {
@@ -595,6 +671,7 @@ export module ValidationMessage {
   export const _0IsNotAllowed = new MessageKey("ValidationMessage", "_0IsNotAllowed");
   export const _0IsNotAllowedOnState1 = new MessageKey("ValidationMessage", "_0IsNotAllowedOnState1");
   export const _0IsNotSet = new MessageKey("ValidationMessage", "_0IsNotSet");
+  export const _0IsNotSetIn1 = new MessageKey("ValidationMessage", "_0IsNotSetIn1");
   export const _0AreNotSet = new MessageKey("ValidationMessage", "_0AreNotSet");
   export const _0IsSet = new MessageKey("ValidationMessage", "_0IsSet");
   export const _0IsNotA1_G = new MessageKey("ValidationMessage", "_0IsNotA1_G");

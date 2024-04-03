@@ -6,6 +6,7 @@ using Signum.Engine.SchemaInfoTables;
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Data.Common;
+using System.Diagnostics;
 
 namespace Signum.Engine;
 
@@ -20,22 +21,30 @@ public static class Administrator
         ExecuteGenerationScript();
     }
 
+    const int TimeoutCreateDatabase = 5 * 60; 
+
     public static void ExecuteGenerationScript()
     {
-        SqlPreCommandConcat totalScript = (SqlPreCommandConcat)Schema.Current.GenerationScipt()!;
-        foreach (SqlPreCommand command in totalScript.Commands)
+        using (Connector.CommandTimeoutScope(TimeoutCreateDatabase))
         {
-            command.ExecuteLeaves();
-            SafeConsole.WriteColor(ConsoleColor.DarkGray, '.');
+            SqlPreCommandConcat totalScript = (SqlPreCommandConcat)Schema.Current.GenerationScipt()!;
+            foreach (SqlPreCommand command in totalScript.Commands)
+            {
+                command.ExecuteLeaves();
+                SafeConsole.WriteColor(ConsoleColor.DarkGray, '.');
+            }
         }
     }
 
     private static void CleanAllDatabases()
     {
-        foreach (var db in Schema.Current.DatabaseNames())
+        using (Connector.CommandTimeoutScope(TimeoutCreateDatabase))
         {
-            Connector.Current.CleanDatabase(db);
-            SafeConsole.WriteColor(ConsoleColor.DarkGray, '.');
+            foreach (var db in Schema.Current.DatabaseNames())
+            {
+                Connector.Current.CleanDatabase(db);
+                SafeConsole.WriteColor(ConsoleColor.DarkGray, '.');
+            }
         }
     }
 
@@ -331,6 +340,12 @@ public static class Administrator
         return identityBehaviourDisabled.Value?.Contains(table) == true;
     }
 
+    [DebuggerStepThrough]
+    public static IQueryable<T> QueryDisableAssertAllowed<T>() where T : Entity
+    {
+        return new SignumTable<T>(DbQueryProvider.Single, Schema.Current.Table<T>(), disableAssertAllowed: true);
+    }
+
     static AsyncThreadVariable<ImmutableStack<ITable>?> identityBehaviourDisabled = Statics.ThreadVariable<ImmutableStack<ITable>?>("identityBehaviourOverride");
     public static IDisposable DisableIdentity(ITable table, bool behaviourOnly = false)
     {
@@ -353,14 +368,14 @@ public static class Administrator
         });
     }
 
-    public static void SaveDisableIdentity<T>(T entities)
+    public static T SaveDisableIdentity<T>(T entity)
         where T : Entity
     {
         using (var tr = new Transaction())
         using (Administrator.SaveDisableIdentity<T>())
         {
-            Database.Save(entities);
-            tr.Commit();
+            Database.Save(entity);
+            return tr.Commit(entity);
         }
     }
 
@@ -398,15 +413,15 @@ public static class Administrator
         return prov.Translate(query.Expression, tr => tr.MainCommand);
     }
 
-    public static SqlPreCommandSimple? UnsafeDeletePreCommand<T>(IQueryable<T> query)
+    public static SqlPreCommandSimple? UnsafeDeletePreCommand<T>(IQueryable<T> query, bool force = false, bool avoidMList = false)
         where T : Entity
     {
-        if (!Administrator.ExistsTable<T>() || !query.Any())
+        if (!Administrator.ExistsTable<T>() || (!query.Any() && !force))
             return null;
 
         var prov = ((DbQueryProvider)query.Provider);
         using (PrimaryKeyExpression.PreferVariableName())
-            return prov.Delete<SqlPreCommandSimple>(query, cm => cm, removeSelectRowCount: true);
+            return prov.Delete<SqlPreCommandSimple>(query, cm => cm, removeSelectRowCount: true, avoidMList);
     }
 
     public static SqlPreCommandSimple? UnsafeDeletePreCommandMList<E, V>(Expression<Func<E, MList<V>>> mListProperty, IQueryable<MListElement<E, V>> query)
@@ -570,7 +585,7 @@ public static class Administrator
                 TruncateTableSystemVersioning(mlist);
             });
 
-            using (DropAndCreateIncommingForeignKeys(table))
+            using (DropAndCreateIncomingForeignKeys(table))
                 TruncateTableSystemVersioning(table);
 
             tr.Commit();
@@ -592,7 +607,7 @@ public static class Administrator
         }
     }
 
-    public static IDisposable DropAndCreateIncommingForeignKeys(Table table)
+    public static IDisposable DropAndCreateIncomingForeignKeys(Table table)
     {
         var sqlBuilder = Connector.Current.SqlBuilder;
         var isPostgres = Schema.Current.Settings.IsPostgres;
@@ -600,7 +615,7 @@ public static class Administrator
         var foreignKeys = Administrator.OverrideDatabaseInSysViews(table.Name.Schema.Database).Using(_ =>
         (from targetTable in Database.View<SysTables>()
          where targetTable.name == table.Name.Name && targetTable.Schema().name == table.Name.Schema.Name
-         from ifk in targetTable.IncommingForeignKeys()
+         from ifk in targetTable.IncomingForeignKeys()
          let parentTable = ifk.ParentTable()
          select new
          {

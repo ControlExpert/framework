@@ -3,7 +3,7 @@ import * as React from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { openModal, IModalProps } from '@framework/Modals';
 import * as Navigator from '@framework/Navigator';
-import { JavascriptMessage, toLite } from '@framework/Signum.Entities'
+import { getToString, JavascriptMessage, toLite } from '@framework/Signum.Entities'
 import { WorkflowActivityStats } from "../WorkflowClient";
 import { FormGroup, StyleContext, FormControlReadonly } from "@framework/Lines";
 import { WorkflowActivityEntity, WorkflowActivityModel, WorkflowActivityMonitorMessage, CaseActivityEntity } from "../Signum.Entities.Workflow";
@@ -62,7 +62,7 @@ const [show, setShow] = React.useState<boolean>(true);
     return (
       <FormGroup ctx={ctx}>
         <button className="btn btn-default" onClick={handleClick}>
-          <FontAwesomeIcon icon="tachometer-alt" color="green" /> {WorkflowActivityMonitorMessage.WorkflowActivityMonitor.niceToString()}
+          <FontAwesomeIcon icon="gauge" color="green" /> {WorkflowActivityMonitorMessage.WorkflowActivityMonitor.niceToString()}
         </button>
       </FormGroup>
     );
@@ -72,8 +72,7 @@ const [show, setShow] = React.useState<boolean>(true);
     e.preventDefault();
 
     Navigator.API.fetch(p.stats.workflowActivity)
-      .then(wa => window.open(WorkflowClient.workflowActivityMonitorUrl(toLite(wa.subWorkflow!.workflow!))))
-      .done();
+      .then(wa => window.open(WorkflowClient.workflowActivityMonitorUrl(toLite(wa.subWorkflow!.workflow!))));
   }
 
   var ctx = new StyleContext(undefined, { labelColumns: 3 });
@@ -82,14 +81,14 @@ const [show, setShow] = React.useState<boolean>(true);
   var stats = p.stats;
   return <Modal size="lg" onHide={handleCloseClicked} show={show} onExited={handleOnExited}>
     <ModalHeaderButtons onClose={handleCloseClicked}>
-      {stats.workflowActivity.toStr}
+      {getToString(stats.workflowActivity)}
     </ModalHeaderButtons>
     <div className="modal-body">
       {
         <div>
-          <FormGroup ctx={ctx} labelText={CaseActivityEntity.nicePluralName()}><FormControlReadonly ctx={ctx}>{stats.caseActivityCount}</FormControlReadonly></FormGroup>
+          <FormGroup ctx={ctx} label={CaseActivityEntity.nicePluralName()}><FormControlReadonly ctx={ctx}>{stats.caseActivityCount}</FormControlReadonly></FormGroup>
           {config.columns.map((col, i) =>
-            <FormGroup ctx={ctx} labelText={col.displayName || col.token!.niceName}><FormControlReadonly ctx={ctx}>{stats.customValues[i]}</FormControlReadonly></FormGroup>
+            <FormGroup ctx={ctx} label={col.displayName || col.token!.niceName}><FormControlReadonly ctx={ctx}>{stats.customValues[i]}</FormControlReadonly></FormGroup>
           )}
           {activity.type == "CallWorkflow" || activity.type == "DecompositionWorkflow" ?
             renderSubWorkflowExtra(ctx) :

@@ -1,6 +1,6 @@
 import * as React from "react"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { Entity, JavascriptMessage, OperationMessage, SearchMessage, Lite, External } from '../Signum.Entities';
+import { Entity, JavascriptMessage, OperationMessage, SearchMessage, Lite, External, getToString } from '../Signum.Entities';
 import { getTypeInfo, OperationType } from '../Reflection';
 import { classes } from '../Globals';
 import * as Navigator from '../Navigator';
@@ -29,15 +29,10 @@ export function getConstructFromManyContextualItems(ctx: ContextualItemsContext<
   const menuItems = operationInfos(ti)
     .filter(oi => oi.operationType == "ConstructorFromMany")
     .map(oi => {
-      const os = getSettings(oi.key) as ContextualOperationSettings<Entity>;
-      const coc = new ContextualOperationContext<Entity>(oi, ctx);
-      coc.settings = os;
-      if (os == undefined || os.isVisible == undefined || os.isVisible(coc))
-        return coc;
-
-      return undefined;
+      const cos = getSettings(oi.key) as ContextualOperationSettings<Entity> | undefined;
+      return new ContextualOperationContext<Entity>(oi, ctx, cos);
     })
-    .filter(coc => coc != undefined)
+    .filter(coc => coc.isVisibleInContextualMenu())
     .map(coc => coc!)
     .orderBy(coc => coc.settings && coc.settings.order)
     .flatMap(coc => coc.createMenuItems());
@@ -71,11 +66,8 @@ export function getEntityOperationsContextualItems(ctx: ContextualItemsContext<E
       const eos = getSettings(oi.key) as EntityOperationSettings<Entity> | undefined;
       const cos = eos == undefined ? undefined :
         ctx.lites.length == 1 ? eos.contextual : eos.contextualFromMany
-      const coc = new ContextualOperationContext<Entity>(oi, ctx);
-      coc.settings = cos;
-      coc.entityOperationSettings = eos;
-
-        return coc;
+      const coc = new ContextualOperationContext<Entity>(oi, ctx, cos, eos);
+      return coc;
     })
     .filter(coc => coc.isVisibleInContextualMenu())
     .map(coc => coc!)
@@ -85,7 +77,7 @@ export function getEntityOperationsContextualItems(ctx: ContextualItemsContext<E
     return undefined;
 
   let contextPromise: Promise<ContextualOperationContext<Entity>[]>;
-  if (contexts.some(coc => coc.operationInfo.hasCanExecute) || Operations.Options.maybeReadonly(ti)) {
+  if (contexts.some(coc => coc.operationInfo.hasCanExecute || coc.operationInfo.hasStates) || Operations.Options.maybeReadonly(ti)) {
     if (ctx.lites.length == 1) {
       contextPromise = Navigator.API.fetchEntityPack(ctx.lites[0]).then(ep => {
         contexts.forEach(coc => {
@@ -175,26 +167,45 @@ function getConfirmMessage(coc: ContextualOperationContext<Entity>) {
   if (coc.settings && coc.settings.confirmMessage === null)
     return undefined;
 
-  if (coc.settings && coc.settings.confirmMessage != undefined)
-    return coc.settings.confirmMessage(coc);
+  if (coc.settings && coc.settings.confirmMessage != undefined) {
+
+    var result = coc.settings.confirmMessage(coc);
+    if (result == true)
+      return getDefaultConfirmMessage(coc);
+    else
+      return result;
+  }
+
 
   if (coc.operationInfo.operationType == "Delete") {
-
-    if (coc.context.lites.length > 1) {
-      var message = coc.context.lites
-        .groupBy(a => a.EntityType)
-        .map(gr => gr.elements.length + " " + (gr.elements.length == 1 ? getTypeInfo(gr.key).niceName : getTypeInfo(gr.key).nicePluralName))
-        .joinComma(External.CollectionMessage.And.niceToString());
-
-      return OperationMessage.PleaseConfirmYouWouldLikeToDelete0FromTheSystem.niceToString().formatHtml(<strong>{message}</strong>);
-    }
-    else {
-      var lite = coc.context.lites.single();
-      return OperationMessage.PleaseConfirmYouWouldLikeToDelete0FromTheSystem.niceToString().formatHtml(<strong>{lite.toStr} ({getTypeInfo(lite.EntityType).niceName} {lite.id})</strong>);;
-    }
+    return getDefaultConfirmMessage(coc);
   }
 
   return undefined;
+}
+
+function getDefaultConfirmMessage(coc: ContextualOperationContext<Entity>) {
+
+  if (coc.context.lites.length > 1) {
+    var message = coc.context.lites
+      .groupBy(a => a.EntityType)
+      .map(gr => gr.elements.length + " " + (gr.elements.length == 1 ? getTypeInfo(gr.key).niceName : getTypeInfo(gr.key).nicePluralName))
+      .joinComma(External.CollectionMessage.And.niceToString());
+
+    if (coc.operationInfo.operationType == "Delete")
+      return OperationMessage.PleaseConfirmYouWouldLikeToDelete0FromTheSystem.niceToString().formatHtml(<strong>{message}</strong>);
+    else
+      return OperationMessage.PleaseConfirmYouWouldLikeTo01.niceToString().formatHtml(<strong>{coc.operationInfo.niceName}</strong>, <strong>{message}</strong>);
+
+  }
+  else {
+    var lite = coc.context.lites.single();
+    if (coc.operationInfo.operationType == "Delete")
+      return OperationMessage.PleaseConfirmYouWouldLikeToDelete0FromTheSystem.niceToString().formatHtml(<strong>{getToString(lite)} ({getTypeInfo(lite.EntityType).niceName} {lite.id})</strong>);
+    else
+      return OperationMessage.PleaseConfirmYouWouldLikeTo01.niceToString().formatHtml(<strong>{coc.operationInfo.niceName}</strong>, <strong>{getToString(lite)} ({getTypeInfo(lite.EntityType).niceName} {lite.id})</strong>);
+
+  }
 }
 
 
@@ -212,24 +223,25 @@ export interface OperationMenuItemProps {
 export function OperationMenuItem({ coc, onOperationClick, onClick, extraButtons, color, icon, iconColor, children }: OperationMenuItemProps) {
   const text = children ?? OperationMenuItem.getText(coc);
 
+  const eos = coc.entityOperationSettings;
+
   if (color == null)
-    color = coc.settings?.color ?? coc.entityOperationSettings?.color ?? Defaults.getColor(coc.operationInfo);
+    color = coc.color;
 
   if (icon == null)
-    icon = coalesceIcon(coc.settings?.icon, coc.entityOperationSettings?.icon);
+    icon = coc.icon;
 
   if (iconColor == null)
-    iconColor = coc.settings?.iconColor || coc.entityOperationSettings?.iconColor;
+    iconColor = coc.settings?.iconColor || eos?.iconColor;
 
   const disabled = !!coc.canExecute;
 
-  const operationClickOrDefault = onOperationClick ?? coc.settings?.onClick ?? defaultContextualClick
+  const resolvedOnClick = onOperationClick ?? coc.settings?.onClick ?? (coc.context.lites.length > 1 ? null : eos?.commonOnClick) ?? defaultContextualOperationClick;
 
   const handleOnClick = (me: React.MouseEvent<any>) => {
     coc.event = me;
     onClick?.(me);
-    operationClickOrDefault(coc)
-      .done();
+    resolvedOnClick(coc);
   }
 
   const item = (
@@ -237,10 +249,10 @@ export function OperationMenuItem({ coc, onOperationClick, onClick, extraButtons
       onClick={disabled ? undefined : handleOnClick}
       disabled={disabled}
       style={{ pointerEvents: "initial" }}
-      data-operation={coc.operationInfo.key}>
+      data-operation={coc.operationInfo.key}
+      className={color ? "text-" + color : undefined}>
       {icon ? <FontAwesomeIcon icon={icon} className="icon" color={iconColor} fixedWidth /> :
-        color ? <span className={classes("icon", "empty-icon", "btn-" + color)}></span> : undefined}
-      {(icon != null || color != null) && " "}
+        color ? <span className={classes("icon", "empty-icon")}></span> : undefined}
       {text}
       {extraButtons}
     </Dropdown.Item>
@@ -263,17 +275,22 @@ OperationMenuItem.getText = (coc: ContextualOperationContext<any>): React.ReactN
   if (coc.settings && coc.settings.text)
     return coc.settings.text(coc);
 
-  return <>{OperationMenuItem.simplifyName(coc.operationInfo.niceName)}{coc.operationInfo.canBeModified ? <small className="ms-2">{OperationMessage.MultiSetter.niceToString()}</small> : null}</>;
+  var cos = coc.settings;
+
+  var multiSetter = coc.operationInfo.canBeModified && !((cos?.settersConfig ?? Defaults.defaultSetterConfig)(coc) == "NoDialog") ?
+    <small className="ms-2">{OperationMessage.MultiSetter.niceToString()}</small> : null;
+
+  return <>{OperationMenuItem.simplifyName(coc.operationInfo.niceName)}{multiSetter}</>;
 
 };
 
 OperationMenuItem.simplifyName = (niceName: string) => {
   const array = new RegExp(OperationMessage.CreateFromRegex.niceToString()).exec(niceName);
-  return array ? (niceName.tryBefore(array[1]) ?? "") + array[1].firstUpper() : niceName;
+  return array ? OperationMessage.Create0.niceToString(array[1].firstUpper()) : niceName;
 }
 
 
-export function defaultContextualClick(coc: ContextualOperationContext<any>, ...args: any[]) : Promise<void> {
+export function defaultContextualOperationClick(coc: ContextualOperationContext<any>, ...args: any[]) : Promise<void> {
 
   coc.event!.persist();
 
@@ -290,8 +307,7 @@ export function defaultContextualClick(coc: ContextualOperationContext<any>, ...
               if (pack?.entity.id != null)
                 Navigator.raiseEntityChanged(pack.entity);
               Navigator.createNavigateOrTab(pack, coc.event!)
-                .then(() => coc.context.markRows({}))
-                .done();
+                .then(() => coc.context.markRows({}));
             }));
         }
       case "ConstructorFrom":
@@ -306,7 +322,7 @@ export function defaultContextualClick(coc: ContextualOperationContext<any>, ...
             }));
         } else {
           return getSetters(coc)
-            .then(setters => setters && API.constructFromMultiple(coc.context.lites, coc.operationInfo.key, setters, ...args)
+            .then(setters => setters && API.constructFromMultiple(coc.context.lites, coc.operationInfo.key, { setters }, ...args)
               .then(coc.onContextualSuccess ?? (report => {
                 //Navigator.raiseEntityChanged(??);
                 notifySuccess();
@@ -315,7 +331,7 @@ export function defaultContextualClick(coc: ContextualOperationContext<any>, ...
         }
       case "Execute":
         return getSetters(coc)
-          .then(setters => setters && API.executeMultiple(coc.context.lites, coc.operationInfo.key, setters, ...args)
+          .then(setters => setters && API.executeMultiple(coc.context.lites, coc.operationInfo.key, { setters }, ...args)
             .then(coc.onContextualSuccess ?? (report => {
               coc.raiseEntityChanged();
               notifySuccess();
@@ -323,7 +339,7 @@ export function defaultContextualClick(coc: ContextualOperationContext<any>, ...
             })));
       case "Delete":
         return getSetters(coc)
-          .then(setters => setters && API.deleteMultiple(coc.context.lites, coc.operationInfo.key, setters, ...args)
+          .then(setters => setters && API.deleteMultiple(coc.context.lites, coc.operationInfo.key, { setters }, ...args)
             .then(coc.onContextualSuccess ?? (report => {
               coc.raiseEntityChanged();
               notifySuccess();
@@ -350,16 +366,3 @@ export function defaultContextualClick(coc: ContextualOperationContext<any>, ...
     return MultiPropertySetterModal.show(getTypeInfo(onlyType), coc.context.lites, coc.operationInfo, settersConfig == "Mandatory");
   }
 }
-
-
-export function coalesceIcon(icon: IconProp | undefined, icon2: IconProp | undefined): IconProp | undefined{ //Till the error is fixed
-
-  if (icon === null)
-    return undefined;
-
-  if (icon === undefined)
-    return icon2
-
-  return icon;
-}
-

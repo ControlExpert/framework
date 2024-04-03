@@ -24,8 +24,7 @@ export default function HeavyList(p: HeavyListProps) {
 
   function handleClear(e: React.MouseEvent<any>) {
     API.Heavy.clear()
-      .then(() => reloadEntries())
-      .done();
+      .then(() => reloadEntries());
   }
 
   function handleUpdate(e: React.MouseEvent<any>) {
@@ -35,8 +34,7 @@ export default function HeavyList(p: HeavyListProps) {
 
   function handleSetEnabled(value: boolean) {
     API.Heavy.setEnabled(value)
-      .then(() => { reloadEntries(); reloadEnabled(); })
-      .done();
+      .then(() => { reloadEntries(); reloadEnabled(); });
   }
 
   function handleDownload() {
@@ -60,8 +58,7 @@ export default function HeavyList(p: HeavyListProps) {
           setFileToUpload(undefined);
           setFileVer(fileVer + 1);
           reloadEntries();
-        })
-        .done();
+        });
     };
     fileReader.readAsDataURL(fileToUpload!);
   }
@@ -77,7 +74,7 @@ export default function HeavyList(p: HeavyListProps) {
       <br />
       <div className="btn-toolbar" style={{ float: "right" }}>
         <input key={fileVer} type="file" className="form-control" onChange={handleInputChange} style={{ display: "inline", float: "left", width: "inherit" }} />
-        <button onClick={handleUpload} className="btn btn-info" disabled={!fileToUpload}><FontAwesomeIcon icon="cloud-upload-alt" /> Upload</button>
+        <button onClick={handleUpload} className="btn btn-info" disabled={!fileToUpload}><FontAwesomeIcon icon="cloud-arrow-up" /> Upload</button>
       </div>
       <div className="btn-toolbar">
         {!enabled ? <button onClick={() => handleSetEnabled(true)} className="btn btn-light primary">Enable</button> :
@@ -85,7 +82,7 @@ export default function HeavyList(p: HeavyListProps) {
         }
         <button onClick={handleUpdate} className="btn btn-light">Update</button>
         <button onClick={handleClear} className="btn btn-light">Clear</button>
-        <button onClick={handleDownload} className="btn btn-info"><FontAwesomeIcon icon="cloud-download-alt" /> Download</button>
+        <button onClick={handleDownload} className="btn btn-info"><FontAwesomeIcon icon="cloud-arrow-down" /> Download</button>
       </div>
       <br />
       <p className="help-block">Upload previous runs to compare performance.</p>

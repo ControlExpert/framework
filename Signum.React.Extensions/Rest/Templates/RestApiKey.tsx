@@ -15,9 +15,9 @@ export default function RestApiKeyComponent(p : { ctx: TypeContext<RestApiKeyEnt
     API.generateRestApiKey()
       .then(key => {
         p.ctx.value.apiKey = key;
+        p.ctx.value.modified = true;
         forceUpdate();
-      })
-      .done();
+      });
   }
 
   const ctx = p.ctx;
@@ -26,7 +26,7 @@ export default function RestApiKeyComponent(p : { ctx: TypeContext<RestApiKeyEnt
       <EntityLine ctx={ctx.subCtx(e => e.user)} />
       <ValueLine ctx={ctx.subCtx(e => e.apiKey)}
         extraButtons={vl =>
-          <a href="#" className={classes("sf-line-button", "sf-view", "input-group-text")}
+           <a href="#" className={classes("sf-line-button", "sf-view", "btn input-group-text")}
             onClick={generateApiKey}>
             <FontAwesomeIcon icon="key" />
           </a>} />

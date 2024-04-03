@@ -78,7 +78,7 @@ export default function DynamicValidation(p: DynamicValidationProps) {
       title: "Mixin Template",
       message: "Copy to clipboard: Ctrl+C, ESC",
       initiallyFocused: true,
-    }).done();
+    });
   }
 
 
@@ -90,8 +90,7 @@ export default function DynamicValidation(p: DynamicValidationProps) {
         dynamicValidation: p.ctx.value,
         exampleEntity: exampleEntityRef.current,
       })
-        .then(r => setResponse(r))
-        .done();
+        .then(r => setResponse(r));
     }
   }
 
@@ -112,7 +111,7 @@ export default function DynamicValidation(p: DynamicValidationProps) {
 
     return (
       <EntityLine ctx={exampleCtx} create={true} find={true} remove={true} view={true} onView={handleOnView} onChange={handleEvaluate}
-        type={{ name: typeName }} labelText={DynamicViewMessage.ExampleEntity.niceToString()} labelColumns={3} />
+        type={{ name: typeName }} label={DynamicViewMessage.ExampleEntity.niceToString()} labelColumns={3} />
     );
   }
 
@@ -204,7 +203,7 @@ return null;`;
       message: "Copy to clipboard: Ctrl+C, ESC",
       initiallyFocused: true,
       valueHtmlAttributes: { style: { height: "200px" } },
-    }).done();
+    });
   }
 }
 

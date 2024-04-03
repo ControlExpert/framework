@@ -133,9 +133,14 @@ class AuthCache<RT, AR, R, K, A> : IManualAuth<K, A>
         }
     }
 
+    internal bool HasRealOverrides(Lite<RoleEntity> role)
+    {
+        return Database.Query<RT>().Any(rt => rt.Role.Is(role));
+    }
+
     Dictionary<Lite<RoleEntity>, RoleAllowedCache> NewCache()
     {
-        List<Lite<RoleEntity>> roles = AuthLogic.RolesInOrder().ToList();
+        List<Lite<RoleEntity>> roles = AuthLogic.RolesInOrder(includeTrivialMerge: true).ToList();
 
         Dictionary<Lite<RoleEntity>, Dictionary<K, A>> realRules =
            Database.Query<RT>()
@@ -165,7 +170,7 @@ class AuthCache<RT, AR, R, K, A> : IManualAuth<K, A>
         RoleAllowedCache cache = runtimeRules.Value.GetOrThrow(rules.Role);
 
         rules.MergeStrategy = AuthLogic.GetMergeStrategy(rules.Role);
-        rules.SubRoles = AuthLogic.RelatedTo(rules.Role).ToMList();
+        rules.InheritFrom = AuthLogic.RelatedTo(rules.Role).ToMList();
         rules.Rules = (from r in resources
                        let k = ToKey(r)
                        select new AR()
@@ -203,6 +208,11 @@ class AuthCache<RT, AR, R, K, A> : IManualAuth<K, A>
     internal DefaultDictionary<K, A> GetDefaultDictionary()
     {
         return runtimeRules.Value.GetOrThrow(RoleEntity.Current).DefaultDictionary();
+    }
+
+    internal DefaultDictionary<K, A> GetDefaultDictionary(Lite<RoleEntity> role)
+    {
+        return runtimeRules.Value.GetOrThrow(role).DefaultDictionary();
     }
 
     public class RoleAllowedCache
@@ -282,8 +292,9 @@ class AuthCache<RT, AR, R, K, A> : IManualAuth<K, A>
         var rules = runtimeRules.Value;
 
         return new XElement(rootName,
-            (from r in AuthLogic.RolesInOrder()
+            (from r in AuthLogic.RolesInOrder(includeTrivialMerge: false)
              let rac = rules.GetOrThrow(r)
+
              select new XElement("Role",
                  new XAttribute("Name", r.ToString()!),
                      from k in allKeys ?? (rac.DefaultDictionary().OverrideDictionary?.Keys).EmptyIfNull()

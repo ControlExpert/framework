@@ -5,7 +5,7 @@ import { ajaxPost, ajaxGet, ValidationError } from '@framework/Services';
 import { EntitySettings } from '@framework/Navigator'
 import * as DynamicClientOptions from '../Dynamic/DynamicClientOptions';
 import {
-  EntityPack, Lite, toLite, newMListElement, Entity, ExecuteSymbol, isEntityPack, isEntity, liteKey
+  EntityPack, Lite, toLite, newMListElement, Entity, ExecuteSymbol, isEntityPack, isEntity, liteKey, getToString
 } from '@framework/Signum.Entities'
 import * as OmniboxClient from '../Omnibox/OmniboxClient'
 import { TypeEntity, IUserEntity } from '@framework/Signum.Entities.Basics'
@@ -117,12 +117,11 @@ export function start(options: { routes: JSX.Element[], overrideCaseActivityMixi
     new QuickLinks.QuickLinkAction("caseFlow", () => WorkflowActivityMessage.CaseFlow.niceToString(), e => {
       API.fetchCaseFlowPack(ctx.lite)
         .then(result => Navigator.view(result.pack, { extraProps: { workflowActivity: result.workflowActivity } }))
-        .then(() => ctx.contextualContext && ctx.contextualContext.markRows({}))
-        .done();
+        .then(() => ctx.contextualContext && ctx.contextualContext.markRows({}));
     },
       {
         isVisible: AuthClient.isPermissionAuthorized(WorkflowPermission.ViewCaseFlow),
-        icon: "random",
+        icon: "shuffle",
         iconColor: "green"
       })
   ]);
@@ -140,7 +139,7 @@ export function start(options: { routes: JSX.Element[], overrideCaseActivityMixi
 
   QuickLinks.registerQuickLink(WorkflowEntity, ctx => [
     new QuickLinks.QuickLinkExplore({ queryName: CaseEntity, filterOptions: [{ token: CaseEntity.token(e => e.workflow), value: ctx.lite }] },
-      { icon: "tasks", iconColor: "blue" })
+      { icon: "list-check", iconColor: "blue" })
   ]);
 
   OmniboxClient.registerSpecialAction({
@@ -166,11 +165,11 @@ export function start(options: { routes: JSX.Element[], overrideCaseActivityMixi
       };
     },
     formatters: {
-      "Activity": new Finder.CellFormatter(cell => <ActivityWithRemarks data={cell} />),
-      "MainEntity": new Finder.CellFormatter(cell => <span>{cell.toStr}</span>),
-      "Actor": new Finder.CellFormatter(cell => <span>{cell.toStr}</span>),
-      "Sender": new Finder.CellFormatter(cell => cell && <span>{cell.toStr}</span>),
-      "Workflow": new Finder.CellFormatter(cell => <span>{cell.toStr}</span>),
+      "Activity": new Finder.CellFormatter(cell => <ActivityWithRemarks data={cell} />, true),
+      "MainEntity": new Finder.CellFormatter(cell => <span>{getToString(cell)}</span>, true),
+      "Actor": new Finder.CellFormatter(cell => <span>{getToString(cell)}</span>, true),
+      "Sender": new Finder.CellFormatter(cell => cell && <span>{getToString(cell)}</span>, true),
+      "Workflow": new Finder.CellFormatter(cell => <span>{getToString(cell)}</span>, true),
     },
     defaultOrders: [{
       token: "StartDate",
@@ -197,7 +196,7 @@ export function start(options: { routes: JSX.Element[], overrideCaseActivityMixi
 
   Operations.addSettings(new EntityOperationSettings(CaseNotificationOperation.SetRemarks, { isVisible: v => false }));
 
-  Operations.addSettings(new EntityOperationSettings(CaseNotificationOperation.CreteCaseNotificationFromCaseActivity, {
+  Operations.addSettings(new EntityOperationSettings(CaseNotificationOperation.CreateCaseNotificationFromCaseActivity, {
     onClick: eoc => {
       eoc.onConstructFromSuccess = pack => {
         Operations.notifySuccess(); return Promise.resolve();
@@ -208,22 +207,18 @@ export function start(options: { routes: JSX.Element[], overrideCaseActivityMixi
   }));
 
   Operations.addSettings(new EntityOperationSettings(CaseOperation.Delete, {
-    onClick: eoc => askDeleteMainEntity(eoc.entity.mainEntity)
-      .then(u => u == undefined ? undefined : eoc.defaultClick(u)),
-    contextual: {
-      onClick: coc => askDeleteMainEntity(coc.pack!.entity.mainEntity)
-        .then(u => u == undefined ? undefined : coc.defaultContextualClick(u))
-    },
+    commonOnClick: oc => oc.getEntity().then(e=> askDeleteMainEntity(e.mainEntity))
+      .then(u => u == undefined ? undefined : oc.defaultClick(u)),
     contextualFromMany: {
       onClick: coc => askDeleteMainEntity()
-        .then(u => u == undefined ? undefined : coc.defaultContextualClick(u))
+        .then(u => u == undefined ? undefined : coc.defaultClick(u))
     },
   }));
 
   function askDeleteMainEntity(mainEntity?: ICaseMainEntity): Promise<boolean | undefined> {
     return MessageModal.show({
       title: CaseMessage.DeleteMainEntity.niceToString(),
-      message: mainEntity == null ? CaseMessage.DoYouWAntToAlsoDeleteTheMainEntities.niceToString() : CaseMessage.DoYouWAntToAlsoDeleteTheMainEntity0.niceToString(mainEntity.toStr),
+      message: mainEntity == null ? CaseMessage.DoYouWAntToAlsoDeleteTheMainEntities.niceToString() : CaseMessage.DoYouWAntToAlsoDeleteTheMainEntity0.niceToString(getToString(mainEntity)),
       buttons: "yes_no_cancel",
       style: "warning"
     }).then(u => u == "cancel" ? undefined : u == "yes")
@@ -233,15 +228,11 @@ export function start(options: { routes: JSX.Element[], overrideCaseActivityMixi
   Operations.addSettings(new EntityOperationSettings(CaseActivityOperation.Delete, {
     hideOnCanExecute: true,
     isVisible: ctx => false,
-    onClick: eoc => askDeleteMainEntity(eoc.entity.case.mainEntity)
-      .then(u => u == undefined ? undefined : eoc.defaultClick(u)),
-    contextual: {
-      onClick: coc => askDeleteMainEntity(coc.pack!.entity.case.mainEntity)
-        .then(u => u == undefined ? undefined : coc.defaultContextualClick(u))
-    },
+    commonOnClick: oc => oc.getEntity().then(e => askDeleteMainEntity(e.case.mainEntity))
+      .then(u => u == undefined ? undefined : oc.defaultClick(u)),
     contextualFromMany: {
       onClick: coc => askDeleteMainEntity()
-        .then(u => u == undefined ? undefined : coc.defaultContextualClick(u))
+        .then(u => u == undefined ? undefined : coc.defaultClick(u))
     },
   }));
 
@@ -257,6 +248,7 @@ export function start(options: { routes: JSX.Element[], overrideCaseActivityMixi
       eoc.onExecuteSuccess = pack => {
         Operations.notifySuccess();
         eoc.frame.onClose(pack);
+        Navigator.raiseEntityChanged(pack.entity);
         return Promise.resolve();
       }
       return getWorkflowJumpSelector(toLite(eoc.entity.workflowActivity as WorkflowActivityEntity))
@@ -267,12 +259,12 @@ export function start(options: { routes: JSX.Element[], overrideCaseActivityMixi
       onClick: coc =>
         Navigator.API.fetch(coc.context.lites[0])
           .then(ca => getWorkflowJumpSelector(toLite(ca.workflowActivity as WorkflowActivityEntity)))
-          .then(dest => dest && coc.defaultContextualClick(dest))
+          .then(dest => dest && coc.defaultClick(dest))
 
     }
   }));
   Operations.addSettings(new EntityOperationSettings(CaseActivityOperation.FreeJump, {
-    icon: "share-square",
+    icon: "share-from-square",
     color: "danger",
     iconColor: "#800080",
     hideOnCanExecute: true,
@@ -280,6 +272,7 @@ export function start(options: { routes: JSX.Element[], overrideCaseActivityMixi
       eoc.onExecuteSuccess = async pack => {
         Operations.notifySuccess();
         eoc.frame.onClose(pack);
+        Navigator.raiseEntityChanged(pack.entity);
       }
       return getWorkflowFreeJump(eoc.entity.case.workflow)
         .then(dest => dest && eoc.defaultClick(dest));
@@ -289,7 +282,7 @@ export function start(options: { routes: JSX.Element[], overrideCaseActivityMixi
       onClick: coc =>
         Navigator.API.fetch(coc.context.lites[0])
           .then(ca => getWorkflowFreeJump(ca.case.workflow))
-          .then(dest => dest && coc.defaultContextualClick(dest))
+          .then(dest => dest && coc.defaultClick(dest))
     }
   }));
   Operations.addSettings(new EntityOperationSettings(CaseActivityOperation.Timer, { isVisible: ctx => false }));
@@ -323,7 +316,7 @@ export function start(options: { routes: JSX.Element[], overrideCaseActivityMixi
         return wa.decisionOptions.map(mle => ({
           order: s?.order ?? 0,
           shortcut: undefined,
-          button: <OperationButton eoc={eoc} group={group} onOperationClick={() => eoc.defaultClick(mle.element.name).done()} color={mle.element.style.toLowerCase() as BsColor}>{mle.element.name}</OperationButton>,
+          button: <OperationButton eoc={eoc} group={group} onOperationClick={() => eoc.defaultClick(mle.element.name)} color={mle.element.style.toLowerCase() as BsColor}>{mle.element.name}</OperationButton>,
         }));
       }
       else
@@ -341,7 +334,7 @@ export function start(options: { routes: JSX.Element[], overrideCaseActivityMixi
             : <OperationMenuItem coc={coc} color={wa.customNextButton.style.toLowerCase() as BsColor}>{wa.customNextButton.name}</OperationMenuItem>];
 
         } else if (wa.type == "Decision") {
-          return wa.decisionOptions.map(mle => <OperationMenuItem coc={coc} onOperationClick={() => coc.defaultContextualClick(mle.element.name)} color={mle.element.style.toLowerCase() as BsColor}>{mle.element.name}</OperationMenuItem>);
+          return wa.decisionOptions.map(mle => <OperationMenuItem coc={coc} onOperationClick={() => coc.defaultClick(mle.element.name)} color={mle.element.style.toLowerCase() as BsColor}>{mle.element.name}</OperationMenuItem>);
         }
         else
           return [];
@@ -368,27 +361,42 @@ export function start(options: { routes: JSX.Element[], overrideCaseActivityMixi
   QuickLinks.registerQuickLink(WorkflowEntity, ctx => new QuickLinks.QuickLinkLink("bam",
     () => WorkflowActivityMonitorMessage.WorkflowActivityMonitor.niceToString(),
     workflowActivityMonitorUrl(ctx.lite),
-    { icon: "tachometer-alt", iconColor: "green" }));
+    { icon: "gauge", iconColor: "green" }));
 
   Operations.addSettings(new EntityOperationSettings(WorkflowOperation.Save, { color: "primary", onClick: executeWorkflowSave, alternatives: eoc => [] }));
   Operations.addSettings(new EntityOperationSettings(WorkflowOperation.Delete, { contextualFromMany: { isVisible: ctx => false } }));
   Operations.addSettings(new EntityOperationSettings(WorkflowOperation.Activate, {
-    contextual: { icon: "heartbeat", iconColor: "red" },
-    contextualFromMany: { icon: "heartbeat", iconColor: "red" },
+    contextual: { icon: "heart-pulse", iconColor: "red" },
+    contextualFromMany: { icon: "heart-pulse", iconColor: "red" },
   }));
   Operations.addSettings(new EntityOperationSettings(WorkflowOperation.Deactivate, {
     onClick: eoc => chooseWorkflowExpirationDate([toLite(eoc.entity)]).then(val => !val ? undefined : eoc.defaultClick(val)),
     contextual: {
-      onClick: coc => chooseWorkflowExpirationDate(coc.context.lites).then(val => !val ? undefined : coc.defaultContextualClick(val)),
+      onClick: coc => chooseWorkflowExpirationDate(coc.context.lites).then(val => !val ? undefined : coc.defaultClick(val)),
       icon: ["far", "heart"],
       iconColor: "gray"
     },
     contextualFromMany: {
-      onClick: coc => chooseWorkflowExpirationDate(coc.context.lites).then(val => !val ? undefined : coc.defaultContextualClick(val)),
+      onClick: coc => chooseWorkflowExpirationDate(coc.context.lites).then(val => !val ? undefined : coc.defaultClick(val)),
       icon: ["far", "heart"],
       iconColor: "gray"
     },
   }));
+
+  function chooseWorkflowExpirationDate(workflows: Lite<WorkflowEntity>[]): Promise<string | undefined> {
+    return ValueLineModal.show({
+      type: { name: "string" },
+      valueLineType: "DateTime",
+      modalSize: "md",
+      title: WorkflowMessage.DeactivateWorkflow.niceToString(),
+      message:
+        <div>
+          <strong>{WorkflowMessage.PleaseChooseExpirationDate.niceToString()}</strong>
+          <ul>{workflows.map((w, i) => <li key={i}>{getToString(w)}</li>)}</ul>
+        </div>
+    });
+  }
+
   Navigator.addSettings(new EntitySettings(WorkflowEntity, w => import('./Workflow/Workflow'), { avoidPopup: true }));
 
   hide(WorkflowPoolEntity);
@@ -443,19 +451,6 @@ export function start(options: { routes: JSX.Element[], overrideCaseActivityMixi
   }
 }
 
-function chooseWorkflowExpirationDate(workflows: Lite<WorkflowEntity>[]): Promise<string | undefined> {
-  return ValueLineModal.show({
-    type: { name: "string" },
-    valueLineType: "DateTime",
-    modalSize: "md",
-    title: WorkflowMessage.DeactivateWorkflow.niceToString(),
-    message:
-      <div>
-        <strong>{WorkflowMessage.PleaseChooseExpirationDate.niceToString()}</strong>
-        <ul>{workflows.map((w, i) => <li key={i}>{w.toStr}</li>)}</ul>
-      </div>
-  });
-}
 
 export function workflowActivityMonitorUrl
   (workflow: Lite<WorkflowEntity>) {
@@ -554,7 +549,7 @@ public interface IWorkflowTransition
     message: "Copy to clipboard: Ctrl+C, ESC",
     initiallyFocused: true,
     valueHtmlAttributes: { style: { height: 215 } },
-  }).done();
+  });
 }
 
 
@@ -631,7 +626,7 @@ function getWorkflowJumpSelector(activity: Lite<WorkflowActivityEntity>): Promis
     .then(jumps => SelectorModal.chooseElement(jumps,
       {
         title: WorkflowActivityMessage.ChooseADestinationForWorkflowJumping.niceToString(),
-        buttonDisplay: a => a.toStr ?? "",
+        buttonDisplay: a => getToString(a) ?? "",
         forceShow: true
       }));
 }
@@ -653,7 +648,11 @@ export function executeAndClose(eoc: Operations.EntityOperationContext<CaseActiv
       return;
 
     return Operations.API.executeEntity(eoc.entity, eoc.operationInfo.key)
-      .then(pack => { eoc.frame.onClose(); return Operations.notifySuccess(); })
+      .then(pack => {
+        eoc.frame.onClose();
+        Navigator.raiseEntityChanged(pack.entity);
+        return Operations.notifySuccess();
+      })
       .catch(ifError(ValidationError, e => eoc.frame.setError(e.modelState, "entity")));
   });
 }
@@ -898,8 +897,9 @@ export interface CaseEntityPack {
 }
 
 export interface WorkflowScriptRunnerState {
-  scriptRunnerPeriod: number;
   running: boolean;
+  initialDelayMilliseconds: number | null;
+  scriptRunnerPeriod: number;
   isCancelationRequested: boolean;
   nextPlannedExecution: string;
   queuedItems: number;

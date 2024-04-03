@@ -58,8 +58,7 @@ export const Workflow = React.forwardRef(function Workflow(p: WorkflowProps, ref
         .then(pair => {
           updateState(pair.model);
           setIssues(pair.issues);
-        })
-        .done();
+        });
   }, [p.ctx.value.id, p.ctx.value.ticks]);
 
   React.useImperativeHandle(ref, () => ({
@@ -99,8 +98,8 @@ export const Workflow = React.forwardRef(function Workflow(p: WorkflowProps, ref
 
               <li key={i}>
                 {issue.type == "Error" ?
-                  <FontAwesomeIcon icon="times-circle" className="text-danger me-1" /> :
-                  <FontAwesomeIcon icon="exclamation-triangle" className="text-warning me-1" />}
+                  <FontAwesomeIcon icon="circle-xmark" className="text-danger me-1" /> :
+                  <FontAwesomeIcon icon="triangle-exclamation" className="text-warning me-1" />}
 
                 {issue.bpmnElementId && <span className="me-1">(in <a href="#" onClick={e => handleHighlightClick(e, issue)}>{issue.bpmnElementId}</a>)</span>}
                 {issue.message}
@@ -119,9 +118,9 @@ export const Workflow = React.forwardRef(function Workflow(p: WorkflowProps, ref
     return (
       <div>
         <span className="display-7">{WorkflowMessage.WorkflowIssues.niceToString()}&nbsp;</span>
-        {errorCount > 0 && <FontAwesomeIcon icon="times-circle" className="text-danger me-1" />}
+        {errorCount > 0 && <FontAwesomeIcon icon="circle-xmark" className="text-danger me-1" />}
         {errorCount > 0 && errorCount}
-        {warningCount > 0 && <FontAwesomeIcon icon="exclamation-triangle" className="text-warning me-1" />}
+        {warningCount > 0 && <FontAwesomeIcon icon="triangle-exclamation" className="text-warning me-1" />}
         {warningCount > 0 && warningCount}
       </div>
     );

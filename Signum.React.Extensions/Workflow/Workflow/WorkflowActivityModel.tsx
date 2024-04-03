@@ -34,8 +34,7 @@ export default function WorkflowActivityModelComponent(p : WorkflowActivityModel
       const typeName = p.ctx.value.mainEntityType.cleanName;
 
       Navigator.viewDispatcher.getViewNames(typeName)
-        .then(vn => setViewNames(vn))
-        .done();
+        .then(vn => setViewNames(vn));
 
       fillViewProps();
     }
@@ -84,7 +83,7 @@ export default function WorkflowActivityModelComponent(p : WorkflowActivityModel
 
       p.ctx.value.modified = true;
       forceUpdate();
-    }).done();
+    });
   }
 
   function handleViewNameChange(e: React.SyntheticEvent<HTMLSelectElement>) {
@@ -163,12 +162,12 @@ export default function WorkflowActivityModelComponent(p : WorkflowActivityModel
               readOnly: true,
             })
         })
-      }).done();
+      });
     else
       DynamicViewClient.API.getDynamicView(typeName, viewName!)
         .then(dv => {
           Navigator.view(dv, { extraProps: props });
-        }).done();
+        });
   }
 
   function getViewNamePropsExpressionHelpText(ctx: TypeContext<ViewNamePropEmbedded>) {
@@ -200,7 +199,7 @@ export default function WorkflowActivityModelComponent(p : WorkflowActivityModel
       {ctx.value.type != "DecompositionWorkflow" && ctx.value.type != "CallWorkflow" && ctx.value.type != "Script" &&
         <div>
           {ctx.value.mainEntityType ? <>
-            <FormGroup ctx={ctx.subCtx(d => d.viewName)} labelText={ctx.niceName(d => d.viewName)}>
+            <FormGroup ctx={ctx.subCtx(d => d.viewName)} label={ctx.niceName(d => d.viewName)}>
               {
                 <div className="row">
                   <div className="col-sm-6">

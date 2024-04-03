@@ -21,9 +21,10 @@ export interface SearchValueLineProps {
   findOptions?: FindOptions;
   valueToken?: string | QueryTokenString<any>;
   multipleValues?: { vertical?: boolean, showType?: boolean };
-  labelText?: React.ReactChild | (() => React.ReactChild);
+  label?: React.ReactChild | (() => React.ReactChild);
   labelHtmlAttributes?: React.HTMLAttributes<HTMLLabelElement>;
-  unitText?: React.ReactChild;
+  unit?: React.ReactChild;
+  format?: string;
   formGroupHtmlAttributes?: React.HTMLAttributes<HTMLDivElement>;
   helpText?: (vscc: SearchValueController) => React.ReactChild | undefined;
   initialValue?: any;
@@ -117,7 +118,7 @@ const SearchValueLine = React.forwardRef(function SearchValueLine(p: SearchValue
   const isBadge = (p.isBadge ?? p.valueToken == undefined ? "MoreThanZero" as "MoreThanZero" : false);
   const isFormControl = (p.isFormControl ?? p.valueToken != undefined);
 
-  const unit = isFormControl && (p.unitText ?? (token?.unit && <span className="input-group-text">{token.unit}</span>));
+  const unit = isFormControl && (p.unit ?? token?.unit) && <span className="input-group-text">{p.unit ?? token?.unit}</span>;
 
   const ctx = p.ctx;
 
@@ -145,13 +146,13 @@ const SearchValueLine = React.forwardRef(function SearchValueLine(p: SearchValue
 
   let extra = svRef.current && p.extraButtons && p.extraButtons(svRef.current);
 
-  var labelText = p.labelText == undefined ? undefined :
-    typeof p.labelText == "function" ? p.labelText() :
-      p.labelText;
+  var label = p.label == undefined ? undefined :
+    typeof p.label == "function" ? p.label() :
+      p.label;
 
   return (
     <FormGroup ctx={p.ctx}
-      labelText={labelText ?? token?.niceName ?? getQueryNiceName(fo.queryName)}
+      label={label ?? token?.niceName ?? getQueryNiceName(fo.queryName)}
       labelHtmlAttributes={p.labelHtmlAttributes}
       htmlAttributes={{ ...p.formGroupHtmlAttributes, ...{ "data-value-query-key": getQueryKey(fo.queryName) } }}
       helpText={p.helpText && svRef.current && p.helpText(svRef.current)}
@@ -160,7 +161,9 @@ const SearchValueLine = React.forwardRef(function SearchValueLine(p: SearchValue
         <SearchValue
           ref={handleSearchValueLoaded}
           findOptions={fo}
+          format={p.format}
           initialValue={p.initialValue}
+          onInitialValueLoaded={() => forceUpdate()}
           multipleValues={p.multipleValues}
           isBadge={isBadge}
           customClass={p.customClass ?? (p.multipleValues ? p.ctx.labelClass : undefined)}
@@ -199,7 +202,7 @@ const SearchValueLine = React.forwardRef(function SearchValueLine(p: SearchValue
       .then(() => {
         svRef.current!.refreshValue();
         p.onExplored && p.onExplored();
-      }).done();
+      });
   }
 
   function handleCreateClick(e: React.MouseEvent<any>) {
@@ -209,7 +212,7 @@ const SearchValueLine = React.forwardRef(function SearchValueLine(p: SearchValue
       p.onCreate().then(() => {
         if (!p.avoidAutoRefresh)
           svRef.current!.refreshValue();
-      }).done();
+      });
     } else {
 
       var fo = p.findOptions!;
@@ -236,11 +239,10 @@ const SearchValueLine = React.forwardRef(function SearchValueLine(p: SearchValue
                   createNew: () => Finder.getPropsFromFilters(tn, fos)
                     .then(props => Constructor.constructPack(tn, props)!),
                 })))
-              .then(() => p.avoidAutoRefresh ? undefined : svRef.current!.refreshValue())
-              .done();
+              .then(() => p.avoidAutoRefresh ? undefined : svRef.current!.refreshValue());
           }
-        }).done();
-      }).done();
+        });
+      });
     }
   }
 

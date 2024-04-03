@@ -6,11 +6,11 @@ import { EntitySettings } from '@framework/Navigator'
 import * as AppContext from '@framework/AppContext'
 import * as Navigator from '@framework/Navigator'
 import * as Finder from '@framework/Finder'
-import { Entity, Lite, liteKey } from '@framework/Signum.Entities'
+import { Entity, getToString, Lite, liteKey } from '@framework/Signum.Entities'
 import * as Constructor from '@framework/Constructor'
 import * as QuickLinks from '@framework/QuickLinks'
 import { translated  } from '../Translation/TranslatedInstanceTools'
-import { FindOptionsParsed, FindOptions, OrderOption, ColumnOption, QueryRequest, Pagination, ResultRow } from '@framework/FindOptions'
+import { FindOptionsParsed, FindOptions, OrderOption, ColumnOption, QueryRequest, Pagination, ResultRow, ResultTable } from '@framework/FindOptions'
 import * as AuthClient from '../Authorization/AuthClient'
 import {
   UserQueryEntity, UserQueryPermission, UserQueryMessage,
@@ -48,9 +48,9 @@ export function start(options: { routes: JSX.Element[] }) {
       API.forEntityType(ctx.lite.EntityType);
 
     return promise.then(uqs =>
-      uqs.map(uq => new QuickLinks.QuickLinkAction(liteKey(uq), () => uq.toStr ?? "", e => {
+      uqs.map(uq => new QuickLinks.QuickLinkAction(liteKey(uq), () => getToString(uq) ?? "", e => {
         window.open(AppContext.toAbsoluteUrl(`~/userQuery/${uq.id}/${liteKey(ctx.lite)}`));
-      }, { icon: ["far", "list-alt"], iconColor: "dodgerblue" })));
+      }, { icon: ["far", "rectangle-list"], iconColor: "dodgerblue" })));
   });
 
   QuickLinks.registerQuickLink(UserQueryEntity, ctx => new QuickLinks.QuickLinkAction("preview", () => UserQueryMessage.Preview.niceToString(),
@@ -66,9 +66,8 @@ export function start(options: { routes: JSX.Element[] }) {
                 return;
 
               window.open(AppContext.toAbsoluteUrl(`~/userQuery/${uq.id}/${liteKey(lite)}`));
-            })
-            .done();
-      }).done();
+            });
+      });
     }, { isVisible: AuthClient.isPermissionAuthorized(UserQueryPermission.ViewUserQuery), group: null, icon: "eye", iconColor: "blue", color: "info" }));
 
   onContextualItems.push(getGroupUserQueriesContextMenu);
@@ -93,8 +92,9 @@ function getGroupUserQueriesContextMenu(cic: ContextualItemsContext<Entity>) {
     return undefined;
 
   const resFO = cic.container.state.resultFindOptions;
+  const resTable = cic.container.state.resultTable;
 
-  if (resFO == null)
+  if (resFO == null || resTable == null)
     return undefined;
 
   if (cic.container.state.selectedRows?.length != 1)
@@ -108,29 +108,29 @@ function getGroupUserQueriesContextMenu(cic: ContextualItemsContext<Entity>) {
       return ({
         header: UserQueryEntity.nicePluralName(),
         menuItems: uqs.map(uq =>
-          <Dropdown.Item data-user-query={uq.id} onClick={() => handleGroupMenuClick(uq, resFO, cic)}>
-            <FontAwesomeIcon icon={["far", "list-alt"]} className="icon" color="dodgerblue" />
-            {uq.toStr}
+          <Dropdown.Item data-user-query={uq.id} onClick={() => handleGroupMenuClick(uq, resFO, resTable, cic)}>
+            <FontAwesomeIcon icon={["far", "rectangle-list"]} className="icon" color="dodgerblue" />
+            {getToString(uq)}
           </Dropdown.Item>
         )
       } as MenuItemBlock);
     });
 }
 
-function handleGroupMenuClick(uq: Lite<UserQueryEntity>, resFo: FindOptionsParsed, cic: ContextualItemsContext<Entity>): void {
+function handleGroupMenuClick(uq: Lite<UserQueryEntity>, resFo: FindOptionsParsed, resTable: ResultTable, cic: ContextualItemsContext<Entity>): void {
   var sc = cic.container as SearchControlLoaded;
 
   Navigator.API.fetch(uq)
     .then(uqe => Converter.toFindOptions(uqe, undefined)
       .then(fo => {
 
-        var filters = SearchControlLoaded.getGroupFilters(sc.state.selectedRows!.single(), resFo);
+        var filters = SearchControlLoaded.getGroupFilters(sc.state.selectedRows!.single(), resTable, resFo);
 
         fo.filterOptions = [...filters, ...fo.filterOptions ?? []];
 
         return Finder.explore(fo, { searchControlProps: { extraOptions: { userQuery: uq } } })
           .then(() => cic.markRows({}));
-      })).done();
+      }));
 }
 
 export module Converter {

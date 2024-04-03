@@ -86,7 +86,7 @@ export function start(options: { routes: JSX.Element[] }) {
   Operations.addSettings(new Operations.EntityOperationSettings(DashboardOperation.RegenerateCachedQueries, {
     isVisible: () => false,
     color: "warning",
-    icon: "cogs",
+    icon: "gears",
     contextual: { isVisible: () => true },
     contextualFromMany: { isVisible: () => true },
   }));
@@ -123,8 +123,7 @@ export function start(options: { routes: JSX.Element[] }) {
         ev.persist();
         const handler = cdRef.current as UserChartPartHandler;
           ChartClient.Encoder.chartPathPromise(handler.chartRequest!, toLite(p.userChart!))
-          .then(path => AppContext.pushOrOpenInTab(path, ev))
-          .done();
+          .then(path => AppContext.pushOrOpenInTab(path, ev));
       },
     customTitleButtons: (c, entity, customDataRef) => {
       if (!c.createNew)
@@ -136,8 +135,7 @@ export function start(options: { routes: JSX.Element[] }) {
           .then(ti => ti && Finder.getPropsFromFilters(ti, handler.chartRequest!.filterOptions)
             .then(props => Constructor.constructPack(ti.name, props)))
           .then(pack => pack && Navigator.view(pack))
-          .then(() => handler.reloadQuery())
-          .done();
+          .then(() => handler.reloadQuery());
       }} />
     }
   });
@@ -170,16 +168,15 @@ export function start(options: { routes: JSX.Element[] }) {
           if (uc) {
             UserChartClient.Converter.toChartRequest(uc.userChart, e)
               .then(cr => ChartClient.Encoder.chartPathPromise(cr, toLite(uc.userChart)))
-              .then(path => AppContext.pushOrOpenInTab(path, ev))
-              .done();
+              .then(path => AppContext.pushOrOpenInTab(path, ev));
           }
-        }).done();
+        });
       },
   });
 
   registerRenderer(UserQueryPartEntity, {
     component: () => import('./View/UserQueryPart').then((a: any) => a.default),
-    defaultIcon: () => ({ icon: ["far", "list-alt"], iconColor: "#2E86C1" }),
+    defaultIcon: () => ({ icon: ["far", "rectangle-list"], iconColor: "#2E86C1" }),
     defaultTitle: c => translated(c.userQuery, uc => uc.displayName),
     withPanel: c => c.renderMode != "BigValue",
     getQueryNames: c => [c.userQuery?.query].notNull(),
@@ -208,8 +205,7 @@ export function start(options: { routes: JSX.Element[] }) {
             .then(pack => pack && Navigator.view(pack))
             .then(() => {
               handler.refresh();
-            }))
-          .done();
+            }));
 
       }} />
     }
@@ -232,17 +228,16 @@ export function start(options: { routes: JSX.Element[] }) {
         ev.persist();
         UserQueryClient.Converter.toFindOptions(c.userQuery!, e)
           .then(cr => AppContext.pushOrOpenInTab(Finder.findOptionsPath(cr, { userQuery: liteKey(toLite(c.userQuery!)) }), ev))
-          .done()
       }
   });
   registerRenderer(ImagePartEntity, {
     component: () => import('./View/ImagePartView').then(a => a.default),
-    defaultIcon: () => ({ icon: ["far", "list-alt"], iconColor: "forestgreen" }),
+    defaultIcon: () => ({ icon: ["far", "rectangle-list"], iconColor: "forestgreen" }),
     withPanel: () => false
   });
   registerRenderer(SeparatorPartEntity, {
     component: () => import('./View/SeparatorPartView').then(a => a.default),
-    defaultIcon: () => ({ icon: ["far", "list-alt"], iconColor: "forestgreen" }),
+    defaultIcon: () => ({ icon: ["far", "rectangle-list"], iconColor: "forestgreen" }),
     withPanel: () => false
   });
 
@@ -269,9 +264,9 @@ export function start(options: { routes: JSX.Element[] }) {
       API.forEntityType(ctx.lite.EntityType);
 
     return promise.then(das =>
-      das.map(d => new QuickLinks.QuickLinkAction(liteKey(d), () => d.toStr ?? "", e => {
+      das.map(d => new QuickLinks.QuickLinkAction(liteKey(d), () => getToString(d) ?? "", e => {
         AppContext.pushOrOpenInTab(dashboardUrl(d, ctx.lite), e)
-      }, { icon: "tachometer-alt", iconColor: "darkslateblue" })));
+      }, { icon: "gauge", iconColor: "darkslateblue" })));
   });
 
   QuickLinks.registerQuickLink(DashboardEntity, ctx => new QuickLinks.QuickLinkAction("preview", () => DashboardMessage.Preview.niceToString(),
@@ -287,8 +282,8 @@ export function start(options: { routes: JSX.Element[] }) {
                 return;
 
               AppContext.pushOrOpenInTab(dashboardUrl(ctx.lite, entity), e);
-            }).done();
-      }).done(), { group: null, icon: "eye", iconColor: "blue", color: "info" }));
+            });
+      }), { group: null, icon: "eye", iconColor: "blue", color: "info" }));
 }
 
 export function home(): Promise<Lite<DashboardEntity> | null> {

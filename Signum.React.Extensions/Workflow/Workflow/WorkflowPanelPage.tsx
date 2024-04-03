@@ -9,21 +9,15 @@ import { API, WorkflowScriptRunnerState } from '../WorkflowClient'
 import { CaseActivityEntity, WorkflowActivityType, WorkflowPermission, CaseActivityOperation, WorkflowActivityEntity } from '../Signum.Entities.Workflow'
 import * as AuthClient from '../../Authorization/AuthClient'
 import { Tabs, Tab } from 'react-bootstrap';
-import { useAPIWithReload } from '@framework/Hooks'
+import { useAPIWithReload, useInterval } from '@framework/Hooks'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { classes } from '@framework/Globals'
 
 export default function WorkflowPanelPage(p: RouteComponentProps<{}>, {}){
-  function componentWillMount() {
-    AuthClient.assertPermissionAuthorized(WorkflowPermission.ViewWorkflowPanel);
-    AppContext.setTitle("WorkflowPanel State");
-  }
-
-  function componentWillUnmount() {
-    AppContext.setTitle();
-  }
 
   return (
     <div>
-      <h2 className="display-6">Workflow Panel</h2>
+      <h2 className="display-6"><FontAwesomeIcon icon={["fas", "shuffle"]} /> Workflow Panel</h2>
 
       <Tabs id="workflowTabs">
         <Tab title="Script Runner" eventKey="scriptRunner">
@@ -40,51 +34,58 @@ export default function WorkflowPanelPage(p: RouteComponentProps<{}>, {}){
 
 export function WorkflowScriptRunnerTab(p: {}) {
 
-  const [srs, reloadState] = useAPIWithReload(() => {
+  const [state, reloadState] = useAPIWithReload(() => {
     AuthClient.assertPermissionAuthorized(WorkflowPermission.ViewWorkflowPanel);
     return API.view();
   }, []);
 
+  const tick = useInterval(state == null || state.running ? 500 : null, 0, n => n + 1);
+
+  React.useEffect(() => {
+    reloadState();
+  }, [tick]);
+
   function handleStop(e: React.MouseEvent<any>) {
     e.preventDefault();
-    API.stop().then(() => reloadState()).done();
+    API.stop().then(() => reloadState());
   }
 
   function handleStart(e: React.MouseEvent<any>) {
     e.preventDefault();
-    API.start().then(() => reloadState()).done();
+    API.start().then(() => reloadState());
   }
 
-  var title = "WorkflowScriptRunner State";
+  var title =  "WorkflowScriptRunner State";
 
-  if (srs == undefined)
+  if (state == undefined)
     return <h4>{title} (loading...) </h4>;
 
   return (
     <div>
       <h4>{title}</h4>
-      <div className="btn-toolbar">
-        {srs.running && <a href="#" className="sf-button btn btn-light active" style={{ color: "red" }} onClick={handleStop}>Stop</a>}
-        {!srs.running && <a href="#" className="sf-button btn btn-light" style={{ color: "green" }} onClick={handleStart}>Start</a>}
+      <div className="btn-toolbar mt-3">
+        <button className={classes("sf-button btn btn-outline-success", state.running && "active pe-none")} onClick={!state.running ? handleStart : undefined}><FontAwesomeIcon icon="play" /> Start</button>
+        <button className={classes("sf-button btn btn-outline-danger", !state.running && "active pe-none")} onClick={state.running ? handleStop : undefined}><FontAwesomeIcon icon="stop" /> Stop</button>
       </div >
 
       <div>
-        <br />
         State: <strong>
-          {srs.running ?
-            <span style={{ color: "Green" }}> RUNNING </span> :
-            <span style={{ color: "Red" }}> STOPPED </span>
-          }</strong>
+          {state.running ?
+            <span style={{ color: "green" }}> RUNNING </span> :
+            <span style={{ color: state.initialDelayMilliseconds == null ? "gray" : "red" }}> STOPPED </span>
+          }</strong> <a className="ms-2" href={AppContext.toAbsoluteUrl("~/api/workflow/scriptRunner/simpleStatus")} target="_blank">SimpleStatus</a>
         <br />
-        CurrentProcessIdentifier: {srs.currentProcessIdentifier}
+        InitialDelayMilliseconds: {state.initialDelayMilliseconds}
         <br />
-        ScriptRunnerPeriod: {srs.scriptRunnerPeriod} sec
+        CurrentProcessIdentifier: {state.currentProcessIdentifier}
+        <br />
+        ScriptRunnerPeriod: {state.scriptRunnerPeriod} sec
                   <br />
-        NextPlannedExecution: {srs.nextPlannedExecution} ({srs.nextPlannedExecution == undefined ? "-None-" : DateTime.fromISO(srs.nextPlannedExecution).toRelative()})
+        NextPlannedExecution: {state.nextPlannedExecution} ({state.nextPlannedExecution == undefined ? "-None-" : DateTime.fromISO(state.nextPlannedExecution).toRelative()})
                   <br />
-        IsCancelationRequested: {srs.isCancelationRequested}
+        IsCancelationRequested: {state.isCancelationRequested}
         <br />
-        QueuedItems: {srs.queuedItems}
+        QueuedItems: {state.queuedItems}
       </div>
       <br />
       <h4>Next activities to execute</h4>
@@ -97,7 +98,7 @@ export function WorkflowScriptRunnerTab(p: {}) {
             { token: CaseActivityEntity.token(a => a.entity.workflowActivity).cast(WorkflowActivityEntity).append(a => a.type), operation: "EqualTo", value: WorkflowActivityType.value("Script") },
             { token: CaseActivityEntity.token(e => e.entity.doneDate), operation: "EqualTo", value: null }
           ],
-          columnOptionsMode: "Replace",
+          columnOptionsMode: "ReplaceAll",
           columnOptions: [
             { token: CaseActivityEntity.token(e => e.id) },
             { token: CaseActivityEntity.token(e => e.startDate) },
@@ -138,7 +139,7 @@ export function WorkflowScriptRunnerTab(p: {}) {
                 { token: CaseActivityEntity.token(e => e.entity.workflowActivity).cast(WorkflowActivityEntity).append(a => a.type), operation: "EqualTo", value: WorkflowActivityType.value("Script") },
                 { token: CaseActivityEntity.token(e => e.entity.doneDate), operation: "DistinctTo", value: null }
               ],
-              columnOptionsMode: "Replace",
+              columnOptionsMode: "ReplaceAll",
               columnOptions: [
                 { token: CaseActivityEntity.token(a => a.id) },
                 { token: CaseActivityEntity.token(e => e.startDate) },

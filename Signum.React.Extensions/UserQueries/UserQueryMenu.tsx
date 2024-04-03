@@ -3,7 +3,7 @@ import { DateTime } from 'luxon'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { classes, softCast } from '@framework/Globals'
 import * as Finder from '@framework/Finder'
-import { parseLite, is, Lite, toLite, newMListElement, liteKey, SearchMessage, MList, MListElement } from '@framework/Signum.Entities'
+import { parseLite, is, Lite, toLite, newMListElement, liteKey, SearchMessage, MList, MListElement, getToString } from '@framework/Signum.Entities'
 import * as AppContext from '@framework/AppContext'
 import * as Navigator from '@framework/Navigator'
 import SearchControlLoaded from '@framework/SearchControl/SearchControlLoaded'
@@ -42,7 +42,7 @@ export default function UserQueryMenu(p: UserQueryMenuProps) {
 
   function setCurrentUserQuery(uq: Lite<UserQueryEntity> | undefined) {
     p.searchControl.extraUrlParams.userQuery = uq && liteKey(uq);
-    p.searchControl.pageSubTitle = uq?.toStr;
+    p.searchControl.pageSubTitle = getToString(uq);
     setCurrentUserQueryInternal(uq);
     p.searchControl.props.onPageTitleChanged?.();
   }
@@ -60,7 +60,7 @@ export default function UserQueryMenu(p: UserQueryMenuProps) {
 
   function handleSelectedToggle(isOpen: boolean) {
     if (isOpen && userQueries == undefined)
-      reloadList().done();
+      reloadList();
 
     setIsOpen(isOpen);
   }
@@ -69,15 +69,14 @@ export default function UserQueryMenu(p: UserQueryMenuProps) {
     return UserQueryClient.API.forQuery(p.searchControl.props.findOptions.queryKey)
       .then(list => {
         setUserQueries(list);
-        if (currentUserQuery && currentUserQuery.toStr == null) {
+        if (currentUserQuery && currentUserQuery.model == null) {
           const similar = list.firstOrNull(l => is(l, currentUserQuery));
           if (similar != null) {
-            currentUserQuery.toStr = similar.toStr;
+            currentUserQuery.model = similar.model;
             setCurrentUserQuery(currentUserQuery);
           } else {
-            Navigator.API.fillToStrings(currentUserQuery)
-              .then(() => setCurrentUserQuery(currentUserQuery))
-              .done();
+            Navigator.API.fillLiteModels(currentUserQuery)
+              .then(() => setCurrentUserQuery(currentUserQuery));
           }
         }
         return list;
@@ -106,7 +105,7 @@ export default function UserQueryMenu(p: UserQueryMenuProps) {
         if (ofo.pagination.mode != "All") {
           sc.doSearchPage1();
         }
-      }).done();
+      });
   }
 
 
@@ -124,7 +123,7 @@ export default function UserQueryMenu(p: UserQueryMenuProps) {
             sc.doSearchPage1();
           }
         });
-    }).done()
+    })
   }
 
   function handleOnClick(uq: Lite<UserQueryEntity>) {
@@ -135,8 +134,7 @@ export default function UserQueryMenu(p: UserQueryMenuProps) {
     Navigator.API.fetch(currentUserQuery!)
       .then(userQuery => Navigator.view(userQuery))
       .then(() => reloadList())
-      .then(list => !list.some(a => is(a, currentUserQuery)) ? setCurrentUserQuery(undefined) : applyUserQuery(currentUserQuery!))
-      .done();
+      .then(list => !list.some(a => is(a, currentUserQuery)) ? setCurrentUserQuery(undefined) : applyUserQuery(currentUserQuery!));
   }
 
   async function applyChanges(): Promise<UserQueryEntity> {
@@ -158,7 +156,7 @@ export default function UserQueryMenu(p: UserQueryMenuProps) {
     uqOld.orders = uqNew.orders;
     uqOld.paginationMode = uqNew.paginationMode;
     uqOld.elementsPerPage = uqNew.elementsPerPage;
-
+    uqOld.modified = true;
     return uqOld;
   }
 
@@ -166,8 +164,7 @@ export default function UserQueryMenu(p: UserQueryMenuProps) {
     applyChanges()
       .then(uqOld => Navigator.view(uqOld))
       .then(() => reloadList())
-      .then(list => !list.some(a => is(a, currentUserQuery)) ? setCurrentUserQuery(undefined) : applyUserQuery(currentUserQuery!))
-      .done();
+      .then(list => !list.some(a => is(a, currentUserQuery)) ? setCurrentUserQuery(undefined) : applyUserQuery(currentUserQuery!));
   }
 
   async function createUserQuery(): Promise<UserQueryEntity> {
@@ -227,18 +224,18 @@ export default function UserQueryMenu(p: UserQueryMenuProps) {
           reloadList().then(() => {
             setCurrentUserQuery(toLite(uq));
             applyUserQuery(toLite(uq));
-          }).done();
+          });
         }
-      }).done();
+      });
   }
 
-  const currentUserQueryToStr = currentUserQuery ? currentUserQuery.toStr : undefined;
+  const currentUserQueryToStr = currentUserQuery ? getToString(currentUserQuery) : undefined;
 
   var canSave = Operations.tryGetOperationInfo(UserQueryOperation.Save, UserQueryEntity) != null;
 
   const label = (
     <span title={currentUserQueryToStr}>
-      <FontAwesomeIcon icon={["far", "list-alt"]} />
+      <FontAwesomeIcon icon={["far", "rectangle-list"]} />
       {p.searchControl.props.largeToolbarButtons == true && <>
         &nbsp;
         {UserQueryEntity.nicePluralName()}
@@ -271,20 +268,20 @@ export default function UserQueryMenu(p: UserQueryMenuProps) {
           </div>}
         <div id="userquery-items-container" style={{ maxHeight: "300px", overflowX: "auto" }}>
           {userQueries?.map((uq, i) => {
-            if (filter == undefined || uq.toStr?.search(new RegExp(RegExp.escape(filter), "i")) != -1)
+            if (filter == undefined || getToString(uq)?.search(new RegExp(RegExp.escape(filter), "i")) != -1)
               return (
                 <Dropdown.Item key={i}
                   className={classes("sf-userquery", is(uq, currentUserQuery) && "active")}
                   onClick={() => handleOnClick(uq)}>
-                  {uq.toStr}
+                  {getToString(uq)}
                 </Dropdown.Item>
               );
           })}
         </div>
         {userQueries && userQueries.length > 0 && <Dropdown.Divider />}
-        <Dropdown.Item onClick={handleBackToDefault} ><FontAwesomeIcon icon={["fas", "undo"]} className="me-2" />{UserQueryMessage.BackToDefault.niceToString()}</Dropdown.Item>
-        {currentUserQuery && canSave && <Dropdown.Item onClick={handleApplyChanges} ><FontAwesomeIcon icon={["fas", "share-square"]} className="me-2" />{UserQueryMessage.ApplyChanges.niceToString()}</Dropdown.Item>}
-        {currentUserQuery && canSave && <Dropdown.Item onClick={handleEdit} ><FontAwesomeIcon icon={["fas", "edit"]} className="me-2" />{UserQueryMessage.Edit.niceToString()}</Dropdown.Item>}
+        <Dropdown.Item onClick={handleBackToDefault} ><FontAwesomeIcon icon={["fas", "arrow-rotate-left"]} className="me-2" />{UserQueryMessage.BackToDefault.niceToString()}</Dropdown.Item>
+        {currentUserQuery && canSave && <Dropdown.Item onClick={handleApplyChanges} ><FontAwesomeIcon icon={["fas", "share-from-square"]} className="me-2" />{UserQueryMessage.ApplyChanges.niceToString()}</Dropdown.Item>}
+        {currentUserQuery && canSave && <Dropdown.Item onClick={handleEdit} ><FontAwesomeIcon icon={["fas", "pen-to-square"]} className="me-2" />{UserQueryMessage.Edit.niceToString()}</Dropdown.Item>}
         {canSave && <Dropdown.Item onClick={handleCreateUserQuery}><FontAwesomeIcon icon={["fas", "plus"]} className="me-2" />{UserQueryMessage.CreateNew.niceToString()}</Dropdown.Item>}</Dropdown.Menu>
     </Dropdown>
   );
@@ -332,9 +329,10 @@ export namespace UserQueryMerger {
       const newCol = ch.added.element;
 
       oldCol.token = newCol.token;
-      oldCol.displayName = newCol.displayName == translated(oldCol, a => a.displayName) ? oldCol.displayName : newCol.displayName;
+      oldCol.displayName = (newCol.displayName == translated(oldCol, a => a.displayName) ? oldCol.displayName : newCol.displayName) ?? null;
       oldCol.summaryToken = newCol.summaryToken;
       oldCol.hiddenColumn = newCol.hiddenColumn;
+      oldCol.modified = true;
       //preserve rowId
       return [ch.removed];
     });
@@ -365,8 +363,8 @@ export namespace UserQueryMerger {
       const merged = mergeFilters(
         ch.removed.elements,
         ch.added.elements,
-        isFilterGroupOption(ch.removed.filter) ? ch.removed.filter.filters : [],
-        isFilterGroupOption(ch.added.filter) ? ch.added.filter.filters : [], identation + 1, sd);
+        isFilterGroupOption(ch.removed.filter) ? ch.removed.filter.filters.notNull() : [],
+        isFilterGroupOption(ch.added.filter) ? ch.added.filter.filters.notNull() : [], identation + 1, sd);
 
 
       const oldF = ch.removed.key.element;
@@ -414,7 +412,7 @@ export namespace UserQueryMerger {
     return (qc1.token?.tokenString == qc2.token?.tokenString ? 0 : 3) +
       (qc1.summaryToken?.tokenString == qc2.summaryToken?.tokenString ? 0 : 1) +
       (qc1.displayName == qc2.displayName ? 0 : 1) +
-      (qc1.hiddenColumn ? 0 : 1);
+      (qc1.hiddenColumn == qc2.hiddenColumn ? 0 : 1);
   }
 
   function distanceFilter(fo: FilterOption, fo2: FilterOption): number {
@@ -424,7 +422,7 @@ export namespace UserQueryMerger {
           (fo.groupOperation == fo2.groupOperation ? 0 : 1) +
           (similarValues(fo.value, fo2.value) ? 0 : 1) +
           distancePinned(fo.pinned, fo2.pinned) +
-          Array.range(0, Math.max(fo.filters.length, fo2.filters.length)).sum(i => fo.filters[i] == null ? 5 : fo2.filters[i] == null ? 5 : distanceFilter(fo.filters[i], fo2.filters[i]));
+          Array.range(0, Math.max(fo.filters.length, fo2.filters.length)).sum(i => fo.filters[i] == null ? 5 : fo2.filters[i] == null ? 5 : distanceFilter(fo.filters[i]!, fo2.filters[i]!));
       }
       else return 10;
     }

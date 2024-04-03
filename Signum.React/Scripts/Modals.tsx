@@ -78,8 +78,7 @@ export function openModal<T>(modal: React.ReactElement<IModalProps<T>>): Promise
     let cloned: React.ReactElement<IModalProps<T>>;
     const onExited = (val: T) => {
       current.popModal(cloned)
-        .then(() => resolve(val))
-        .done();
+        .then(() => resolve(val));
     }
 
     cloned = FunctionalAdapter.withRef(React.cloneElement(modal, { onExited: onExited, key: current.getCount() } as any),
@@ -108,7 +107,7 @@ export class FunctionalAdapter extends React.Component<FunctionalAdapterProps> {
       throw new Error("Not a valid react element: " + only);
 
     if (isForwardRef(only.type)) {
-      return React.cloneElement(only, { ref: (a: any) => { this.innerRef = a; } });
+      return React.cloneElement(only, { ref: (a: any) => { this.innerRef = a; } } as any);
     }
 
     return this.props.children;

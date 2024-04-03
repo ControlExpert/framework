@@ -118,9 +118,16 @@ public static class SqlPreCommandExtensions
         catch (ExecuteSqlScriptException)
         {
             Console.WriteLine("The current script is in saved in:  " + Path.Combine(Directory.GetCurrentDirectory(), fileName));
-            if (SafeConsole.Ask("retry?"))
+            var answer = SafeConsole.AskRetry("Open or retry?", "retry", "open", "exit");
+            if (answer == "retry")
                 goto retry;
-
+            if (answer == "open")
+            {
+                Thread.Sleep(1000);
+                Open(fileName);
+                if (SafeConsole.Ask("run now?"))
+                    ExecuteRetry(fileName);
+            }
         }
     }
 
@@ -368,14 +375,19 @@ public class SqlPreCommandSimple : SqlPreCommand
         return this;
     }
 
-    public SqlPreCommandSimple ReplaceFirstParameter(string? variableName)
+    internal SqlPreCommandSimple ReplaceFirstParameter(string? variableName)
     {
         if (variableName == null)
             return this;
 
-        var first = Parameters!.FirstEx();
-        Sql = Regex.Replace(Sql, $@"(?<toReplace>{first.ParameterName})(\b|$)", variableName); //HACK
-        Parameters!.Remove(first);
+        this.ReplaceParameter(this.Parameters!.FirstEx(), variableName);
+        return this;
+    }
+
+    internal SqlPreCommandSimple ReplaceParameter(DbParameter param, string variableName)
+    {
+        Sql = Regex.Replace(Sql, $@"(?<toReplace>{param.ParameterName})(\b|$)", variableName); //HACK
+        Parameters!.Remove(param);
         return this;
     }
 

@@ -110,7 +110,7 @@ export module Converter {
         tokenString: fr.token && fr.token.toString(),
         value: fr.value,
         pinned: fr.pinned,
-        filters: fr.filters.map(f => toFilterNode(f)),
+        filters: fr.filters.notNull().map(f => toFilterNode(f)),
         dashboardBehaviour: fr.dashboardBehaviour,
       });
 
@@ -229,8 +229,7 @@ export module API {
 
   export function exportAsset(entity: Lite<IUserAssetEntity>[]) {
     ajaxPostRaw({ url: "~/api/userAssets/export" }, entity)
-      .then(resp => saveFile(resp))
-      .done();
+      .then(resp => saveFile(resp));
   }
 
 

@@ -1,7 +1,10 @@
 import * as React from 'react'
 import { DateTime } from 'luxon'
 import { Dic, areEqual, classes, KeyGenerator } from '../Globals'
-import { FilterOptionParsed, QueryDescription, QueryToken, SubTokensOptions, filterOperations, isList, FilterOperation, FilterConditionOptionParsed, FilterGroupOptionParsed, isFilterGroupOptionParsed, hasAnyOrAll, getTokenParents, isPrefix, FilterConditionOption, PinnedFilter, PinnedFilterParsed } from '../FindOptions'
+import {
+  FilterOptionParsed, QueryDescription, QueryToken, SubTokensOptions, filterOperations, isList, FilterOperation, FilterConditionOptionParsed, FilterGroupOptionParsed,
+  isFilterGroupOptionParsed, hasAnyOrAll, getTokenParents, isPrefix, FilterConditionOption, PinnedFilter, PinnedFilterParsed, isCheckBox
+} from '../FindOptions'
 import { SearchMessage, Lite } from '../Signum.Entities'
 import { isNumber, trimDateToFormat } from '../Lines/ValueLine'
 import { ValueLine, EntityLine, EntityCombo, StyleContext, FormControlReadonly } from '../Lines'
@@ -59,14 +62,14 @@ export default function FilterBuilder(p: FilterBuilderProps) {
     if (p.onFiltersChanged)
       p.onFiltersChanged(p.filterOptions);
 
-    forceUpdate().then(handleHeightChanged).done();
+    forceUpdate().then(handleHeightChanged);
   };
 
   function handlerDeleteFilter(filter: FilterOptionParsed) {
     p.filterOptions.remove(filter);
     if (p.onFiltersChanged)
       p.onFiltersChanged(p.filterOptions);
-    forceUpdate().then(handleHeightChanged).done();
+    forceUpdate().then(handleHeightChanged);
   };
 
   function handleDeleteAllFilters(e: React.MouseEvent) {
@@ -79,7 +82,7 @@ export default function FilterBuilder(p: FilterBuilderProps) {
 
     if (p.onFiltersChanged)
       p.onFiltersChanged(p.filterOptions);
-    forceUpdate().then(handleHeightChanged).done();
+    forceUpdate().then(handleHeightChanged);
   };
 
   function handleFilterChanged() {
@@ -106,7 +109,7 @@ export default function FilterBuilder(p: FilterBuilderProps) {
                 <a href="#" title={StyleContext.default.titleLabels ? SearchMessage.DeleteAllFilter.niceToString() : undefined}
                   className="sf-line-button sf-remove"
                   onClick={handleDeleteAllFilters}>
-                  <FontAwesomeIcon icon="times" />
+                  <FontAwesomeIcon icon="xmark" />
                 </a>}</th>
               <th>{SearchMessage.Field.niceToString()}</th>
               <th>{SearchMessage.Operation.niceToString()}</th>
@@ -220,7 +223,7 @@ export function FilterGroupComponent(p: FilterGroupComponentsProps) {
     p.filterGroup.filters.remove(filter);
     if (p.onFilterChanged)
       p.onFilterChanged();
-    forceUpdatePromise().then(() => p.onHeightChanged()).done();
+    forceUpdatePromise().then(() => p.onHeightChanged());
   };
 
 
@@ -251,7 +254,7 @@ export function FilterGroupComponent(p: FilterGroupComponentsProps) {
 
     p.onFilterChanged();
 
-    forceUpdatePromise().then(() => p.onHeightChanged()).done();
+    forceUpdatePromise().then(() => p.onHeightChanged());
   };
 
   function handleExpandCollapse(e: React.MouseEvent<any>) {
@@ -259,7 +262,7 @@ export function FilterGroupComponent(p: FilterGroupComponentsProps) {
     const fg = p.filterGroup;
     fg.expanded = !fg.expanded;
 
-    forceUpdatePromise().then(() => p.onHeightChanged()).done();
+    forceUpdatePromise().then(() => p.onHeightChanged());
   }
 
   const fg = p.filterGroup;
@@ -278,7 +281,7 @@ export function FilterGroupComponent(p: FilterGroupComponentsProps) {
           <a href="#" title={StyleContext.default.titleLabels ? SearchMessage.DeleteFilter.niceToString() : undefined}
             className="sf-line-button sf-remove"
             onClick={handleDeleteFilter}>
-            <FontAwesomeIcon icon="times" />
+            <FontAwesomeIcon icon="xmark" />
           </a>}
       </td>
       <td colSpan={3 + (p.showPinnedFiltersOptions ? 1 : 0) + (p.showDashboardBehaviour ? 1 : 0)} style={{ backgroundColor: fg.groupOperation == "Or" ? "#eee" : "#fff", border: "1px solid #ddd" }}>
@@ -286,7 +289,7 @@ export function FilterGroupComponent(p: FilterGroupComponentsProps) {
           <div className="row gx-1">
             <div className="col-auto">
               <a href="#" onClick={handleExpandCollapse} className={classes(fg.expanded ? "sf-hide-group-button" : "sf-show-group-button", "mx-2")} >
-                <FontAwesomeIcon icon={fg.expanded ? ["far", "minus-square"] : ["far", "plus-square"]} className="me-2" />
+                <FontAwesomeIcon icon={fg.expanded ? ["far", "square-minus"] : ["far", "square-plus"]} className="me-2" />
               </a>
             </div>
             <div className="col-auto">
@@ -358,7 +361,7 @@ export function FilterGroupComponent(p: FilterGroupComponentsProps) {
                     lastToken={p.lastToken} onHeightChanged={p.onHeightChanged} renderValue={p.renderValue}
                     showPinnedFiltersOptions={p.showPinnedFiltersOptions}
                     showDashboardBehaviour={p.showDashboardBehaviour}
-                    disableValue={p.disableValue || fg.pinned != null && fg.pinned.active != "Checkbox_StartChecked" && fg.pinned.active != "Checkbox_StartUnchecked"}
+                    disableValue={p.disableValue || fg.pinned != null && !isCheckBox(fg.pinned.active)}
                   /> :
 
                   <FilterConditionComponent key={keyGenerator.getKey(f)} filter={f} readOnly={Boolean(p.readOnly)} onDeleteFilter={handlerDeleteFilter}
@@ -367,7 +370,7 @@ export function FilterGroupComponent(p: FilterGroupComponentsProps) {
                     onTokenChanged={p.onTokenChanged} onFilterChanged={p.onFilterChanged} renderValue={p.renderValue}
                     showPinnedFiltersOptions={p.showPinnedFiltersOptions}
                     showDashboardBehaviour={p.showDashboardBehaviour}
-                    disableValue={p.disableValue || fg.pinned != null && fg.pinned.active != "Checkbox_StartChecked" && fg.pinned.active != "Checkbox_StartUnchecked"}
+                    disableValue={p.disableValue || fg.pinned != null && !isCheckBox(fg.pinned.active)}
                   />
                 )}
                 {!p.readOnly &&
@@ -436,6 +439,7 @@ function isFilterActive(fo: FilterOptionParsed) {
   return fo.pinned.active == null /*Always*/ ||
     fo.pinned.active == "Always" ||
     fo.pinned.active == "Checkbox_StartChecked" ||
+    fo.pinned.active == "NotCheckbox_StartUnchecked" ||
     fo.pinned.active == "WhenHasValue" && !(fo.value == null || fo.value == "");
 }
 
@@ -482,16 +486,20 @@ export function FilterConditionComponent(p: FilterConditionComponentProps) {
       else if (f.token && f.token.filterType == "DateTime" && newToken.filterType == "DateTime") {
         if (f.value) {
           const type = newToken.type.name as "DateOnly" | "DateTime";
+
+          function convertDateToNewFormat(val: string) {
+            var date = DateTime.fromISO(val);
+            if (!date.isValid)
+              return val;
+
+            const trimmed = trimDateToFormat(date, type, newToken!.format);
+            return type == "DateOnly" ? trimmed.toISODate() : trimmed.toISO();
+          }
+
           if (f.operation && isList(f.operation)) {
-
-            f.value = (f.value as string[]).map(v => {
-              const date = trimDateToFormat(DateTime.fromISO(v), type, newToken.format);
-              return type == "DateOnly" ? date.toISODate() : date.toISO();
-            });
-
+            f.value = (f.value as string[]).map(v => convertDateToNewFormat(v));
           } else {
-            const date = trimDateToFormat(DateTime.fromISO(f.value), type, newToken.format);
-            f.value = type == "DateOnly" ? date.toISODate() : date.toISO();
+            f.value = convertDateToNewFormat(f.value);
           }
         }
       }
@@ -533,7 +541,7 @@ export function FilterConditionComponent(p: FilterConditionComponentProps) {
             <a href="#" title={StyleContext.default.titleLabels ? SearchMessage.DeleteFilter.niceToString() : undefined}
               className="sf-line-button sf-remove"
               onClick={handleDeleteFilter}>
-              <FontAwesomeIcon icon="times" />
+              <FontAwesomeIcon icon="xmark" />
             </a>}
         </td>
         <td>
@@ -687,7 +695,7 @@ function DashboardBehaviourComponent(p: { filter: FilterOptionParsed, readonly: 
     <Dropdown>
       <Dropdown.Toggle variant={p.filter.dashboardBehaviour ? "info" : "light"} id="dropdown-basic" disabled={p.readonly} size={"xs" as any} className={classes("px-1", p.filter.dashboardBehaviour ? "text-light" : "text-info")}
         title={StyleContext.default.titleLabels ? "Behaviour of the filter when used inside of a Dashboard" : undefined}>
-        {<FontAwesomeIcon icon="tachometer-alt" className={classes("icon", p.filter.dashboardBehaviour ? "text-light" : "text-info")} />}{p.filter.dashboardBehaviour ? " " + DashboardBehaviour.niceToString(p.filter.dashboardBehaviour) : ""}
+        {<FontAwesomeIcon icon="gauge" className={classes("icon", p.filter.dashboardBehaviour ? "text-light" : "text-info")} />}{p.filter.dashboardBehaviour ? " " + DashboardBehaviour.niceToString(p.filter.dashboardBehaviour) : ""}
       </Dropdown.Toggle>
 
       <Dropdown.Menu>
@@ -710,7 +718,7 @@ function DashboardBehaviourComponent(p: { filter: FilterOptionParsed, readonly: 
   );
 }
 
-export function createFilterValueControl(ctx: TypeContext<any>, token: QueryToken, handleValueChange: () => void, labelText?: string, forceNullable?: boolean): React.ReactElement<any> {
+export function createFilterValueControl(ctx: TypeContext<any>, token: QueryToken, handleValueChange: () => void, label?: string, forceNullable?: boolean): React.ReactElement<any> {
 
   var tokenType = token.type;
   if (forceNullable)
@@ -719,19 +727,19 @@ export function createFilterValueControl(ctx: TypeContext<any>, token: QueryToke
   switch (token.filterType) {
     case "Lite":
       if (tokenType.name == IsByAll || getTypeInfos(tokenType).some(ti => !ti.isLowPopulation))
-        return <EntityLine ctx={ctx} type={tokenType} create={false} onChange={handleValueChange} labelText={labelText} />;
+        return <EntityLine ctx={ctx} type={tokenType} create={false} onChange={handleValueChange} label={label} />;
       else
-        return <EntityCombo ctx={ctx} type={tokenType} create={false} onChange={handleValueChange} labelText={labelText} />
+        return <EntityCombo ctx={ctx} type={tokenType} create={false} onChange={handleValueChange} label={label} />
     case "Embedded":
-      return <EntityLine ctx={ctx} type={tokenType} create={false} autocomplete={null} onChange={handleValueChange} labelText={labelText} />;
+      return <EntityLine ctx={ctx} type={tokenType} create={false} autocomplete={null} onChange={handleValueChange} label={label} />;
     case "Enum":
       const ti = tryGetTypeInfos(tokenType).single();
       if (!ti)
         throw new Error(`EnumType ${tokenType.name} not found`);
       const members = Dic.getValues(ti.members).filter(a => !a.isIgnoredEnum);
-      return <ValueLine ctx={ctx} type={tokenType} formatText={token.format} unitText={token.unit} optionItems={members} onChange={handleValueChange} labelText={labelText} />;
+      return <ValueLine ctx={ctx} type={tokenType} format={token.format} unit={token.unit} optionItems={members} onChange={handleValueChange} label={label} />;
     default:
-      return <ValueLine ctx={ctx} type={tokenType} formatText={token.format} unitText={token.unit} onChange={handleValueChange} labelText={labelText} />;
+      return <ValueLine ctx={ctx} type={tokenType} format={token.format} unit={token.unit} onChange={handleValueChange} label={label} />;
   }
 }
 
@@ -771,7 +779,7 @@ export function MultiValue(p: MultiValueProps) {
                   <a href="#" title={StyleContext.default.titleLabels ? SearchMessage.DeleteFilter.niceToString() : undefined}
                     className="sf-line-button sf-remove"
                     onClick={e => handleDeleteValue(e, i)}>
-                    <FontAwesomeIcon icon="times" />
+                    <FontAwesomeIcon icon="xmark" />
                   </a>}
               </td>
               <td>

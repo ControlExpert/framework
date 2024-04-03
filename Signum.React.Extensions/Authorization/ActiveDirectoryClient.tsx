@@ -1,20 +1,46 @@
 import * as React from 'react'
-import { ajaxPost, ajaxGet } from '@framework/Services';
+import { ajaxPost, ajaxGet, ajaxGetRaw } from '@framework/Services';
 import * as Navigator from '@framework/Navigator'
 import * as Finder from '@framework/Finder'
-import { UserEntity, UserADMessage, BasicPermission, ActiveDirectoryPermission, UserADQuery, ActiveDirectoryMessage, ADGroupEntity } from './Signum.Entities.Authorization'
+import { UserEntity, UserADMessage, BasicPermission, ActiveDirectoryPermission, UserADQuery, ActiveDirectoryMessage, ADGroupEntity, UserADMixin, UserLiteModel } from './Signum.Entities.Authorization'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import ValueLineModal from '@framework/ValueLineModal';
 import { FindOptions, FindOptionsParsed, ResultRow } from '@framework/FindOptions';
 import MessageModal from '@framework/Modals/MessageModal';
-import { Lite, SearchMessage } from '@framework/Signum.Entities';
+import { isLite, Lite, SearchMessage, tryGetMixin } from '@framework/Signum.Entities';
 import SelectorModal from '@framework/SelectorModal';
 import { QueryString } from '@framework/QueryString';
 import { isPermissionAuthorized } from './AuthClient';
 import SearchControlLoaded from '@framework/SearchControl/SearchControlLoaded';
+import ProfilePhoto, { urlProviders } from './Templates/ProfilePhoto';
+import * as AppContext from "@framework/AppContext"
+import { TypeaheadOptions } from '../../Signum.React/Scripts/Components/Typeahead';
 
-export function start(options: { routes: JSX.Element[] }) {
-  Navigator.addSettings(new Navigator.EntitySettings(ADGroupEntity, e => import('./AzureAD/ADGroup'), { isCreable: "Never" }));
+export function start(options: { routes: JSX.Element[], adGroups: boolean }) {
+  if (window.__azureApplicationId) {
+    urlProviders.push((u: UserEntity | Lite<UserEntity>, size: number) => {
+      var oid =
+        (UserEntity.isLite(u)) ? (u.model as UserLiteModel).oID :
+        tryGetMixin(u, UserADMixin)?.oID;
+
+      return oid == null ? null : AppContext.toAbsoluteUrl("~/api/azureUserPhoto/" + size + "/" + oid);
+    })
+  }
+
+  urlProviders.push((u: UserEntity | Lite<UserEntity>, size: number) => {
+    var sid =
+      (UserEntity.isLite(u)) ? (u.model as UserLiteModel).sID :
+        tryGetMixin(u, UserADMixin)?.sID;
+    if (sid == null)
+      return null;
+    var url = "";
+    if (UserEntity.isLite(u))
+      url = AppContext.toAbsoluteUrl("~/api/adThumbnailphoto/" + ((u as Lite<UserEntity>).model as UserLiteModel)?.userName);
+    else
+      url = AppContext.toAbsoluteUrl("~/api/adThumbnailphoto/" + (u as UserEntity).userName);
+    return url;
+  });
+
 
   Navigator.getSettings(UserEntity)!.autocompleteConstructor = (str, aac) => isPermissionAuthorized(ActiveDirectoryPermission.InviteUsersFromAD) ? ({
     type: UserEntity,
@@ -39,14 +65,13 @@ export function start(options: { routes: JSX.Element[] }) {
               valueLineType: "TextBox",
               modalSize: "md",
               title: <><FontAwesomeIcon icon="address-book" /> {UserADMessage.FindInActiveDirectory.niceToString()}</>,
-              labelText: UserADMessage.NameOrEmail.niceToString(),
+              label: UserADMessage.NameOrEmail.niceToString(),
               initialValue: search
             }) as Promise<string>;
 
             return promise.then(str => !str ? null : importADUser(str))
               .then(u => u && Navigator.view(u))
-              .then(u => u && ctx.searchControl.handleCreated(u))
-              .done();
+              .then(u => u && ctx.searchControl.handleCreated(u));
 
           }}>
           <FontAwesomeIcon icon="user-plus" /> {!search ? UserADMessage.FindInActiveDirectory.niceToString() : UserADMessage.Find0InActiveDirectory.niceToString().formatHtml(search == null ? UserEntity.niceName() : <strong>{search}</strong>)}
@@ -55,49 +80,52 @@ export function start(options: { routes: JSX.Element[] }) {
     );
   });
 
-  Finder.addSettings({
-    queryName: UserADQuery.ActiveDirectoryUsers,
-    defaultFilters: [
-      {
-        groupOperation: "Or",
-        pinned: { label: SearchMessage.Search.niceToString(), splitText: true, active: "WhenHasValue" },
-        filters: [
-          { token: "DisplayName", operation: "Contains" },
-          { token: "GivenName", operation: "Contains" },
-          { token: "Surname", operation: "Contains" },
-          { token: "Mail", operation: "Contains" },
-        ],
-      },
-      {
-        pinned: { label: ()=> ActiveDirectoryMessage.OnlyActiveUsers.niceToString(), active: "Checkbox_StartChecked", column: 2, row: 0 },
-        token: "AccountEnabled", operation: "EqualTo", value: true
-      },
-      { token: "CreationType", operation: "DistinctTo", value: "Invitation" }
-    ],
-    hiddenColumns: [
-      { token: "Id" },
-      { token: "OnPremisesImmutableId" },
-    ],
-    defaultOrders: [
-      { token: "DisplayName", orderType: "Ascending" }
-    ],
-  });
+  if (options.adGroups) {
+    Navigator.addSettings(new Navigator.EntitySettings(ADGroupEntity, e => import('./AzureAD/ADGroup'), { isCreable: "Never" }));
+    Finder.addSettings({
+      queryName: UserADQuery.ActiveDirectoryUsers,
+      defaultFilters: [
+        {
+          groupOperation: "Or",
+          pinned: { label: SearchMessage.Search.niceToString(), splitText: true, active: "WhenHasValue" },
+          filters: [
+            { token: "DisplayName", operation: "Contains" },
+            { token: "GivenName", operation: "Contains" },
+            { token: "Surname", operation: "Contains" },
+            { token: "Mail", operation: "Contains" },
+          ],
+        },
+        {
+          pinned: { label: () => ActiveDirectoryMessage.OnlyActiveUsers.niceToString(), active: "Checkbox_StartChecked", column: 2, row: 0 },
+          token: "AccountEnabled", operation: "EqualTo", value: true
+        },
+        { token: "CreationType", operation: "DistinctTo", value: "Invitation" }
+      ],
+      hiddenColumns: [
+        { token: "Id" },
+        { token: "OnPremisesImmutableId" },
+      ],
+      defaultOrders: [
+        { token: "DisplayName", orderType: "Ascending" }
+      ],
+    });
 
-  Finder.addSettings({
-    queryName: UserADQuery.ActiveDirectoryGroups,
-    defaultFilters: [
-      {
-        groupOperation: "Or",
-        pinned: { label: SearchMessage.Search.niceToString(), splitText: true, active: "WhenHasValue" },
-        filters: [
-          { token: "DisplayName", operation: "Contains" },
-        ],
-      },
-    ],
-    defaultOrders: [
-      { token: "DisplayName", orderType: "Ascending" }
-    ],
-  });
+    Finder.addSettings({
+      queryName: UserADQuery.ActiveDirectoryGroups,
+      defaultFilters: [
+        {
+          groupOperation: "Or",
+          pinned: { label: SearchMessage.Search.niceToString(), splitText: true, active: "WhenHasValue" },
+          filters: [
+            { token: "DisplayName", operation: "Contains" },
+          ],
+        },
+      ],
+      defaultOrders: [
+        { token: "DisplayName", orderType: "Ascending" }
+      ],
+    });
+  }
 
 }
 
@@ -114,7 +142,7 @@ function findActiveDirectoryUser(): Promise<Lite<UserEntity> | undefined> {
       { token: "Surname" },
       { token: "JobTitle" },
     ],
-    columnOptionsMode: "Replace",
+    columnOptionsMode: "ReplaceAll",
   }, { searchControlProps: { allowChangeOrder: false } })
     .then(a => a && API.createADUser(toActiveDirectoryUser(a.row, a.searchControl)));
 }

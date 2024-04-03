@@ -27,8 +27,10 @@ export interface SearchValueProps {
   onExplored?: () => void;
   onTokenLoaded?: () => void;
   initialValue?: any;
+  onInitialValueLoaded?: () => void;
   customClass?: string | ((value: any | undefined) => (string | undefined));
   customStyle?: React.CSSProperties;
+  unit?: string | null;
   format?: string;
   throwIfNotFindable?: boolean;
   avoidNotifyPendingRequest?: boolean;
@@ -110,9 +112,12 @@ const SearchValue = React.forwardRef(function SearchValue(p: SearchValueProps, r
     if (valueToken === undefined)
       return Promise.resolve(undefined);
 
-    if (p.initialValue != undefined) {
-      if (Hooks.areEqual(deps ?? [], initialDeps.current ?? []))
+    if (p.initialValue !== undefined) {
+      if (Hooks.areEqual(deps ?? [], initialDeps.current ?? [])) {
+        controller.value = p.initialValue;
+        p.onInitialValueLoaded?.();
         return Promise.resolve(p.initialValue);
+      }
       else
         return makeRequest();
     } else {
@@ -212,7 +217,7 @@ const SearchValue = React.forwardRef(function SearchValue(p: SearchValueProps, r
   function bg(color: BsColor) {
 
     if (p.isLink)
-      return "btn-" + color + (color == "light" ? " text-dark" : "");
+      return "bg-" + color + (color == "light" ? " text-dark" : "");
     
     return "bg-" + color;
   }
@@ -266,8 +271,7 @@ const SearchValue = React.forwardRef(function SearchValue(p: SearchValueProps, r
     }
 
     Navigator.view(lite)
-      .then(() => { refreshValue(); p.onExplored && p.onExplored(); })
-      .done();
+      .then(() => { refreshValue(); p.onExplored && p.onExplored(); });
   }
 
   function renderValue(): React.ReactChild | null{
@@ -290,7 +294,12 @@ const SearchValue = React.forwardRef(function SearchValue(p: SearchValueProps, r
       case "Decimal":
         {
           const numberFormat = toNumberFormat(p.format ?? token.format);
-          return numberFormat.format(value);
+
+          var unit = p.unit === null ? p.unit : p.unit ?? token.unit;
+          if (unit)
+            return numberFormat.format(value) + " " + unit;
+          else
+            return numberFormat.format(value);
         }
       case "DateTime":
         {
@@ -303,7 +312,7 @@ const SearchValue = React.forwardRef(function SearchValue(p: SearchValueProps, r
           return Duration.fromISOTime(value).toFormat(luxonFormat ?? "hh:mm:ss");
         }
       case "String": return value;
-      case "Lite": return (value as Lite<Entity>).toStr ?? null;
+      case "Lite": return value && Navigator.renderLite(value as Lite<Entity>);
       case "Embedded": return getToString(value as EmbeddedEntity);
       case "Boolean": return <input type="checkbox" className="form-check-input" disabled={true} checked={value} />
       case "Enum": return getEnumInfo(token!.type.name, value).niceName;
@@ -318,16 +327,29 @@ const SearchValue = React.forwardRef(function SearchValue(p: SearchValueProps, r
   function handleClick(e: React.MouseEvent<any>) {
     e.preventDefault();
 
-    if (e.ctrlKey || e.button == 1)
-      window.open(Finder.findOptionsPath(p.findOptions));
+    var fo: FindOptions;
+    if (p.findOptions.columnOptions == undefined && valueToken && valueToken.parent)
+      fo = {
+        ...p.findOptions,
+        columnOptions: [{
+          token: valueToken.queryTokenType == "Aggregate" ? valueToken.parent!.fullKey : valueToken.fullKey,
+          summaryToken: valueToken.queryTokenType == "Aggregate" ? valueToken.fullKey : undefined,
+        }],
+        columnOptionsMode: "ReplaceOrAdd",
+      }
     else
-      Finder.explore(p.findOptions, { searchControlProps: p.searchControlProps, modalSize: p.modalSize }).then(() => {
+      fo = p.findOptions;
+
+    if (e.ctrlKey || e.button == 1)
+      window.open(Finder.findOptionsPath(fo));
+    else
+      Finder.explore(fo, { searchControlProps: p.searchControlProps, modalSize: p.modalSize }).then(() => {
         if (!p.avoidAutoRefresh)
           refreshValue();
 
         if (p.onExplored)
           p.onExplored();
-      }).done();
+      });
   }
 });
 

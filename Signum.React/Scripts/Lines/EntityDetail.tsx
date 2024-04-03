@@ -44,11 +44,11 @@ export const EntityDetail = React.forwardRef(function EntityDetail(props: Entity
         {showAsCheckBox ?
           <label className="lead">
             {renderCheckBox()}
-            {p.labelText}
+            {p.label}
           </label>
           :
           <div className="lead">
-            <span>{p.labelText}</span>
+            <span>{p.label}</span>
             {renderButtons()}
           </div>
         }
@@ -65,11 +65,11 @@ export const EntityDetail = React.forwardRef(function EntityDetail(props: Entity
         {showAsCheckBox ?
           <label>
             {renderCheckBox()}
-            {p.labelText}
+            {p.label}
           </label>
           :
           <div>
-            <span>{p.labelText}</span>
+            <span>{p.label}</span>
             {renderButtons()}
           </div>
         }
@@ -80,7 +80,9 @@ export const EntityDetail = React.forwardRef(function EntityDetail(props: Entity
 
   function renderCheckBox() {
     const hasValue = !!p.ctx.value;
-    return <input type="checkbox" className="form-check-input me-1" checked={hasValue}
+    var disabled = p.ctx.readOnly || hasValue ? !p.remove : !p.create;
+
+    return <input type="checkbox" className="form-check-input me-1" checked={hasValue} disabled={disabled}
       onChange={e => {
         e.preventDefault();
         e.stopPropagation();

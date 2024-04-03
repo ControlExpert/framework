@@ -9,7 +9,7 @@ import * as Navigator from '@framework/Navigator'
 import { TypeContext, FormGroupStyle } from '@framework/TypeContext'
 import { Typeahead } from '@framework/Components'
 import QueryTokenBuilder from '@framework/SearchControl/QueryTokenBuilder'
-import { ModifiableEntity, JavascriptMessage, EntityControlMessage } from '@framework/Signum.Entities'
+import { ModifiableEntity, JavascriptMessage, EntityControlMessage, getToString } from '@framework/Signum.Entities'
 import { QueryEntity } from '@framework/Signum.Entities.Basics'
 import { FilterOperation, PaginationMode } from '@framework/Signum.Entities.DynamicQuery'
 import { ExpressionOrValueComponent, FieldComponent, DesignerModal } from './Designer'
@@ -63,7 +63,7 @@ export function FindOptionsLine(p : FindOptionsLineProps){
           filterOptions: [{ token: sfo?.parentToken, value: sfo && { __code__: "ctx.value" } as Expression<ModifiableEntity> }]
         } as FindOptionsExpr));
 
-    promise.then(fo => modifyFindOptions(fo)).done();
+    promise.then(fo => modifyFindOptions(fo));
   }
 
   function handleView(e: React.MouseEvent<any>) {
@@ -84,7 +84,7 @@ export function FindOptionsLine(p : FindOptionsLineProps){
       }
 
       p.dn.context.refreshView();
-    }).done();
+    });
   }
 
   function clean(fo: FindOptionsExpr) {
@@ -117,7 +117,7 @@ export function FindOptionsLine(p : FindOptionsLineProps){
             <a href="#" className={classes("sf-line-button", "sf-remove")}
             onClick={handleRemove}
               title={EntityControlMessage.Remove.niceToString()}>
-              <FontAwesomeIcon icon="times" />
+              <FontAwesomeIcon icon="xmark" />
             </a></div> :
             <a href="#" title={EntityControlMessage.Create.niceToString()}
               className="sf-line-button sf-create"
@@ -273,7 +273,7 @@ export function FindOptionsComponent(p : FindOptionsComponentProps){
 export function QueryKeyLine(p : { queryKey: string | undefined, label: string; onChange: (queryKey: string | undefined) => void }){
   function handleGetItems(query: string) {
     return Finder.API.findLiteLike({ types: QueryEntity.typeName, subString: query, count: 5 })
-      .then(lites => lites.map(a => a.toStr));
+      .then(lites => lites.map(a => getToString(a)));
   }
 
 
@@ -286,7 +286,7 @@ export function QueryKeyLine(p : { queryKey: string | undefined, label: string; 
         <a href="#" className={classes("sf-line-button", "sf-remove btn btn-light")}
           onClick={() => p.onChange(undefined)}
           title={EntityControlMessage.Remove.niceToString()}>
-          <FontAwesomeIcon icon="times" />
+          <FontAwesomeIcon icon="xmark" />
         </a>
       </div>
     );
@@ -329,8 +329,7 @@ function QueryTokenBuilderString(p: QueryTokenBuilderStringProps) {
         Finder.parseSingleToken(p.queryKey, p.token, p.subTokenOptions);
 
       promise
-        .then(t => p.onChange(t))
-        .done();
+        .then(t => p.onChange(t));
     }
   }, [p.queryKey, p.token]);
 
@@ -408,7 +407,7 @@ abstract class BaseOptionsComponent<T> extends React.Component<BaseOptionsCompon
       <a href="#" className={classes("sf-line-button", "sf-remove")}
         onClick={e => this.handleOnRemove(e, index)}
         title={EntityControlMessage.Remove.niceToString()}>
-        <FontAwesomeIcon icon="times" />
+        <FontAwesomeIcon icon="xmark" />
       </a>
 
       <a href="#" className={classes("sf-line-button", "move-up")}
@@ -609,7 +608,7 @@ class ColumnOptionsComponent extends BaseOptionsComponent<ColumnOptionExpr> {
         <td>
           <QueryTokenBuilderString label="columnName" parsedToken={item.parsedToken} token={item.token}
             onChange={newToken => this.handleColumnChange(item, newToken)}
-            queryKey={this.props.queryKey} subTokenOptions={SubTokensOptions.CanElement} hideLabel={true} />
+            queryKey={this.props.queryKey} subTokenOptions={SubTokensOptions.CanElement | SubTokensOptions.CanOperation} hideLabel={true} />
         </td>
         <td> {item.parsedToken && <ExpressionOrValueComponent dn={dn} hideLabel={true} refreshView={() => this.forceUpdate()} binding={Binding.create(item, f => f.displayName)} type="string" defaultValue={null} />}</td>
         <td> <ExpressionOrValueComponent dn={dn} hideLabel={true} refreshView={() => this.forceUpdate()} binding={Binding.create(item, f => f.applicable)} type="boolean" defaultValue={true} /></td>

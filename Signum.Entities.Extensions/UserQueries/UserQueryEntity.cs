@@ -13,7 +13,7 @@ public class UserQueryEntity : Entity, IUserAssetEntity, IHasEntityType
 {
     public UserQueryEntity()
     {
-        this.RebindEvents();
+        this.BindParent();
     }
 
     public UserQueryEntity(object queryName) : this()
@@ -44,7 +44,7 @@ public class UserQueryEntity : Entity, IUserAssetEntity, IHasEntityType
 
     public RefreshMode RefreshMode { get; set; } = RefreshMode.Auto;
 
-    [PreserveOrder]
+    [PreserveOrder, BindParent]
     public MList<QueryFilterEmbedded> Filters { get; set; } = new MList<QueryFilterEmbedded>();
 
     [PreserveOrder]
@@ -94,7 +94,7 @@ public class UserQueryEntity : Entity, IUserAssetEntity, IHasEntityType
             f.ParseData(this, description, SubTokensOptions.CanAnyAll | SubTokensOptions.CanElement | canAggregate);
 
         foreach (var c in Columns)
-            c.ParseData(this, description, SubTokensOptions.CanElement | canAggregate);
+            c.ParseData(this, description, SubTokensOptions.CanElement | SubTokensOptions.CanToArray | (canAggregate != 0 ? canAggregate : SubTokensOptions.CanOperation));
 
         foreach (var o in Orders)
             o.ParseData(this, description, SubTokensOptions.CanElement | canAggregate);
@@ -106,7 +106,7 @@ public class UserQueryEntity : Entity, IUserAssetEntity, IHasEntityType
             new XAttribute("Guid", Guid),
             new XAttribute("DisplayName", DisplayName),
             new XAttribute("Query", Query.Key),
-            EntityType == null ? null! : new XAttribute("EntityType", ctx.TypeToName(EntityType)),
+            EntityType == null ? null! : new XAttribute("EntityType", ctx.RetrieveLite(EntityType).CleanName),
             Owner == null ? null! : new XAttribute("Owner", Owner.KeyLong()),
             !HideQuickLink ? null! : new XAttribute("HideQuickLink", HideQuickLink),
             IncludeDefaultFilters == null ? null! : new XAttribute("IncludeDefaultFilters", IncludeDefaultFilters.Value),
@@ -134,7 +134,7 @@ public class UserQueryEntity : Entity, IUserAssetEntity, IHasEntityType
         GroupResults = element.Attribute("GroupResults")?.Let(a => bool.Parse(a.Value)) ?? false;
         ElementsPerPage = element.Attribute("ElementsPerPage")?.Let(a => int.Parse(a.Value));
         PaginationMode = element.Attribute("PaginationMode")?.Let(a => a.Value.ToEnum<PaginationMode>());
-        ColumnsMode = element.Attribute("ColumnsMode")!.Value.ToEnum<ColumnOptionsMode>();
+        ColumnsMode = element.Attribute("ColumnsMode")!.Value.Let(cm => cm == "Replace" ? "ReplaceAll" : cm).ToEnum<ColumnOptionsMode>();
         Filters.Synchronize(element.Element("Filters")?.Elements().ToList(), (f, x) => f.FromXml(x, ctx));
         Columns.Synchronize(element.Element("Columns")?.Elements().ToList(), (c, x) => c.FromXml(x, ctx));
         Orders.Synchronize(element.Element("Orders")?.Elements().ToList(), (o, x) => o.FromXml(x, ctx));
@@ -480,6 +480,9 @@ public static class UserQueryUtils
                 if (filter.Pinned.Active == PinnedFilterActive.Checkbox_StartUnchecked)
                     return null;
 
+                if (filter.Pinned.Active == PinnedFilterActive.NotCheckbox_StartChecked)
+                    return null;
+
                 if (filter.Pinned.SplitText && !filter.ValueString.HasText())
                     return null;
             }
@@ -542,10 +545,10 @@ public enum UserQueryMessage
     [Description("Use {0} to filter current entity")]
     Use0ToFilterCurrentEntity,
     Preview,
-    [Description("Makes the user query available in the contextual menu when grouping {0}")]
-    MakesTheUserQueryAvailableInContextualMenuWhenGrouping0,
-    [Description("Makes the user query available as quick link of {0}")]
-    MakesTheUserQueryAvailableAsAQuickLinkOf0,
+    [Description("Makes the {0} available in the contextual menu when grouping {1}")]
+    MakesThe0AvailableInContextualMenuWhenGrouping0,
+    [Description("Makes the {0} available as Quick Link of {1}")]
+    MakesThe0AvailableAsAQuickLinkOf1,
     [Description("the selected {0}")]
     TheSelected0,
 }

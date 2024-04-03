@@ -11,7 +11,7 @@ public class UserChartEntity : Entity, IChartBase, IHasEntityType, IUserAssetEnt
 {
     public UserChartEntity()
     {
-        this.RebindEvents();
+        this.BindParent();
     }
 
     public UserChartEntity(object queryName) : this()
@@ -66,10 +66,10 @@ public class UserChartEntity : Entity, IChartBase, IHasEntityType, IUserAssetEnt
     [NoRepeatValidator]
     public MList<ChartParameterEmbedded> Parameters { get; set; } = new MList<ChartParameterEmbedded>();
 
-    [NotifyCollectionChanged, NotifyChildProperty, PreserveOrder]
+    [BindParent, PreserveOrder]
     public MList<ChartColumnEmbedded> Columns { get; set; } = new MList<ChartColumnEmbedded>();
 
-    [NotifyChildProperty, NotifyCollectionChanged, PreserveOrder]
+    [BindParent, PreserveOrder]
     public MList<QueryFilterEmbedded> Filters { get; set; } = new MList<QueryFilterEmbedded>();
 
     [UniqueIndex]
@@ -98,6 +98,8 @@ public class UserChartEntity : Entity, IChartBase, IHasEntityType, IUserAssetEnt
 
     protected override void PostRetrieving(PostRetrievingContext ctx)
     {
+        base.PostRetrieving(ctx);
+
         try
         {
             this.GetChartScript().SynchronizeColumns(this, ctx);
@@ -114,9 +116,9 @@ public class UserChartEntity : Entity, IChartBase, IHasEntityType, IUserAssetEnt
             new XAttribute("Guid", Guid),
             new XAttribute("DisplayName", DisplayName),
             new XAttribute("Query", Query.Key),
-            EntityType == null ? null! : new XAttribute("EntityType", ctx.TypeToName(EntityType)),
+            EntityType == null ? null! : new XAttribute("EntityType", ctx.RetrieveLite(EntityType).CleanName),
             new XAttribute("HideQuickLink", HideQuickLink),
-            Owner == null ? null! : new XAttribute("Owner", Owner.Key()),
+            Owner == null ? null! : new XAttribute("Owner", Owner.KeyLong()),
             IncludeDefaultFilters == null ? null! : new XAttribute("IncludeDefaultFilters", IncludeDefaultFilters.Value),
             new XAttribute("ChartScript", this.ChartScript.Key),
             MaxRows == null ? null! : new XAttribute("MaxRows", MaxRows.Value),

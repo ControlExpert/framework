@@ -4,7 +4,7 @@ import { ajaxGet } from '@framework/Services';
 import * as Navigator from '@framework/Navigator'
 import * as AppContext from '@framework/AppContext'
 import * as Finder from '@framework/Finder'
-import { Entity, Lite, liteKey, MList } from '@framework/Signum.Entities'
+import { Entity, getToString, Lite, liteKey, MList } from '@framework/Signum.Entities'
 import { getQueryKey, getEnumInfo, QueryTokenString, getTypeInfos, tryGetTypeInfos, timeToString, toFormatWithFixes } from '@framework/Reflection'
 import {
   FilterOption, OrderOption, OrderOptionParsed, QueryRequest, QueryToken, SubTokensOptions, ResultTable, OrderRequest, OrderType, FilterOptionParsed, hasAggregate, ColumnOption, withoutAggregate
@@ -643,12 +643,12 @@ export module API {
     return v => v == null ? "#555" : null;
   }
 
-  export function getNiceName(token: QueryToken, chartColumn: ChartColumnEmbedded): ((val: unknown) => string) {
+  export function getNiceName(token: QueryToken, chartColumn: ChartColumnEmbedded): ((val: unknown, width?: number) => string) {
 
     if (token.type.isLite)
       return v => {
         var lite = v as Lite<Entity> | null;
-        return String(lite?.toStr ?? "");
+        return String(getToString(lite) ?? "");
       };
 
     if (token.filterType == "Enum")
@@ -663,10 +663,18 @@ export module API {
       };
 
     if (token.filterType == "DateTime")
-      return v => {
+      return (v, width) => {
         var date = v as string | null;
+        if (date == null)
+          return String(null);
+
         var luxonFormat = toLuxonFormat(chartColumn.format || token.format, token.type.name as "DateOnly" | "DateTime");
-        return date == null ? String(null) : toFormatWithFixes(DateTime.fromISO(date), luxonFormat);
+        var result = toFormatWithFixes(DateTime.fromISO(date), luxonFormat);
+        if (luxonFormat == "D" && width != null && width < 80) {
+          var year = DateTime.fromISO(date).toFormat("yyyy");
+          return result.replace(year, "").replace(/^[\/\-.]/, "").replace(/[\/\-.]$/, "");
+        }
+        return result;
       };
 
     if (token.filterType == "Time")
@@ -746,7 +754,7 @@ export module API {
     if (!hasAggregates(request)) {
       const value = (r: ChartRow) => r.entity;
       const color = (v: Lite<Entity> | undefined) => !v ? "#555" : null;
-      const niceName = (v: Lite<Entity> | undefined) => v?.toStr;
+      const niceName = (v: Lite<Entity> | undefined) => getToString(v);
       const key = (v: Lite<Entity> | undefined) => v ? liteKey(v) : String(v);
       cols.insertAt(0, ({
         name: "entity",
@@ -844,6 +852,9 @@ export interface ChartTable {
     c6?: ChartColumn<unknown>;
     c7?: ChartColumn<unknown>;
     c8?: ChartColumn<unknown>;
+    c9?: ChartColumn<unknown>;
+    c10?: ChartColumn<unknown>;
+    c11?: ChartColumn<unknown>;
   },
   rows: ChartRow[]
 }
@@ -859,6 +870,9 @@ export interface ChartRow {
   c6?: unknown;
   c7?: unknown;
   c8?: unknown;
+  c9?: unknown;
+  c10?: unknown;
+  c11?: unknown;
 }
 
 
@@ -872,12 +886,12 @@ export interface ChartColumn<V> {
   orderByType?: OrderType | null;
 
   getKey: (v: V | null) => string;
-  getNiceName: (v: V | null) => string;
+  getNiceName: (v: V | null, width?: number) => string;
   getColor: (v: V | null) => string | null;
 
   getValue: (row: ChartRow) => V;
   getValueKey: (row: ChartRow) => string;
-  getValueNiceName: (row: ChartRow) => string;
+  getValueNiceName: (row: ChartRow, width?: number) => string;
   getValueColor: (row: ChartRow) => string | null;
 }
 

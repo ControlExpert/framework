@@ -17,6 +17,12 @@
   <Type Name="CalendarMessage">
     <Member Name="Today" Description="Heute" />
   </Type>
+  <Type Name="ClientErrorModel" Description="Client-Fehler">
+    <Member Name="ErrorType" Description="Fehlertyp" />
+    <Member Name="Message" Description="Nachricht" />
+    <Member Name="Name" Description="Name" />
+    <Member Name="Stack" Description="Stapel" />
+  </Type>
   <Type Name="CollectionAnyAllType">
     <Member Name="All" Description="Alle" />
     <Member Name="Any" Description="Irgend" />
@@ -28,11 +34,18 @@
     <Member Name="Element2" Description="Element (2)" />
     <Member Name="Element3" Description="Element (3)" />
   </Type>
+  <Type Name="CollectionToArrayType">
+    <Member Name="SeparatedByComma" Description="Getrennt durch Komma" />
+    <Member Name="SeparatedByCommaDistict" Description="Getrennt durch Komma (Distinct)" />
+    <Member Name="SeparatedByNewLine" Description="Getrennt durch neue Zeile" />
+    <Member Name="SeparatedByNewLineDistict" Description="Getrennt durch neue Zeile (Distinct)" />
+  </Type>
   <Type Name="ColumnOptionsMode" Description="Spaltenoptionenmodus">
     <Member Name="Add" Description="Hinzufügen" />
     <Member Name="InsertStart" Description="Einfügen beim Start" />
     <Member Name="Remove" Description="Entfernen" />
-    <Member Name="Replace" Description="Ersetzen" />
+    <Member Name="ReplaceAll" Description="Alle ersetzen" />
+    <Member Name="ReplaceOrAdd" Description="Ersetzen oder Hinzufügen" />
   </Type>
   <Type Name="ComparisonType">
     <Member Name="DistinctTo" Description="ungleich" />
@@ -90,7 +103,11 @@
     <Member Name="Find" Description="Finden" />
     <Member Name="Move" Description="Bewegen" />
     <Member Name="MoveDown" Description="Nach unten" />
+    <Member Name="MoveLeft" Description="Nach links" />
+    <Member Name="MoveRight" Description="Nach rechts" />
     <Member Name="MoveUp" Description="Nach oben" />
+    <Member Name="MoveWithDragAndDropOrCtrlLeftRight" Description="Verschieben mit Drag &amp; Drop oder Strg + Links / Rechts" />
+    <Member Name="MoveWithDragAndDropOrCtrlUpDown" Description="Verschieben mit Drag &amp; Drop oder Strg + Auf / Ab" />
     <Member Name="Navigate" Description="Navigieren" />
     <Member Name="Paste" Description="Einfügen" />
     <Member Name="Remove" Description="Entfernen" />
@@ -110,6 +127,7 @@
     <Member Name="Form" Description="Formular" />
     <Member Name="HResult" Description="H Ergebnis" />
     <Member Name="MachineName" Description="Computername" />
+    <Member Name="Origin" Description="Herkunft" />
     <Member Name="QueryString" Description="Query string" />
     <Member Name="Referenced" Description="Auf die verwiesen wird" />
     <Member Name="RequestUrl" Description="Request url" />
@@ -123,6 +141,10 @@
     <Member Name="UserHostAddress" Description="Benutzer Hostadresse" />
     <Member Name="UserHostName" Description="Benutzer Hostname" />
     <Member Name="Version" Description="Version" />
+  </Type>
+  <Type Name="ExceptionOrigin" Description="Ausnahme Ursprung">
+    <Member Name="Backend_DotNet" Description="Backend DotNet" />
+    <Member Name="Frontend_React" Description="Frontend React" />
   </Type>
   <Type Name="FilterGroupOperation" Description="Filtergruppeoperation">
     <Member Name="And" Description="Und" />
@@ -218,6 +240,8 @@
   <Type Name="ModelEntity" Description="Modellentität" />
   <Type Name="ModifiableEntity" Description="Veränderbare Entität" />
   <Type Name="NormalControlMessage">
+    <Member Name="CopyEntityTypeAndIdForAutocomplete" Description="Entitätstyp und ID kopieren (für Autovervollständigung)" />
+    <Member Name="CopyEntityUrl" Description="Entitäts-URL kopieren" />
     <Member Name="SaveChangesFirst" Description="Erst Änderungen speichern" />
     <Member Name="ViewForType0IsNotAllowed" Description="Anzeigen des Typs {0} ist nicht zulässig" />
   </Type>
@@ -234,12 +258,16 @@
   <Type Name="OperationMessage">
     <Member Name="_0AndClose" Description="{0} &amp; Schließen" />
     <Member Name="_0AndNew" Description="{0} &amp; Neu" />
+    <Member Name="_0Errors" Description="{0} Fehler" />
     <Member Name="AddSetter" Description="Setter hinzufügen" />
     <Member Name="BulkModifications" Description="Massenänderungen" />
     <Member Name="Condition" Description="Bedingung" />
     <Member Name="Confirm" Description="Bestätigen" />
     <Member Name="Create" Description="Erstellen..." />
+    <Member Name="Create0" Description="{0} erstellen" />
     <Member Name="CreateFromRegex" Description="^(.*) aus .* erstellen$" />
+    <Member Name="Deleting" Description="Löschen" />
+    <Member Name="Executing0" Description="Ausführen {0}" />
     <Member Name="InUserInterface" Description="(in der Benutzeroberfläche)" />
     <Member Name="Logs" Description="Logs" />
     <Member Name="MultiSetter" Description="Multi-Setter" />
@@ -269,6 +297,8 @@
     <Member Name="Always" Description="Immer" />
     <Member Name="Checkbox_StartChecked" Description="Checkbox (aktiviert starten)" />
     <Member Name="Checkbox_StartUnchecked" Description="Checkbox (unaktiviert starten)" />
+    <Member Name="NotCheckbox_StartChecked" Description="Nicht Checkbox (aktiviert starten)" />
+    <Member Name="NotCheckbox_StartUnchecked" Description="Nicht Checkbox (unaktiviert starten)" />
     <Member Name="WhenHasValue" Description="Wenn er einen Wert hat" />
   </Type>
   <Type Name="PropertyOperation" Description="Eigenschaftsvorgang">
@@ -297,9 +327,11 @@
     <Member Name="And" Description=" und " />
     <Member Name="AnyEntity" Description="Jede Einheit" />
     <Member Name="As0" Description="Als {0}" />
+    <Member Name="CellOperation" Description="Zelloperation" />
     <Member Name="Check" Description="Ja/Nein-Wert" />
     <Member Name="Column0NotFound" Description="Die Spalte {0} wurde nicht gefunden" />
-    <Member Name="Count" Description="Num" />
+    <Member Name="ContainerOfCellOperations" Description="Container für Zellenoperationen" />
+    <Member Name="Count" Description="Anzahl" />
     <Member Name="Date" Description="Datum" />
     <Member Name="DateTime" Description="Datum und Uhrzeit" />
     <Member Name="DateTimeOffset" Description="Datum und Uhrzeit mit Zeitzone" />
@@ -309,6 +341,7 @@
     <Member Name="DecimalNumber" Description="Dezimalzahl" />
     <Member Name="Distinct" Description="Unterschiedlich" />
     <Member Name="Embedded0" Description="eingebettet {0}" />
+    <Member Name="EntityType" Description="Entitätstyp" />
     <Member Name="GlobalUniqueIdentifier" Description="Globaler einzigartiger Identifikator" />
     <Member Name="HasValue" Description="Hat einen Wert" />
     <Member Name="Hour" Description="Stunde" />
@@ -323,7 +356,7 @@
     <Member Name="MonthStart" Description="Monatsbeginn " />
     <Member Name="MoreThanOneColumnNamed0" Description="Mehr als eine Spalte mit dem Namen {0}" />
     <Member Name="Not" Description="Nicht" />
-    <Member Name="Null" Description="Null" />
+    <Member Name="Null" Description="Leer" />
     <Member Name="Number" Description="Nummer" />
     <Member Name="Quarter" Description="Quartal" />
     <Member Name="QuarterStart" Description="Quartalsstart" />
@@ -410,7 +443,9 @@
     <Member Name="HiddenColumn" Description="Ausgeblendete Spalte" />
     <Member Name="HideHiddenColumns" Description="Ausgeblendete Spalten ausblenden" />
     <Member Name="HidePinnedFiltersOptions" Description="Vorgewahlter Filteroptionen ausblenden" />
+    <Member Name="InvalidColumnExpression" Description="Ungültiger Spaltenausdruck" />
     <Member Name="Label" Description="Etikett" />
+    <Member Name="MoreThanOne0Selected" Description="Mehr als ein {0} ausgewählt" />
     <Member Name="Name" Description="Name" />
     <Member Name="NewColumnSName" Description="Neuer Spaltenname" />
     <Member Name="NoActionsFound" Description="Keine Aktionen gefunden" />
@@ -455,12 +490,14 @@
   <Type Name="SelectorMessage">
     <Member Name="_0Selector" Description="{0}-Selektor" />
     <Member Name="ChooseAValue" Description="Wählen Sie einen Wert" />
+    <Member Name="ChooseValues" Description="Werte wählen" />
     <Member Name="ConstructorSelector" Description="Konstruktor Selektor" />
     <Member Name="CreationOf0Cancelled" Description="Erstellung von {0} abgebrochen" />
     <Member Name="PleaseChooseA0ToContinue" Description="Wählen Sie einen {0} wert, um fortzufahren:" />
     <Member Name="PleaseChooseAValueToContinue" Description="Bitte wählen Sie einen Wert, um fortzufahren:" />
     <Member Name="PleaseSelectAConstructor" Description="Bitte wählen Sie einen Konstruktor" />
     <Member Name="PleaseSelectAnElement" Description="Bitte wählen Sie ein Element" />
+    <Member Name="PleaseSelectAtLeastOneValueToContinue" Description="Bitte wählen Sie mindestens einen Wert aus, um fortzufahren:" />
     <Member Name="PleaseSelectAType" Description="Bitte wählen Sie einen der folgenden Typen: " />
     <Member Name="SelectAnElement" Description="Wählen Sie ein Element" />
     <Member Name="TypeSelector" Description="Typselektor" />
@@ -529,6 +566,7 @@
     <Member Name="_0IsNotAllowedOnState1" Description="{0} ist im Status {1} nicht zulässig" />
     <Member Name="_0IsNotCompatibleWith1" Description="{0} ist nicht mit {1} kompatibel" />
     <Member Name="_0IsNotSet" Description="{0} ist nicht festgesetzt" />
+    <Member Name="_0IsNotSetIn1" Description="{0} ist nicht in {1} festgelegt" />
     <Member Name="_0IsRepeated" Description="{0} ist wiederholt" />
     <Member Name="_0IsSet" Description="{0} wird gesetzt" />
     <Member Name="_0Or1ShouldBeSet" Description="{0} oder {1} sollten gesetzt sein" />

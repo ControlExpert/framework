@@ -1,10 +1,11 @@
 import { DateTime, DateTimeFormatOptions, Duration, DurationObjectUnits, Settings } from 'luxon';
 import { Dic } from './Globals';
-import type { ModifiableEntity, Entity, Lite, MListElement, ModelState, MixinEntity } from './Signum.Entities'; //ONLY TYPES or Cyclic problems in Webpack!
-import { ajaxGet } from './Services';
+import type { ModifiableEntity, Entity, Lite, MListElement, ModelState, MixinEntity, OperationSymbol, ModelEntity } from './Signum.Entities'; //ONLY TYPES or Cyclic problems in Webpack!
+import { ajaxGet, ThrowErrorFilter } from './Services';
 import { MList } from "./Signum.Entities";
 import * as AppContext from './AppContext';
 import { QueryString } from './QueryString';
+import { func } from 'prop-types';
 
 export function getEnumInfo(enumTypeName: string, enumId: number): MemberInfo {
 
@@ -26,6 +27,7 @@ export interface TypeInfo {
   entityKind?: EntityKind;
   entityData?: EntityData;
   toStringFunction?: string;
+  customLiteModels?: { [modelType: string]: CustomLiteModel };
   isLowPopulation?: boolean;
   isSystemVersioned?: boolean;
   requiresSaveOperation?: boolean;
@@ -36,6 +38,12 @@ export interface TypeInfo {
   hasConstructorOperation?: boolean;
   operations?: { [name: string]: OperationInfo };
 }
+
+export interface CustomLiteModel {
+  isDefault: boolean;
+  constructorFunctionString?: string;
+  constructorFunction?: (e: Entity) => ModelEntity;
+} 
 
 export interface MemberInfo {
   name: string,
@@ -109,6 +117,48 @@ export function toLuxonFormat(netFormat: string | undefined, type: "DateOnly" | 
       return result;
     }
   }
+}
+
+export function splitLuxonFormat(luxonFormat: string) : [dateFormat: string, durationFormat: string | null] {
+
+  switch (luxonFormat) {
+    case "D": return ["D", null];
+    case "DD": return ["DD", null];
+    case "DDD": return ["DDD", null];
+    case "DDDD": return ["DDDD", null];
+    case "F": return ["D", "hh:mm:ss"];
+    case "FF": return ["DD", "hh:mm:ss"];
+    case "FFF": return ["DDD", "hh:mm:ss"];
+    case "FFFF": return ["DDDD", "hh:mm:ss"];
+    case "f": return ["D", "hh:mm"];
+    case "ff": return ["DD", "hh:mm"];
+    case "fff": return ["DDD", "hh:mm"];
+    case "ffff": return ["DDDD", "hh:mm"];
+  }
+
+  if (luxonFormat.contains("'T'"))
+    return [luxonFormat.before("'T'"), luxonFormat.after("'T'").replaceAll("H", "h")];
+
+  if (luxonFormat.contains(" ") && !luxonFormat.after(" ").contains(" "))
+    return [luxonFormat.before(" "), luxonFormat.after(" ").replaceAll("H", "h")];
+
+  throw new Error("Unable to split " + luxonFormat);
+}
+
+export function dateTimePlaceholder(luxonFormat: string) {
+  var result = DateTime.expandFormat(luxonFormat);
+
+  return result
+    .replace(/\bd\b/, "dd")
+    .replace(/\bMM?\b/, "mm")
+    .replace(/\bh\b/, "hh")
+    .replace(/\bHH?\b/, "hh")
+    .replace(/\bm\b/, "mm");
+
+}
+
+export function timePlaceholder(durationFormat: string) {
+  return durationFormat;
 }
 
 const oneDigitCulture = new Set([
@@ -364,7 +414,7 @@ export function timeToString(val: any, netFormat?: string) {
     return "";
 
   var duration = Duration.fromISOTime(val);
-  return duration.toFormat(toLuxonDurationFormat(netFormat) ?? "hh:mm:ss");
+  return duration.toFormat(toLuxonDurationFormat(netFormat) ?? "HH:mm:ss");
 }
 
 
@@ -914,8 +964,6 @@ const lambdaRegex = /^\s*\(?\s*(?<param>[$a-zA-Z_][0-9a-zA-Z_$]*)\s*\)?\s*=>\s*(
 const memberRegex = /^(.*)\.([$a-zA-Z_][0-9a-zA-Z_$]*)$/;
 const memberIndexerRegex = /^(.*)\["([$a-zA-Z_][0-9a-zA-Z_$]*)"\]$/;
 const mixinMemberRegex = /^(.*)\.mixins\["([$a-zA-Z_][0-9a-zA-Z_$]*)"\]$/; //Necessary for some crazy minimizers
-const getMixinRegexOld = /^Object\([^[]+\["getMixin"\]\)\((.+),[^[]+\["([$a-zA-Z_][0-9a-zA-Z_$]*)"\]\)$/;
-const getMixinRegex = /^\(0,[^.]+\.getMixin\)\((.+),[^.]+\.([$a-zA-Z_][0-9a-zA-Z_$]*)\)$/;
 const indexRegex = /^(.*)\[(\d+)\]$/;
 const fixNullPropagator = /^\(([_\w]+)\s*=\s(.*?)\s*\)\s*===\s*null\s*\|\|\s*\1\s*===\s*void 0\s*\?\s*void 0\s*:\s*\1$/;
 const fixNullPropagatorProd = /^\s*null\s*===\(([_\w]+)\s*=\s*(.*?)\s*\)\s*\|\|\s*void 0\s*===\s*\1\s*\?\s*void 0\s*:\s*\1$/;
@@ -936,10 +984,6 @@ export function getLambdaMembers(lambda: Function): LambdaMember[] {
   while (body != parameter) {
     let m: RegExpExecArray | null;
     if (m = mixinMemberRegex.exec(body)) {
-      result.push({ name: m[2], type: "Mixin" });
-      body = m[1];
-    }
-    else if (m = getMixinRegex.exec(body) ?? getMixinRegexOld.exec(body)) {
       result.push({ name: m[2], type: "Mixin" });
       body = m[1];
     }
@@ -1165,13 +1209,13 @@ export function isType(obj: any): obj is IType {
   return (obj as IType).typeName != undefined;
 }
 
-export function newLite<T extends Entity>(type: Type<T>, id: number | string, toStr?: string): Lite<T>;
-export function newLite(typeName: PseudoType, id: number | string, toStr?: string): Lite<Entity>;
-export function newLite(type: PseudoType, id: number | string, toStr?: string): Lite<Entity> {
+export function newLite<T extends Entity>(type: Type<T>, id: number | string, model?: unknown): Lite<T>;
+export function newLite(typeName: PseudoType, id: number | string, model?: unknown): Lite<Entity>;
+export function newLite(type: PseudoType, id: number | string, model?: unknown): Lite<Entity> {
   return {
     EntityType: getTypeName(type),
     id: id,
-    toStr: toStr
+    model: model
   };
 }
 
@@ -1333,6 +1377,10 @@ export class Type<T extends ModifiableEntity> implements IType {
     else
       return new QueryTokenString(tokenSequence(lambdaToColumn, true));
   }
+
+  toString() {
+    return this.typeName;
+  }
 }
 
 /*  Some examples being in ExceptionEntity:
@@ -1367,6 +1415,10 @@ export class QueryTokenString<T> {
 
   systemValidTo() {
     return new QueryTokenString(this.token + ".SystemValidTo");
+  }
+
+  getToString() {
+    return new QueryTokenString(this.token + ".ToString");
   }
 
   cast<R extends Entity>(t: Type<R>): QueryTokenString<R> {
@@ -1405,6 +1457,23 @@ export class QueryTokenString<T> {
     return new QueryTokenString<S>(this.token + ".AnyNo");
   }
 
+  separatedByComma<S = ArrayElement<T>>(): QueryTokenString<S> {
+    return new QueryTokenString<S>(this.token + ".SeparatedByComma");
+  }
+
+  separatedByCommaDistinct<S = ArrayElement<T>>(): QueryTokenString<S> {
+    return new QueryTokenString<S>(this.token + ".SeparatedByCommaDistinct");
+  }
+
+  separatedByNewLine<S = ArrayElement<T>>(): QueryTokenString<S> {
+    return new QueryTokenString<S>(this.token + ".SeparatedByNewLine");
+  }
+
+  separatedByNewLineDistinct<S = ArrayElement<T>>(): QueryTokenString<S> {
+    return new QueryTokenString<S>(this.token + ".SeparatedByNewLineDistinct");
+  }
+  
+
   noOne<S = ArrayElement<T>>(): QueryTokenString<S> {
     return new QueryTokenString<S>(this.token + ".NoOne");
   }
@@ -1435,6 +1504,10 @@ export class QueryTokenString<T> {
 
   hasValue(): QueryTokenString<boolean> {
     return new QueryTokenString<boolean>(this.token + ".HasValue");
+  }
+
+  operation(os: OperationSymbol): string { //operation tokens are leaf
+    return this.token + ".[Operations]." + os.key.replace(".", "#");
   }
 }
 
@@ -1543,11 +1616,14 @@ export function symbolNiceName(symbol: Entity & ISymbol | Lite<Entity & ISymbol>
   if ((symbol as Entity).Type != null) //Don't use isEntity to avoid cycle
   {
     var m = getMember((symbol as Entity & ISymbol).key);
-    return m && m.niceName || symbol.toStr!;
+    return m && m.niceName || (symbol as Entity).toStr!;
   }
   else {
-    var m = getMember(symbol.toStr!);
-    return m && m.niceName || symbol.toStr!;
+    var model = (symbol as Lite<Entity>).model;
+    var toStr = typeof model == "string" ? model : (model as ModelEntity).toStr;
+
+    var m = getMember(toStr);
+    return m && m.niceName || toStr;
   }
 }
 
@@ -1734,6 +1810,10 @@ export class PropertyRoute {
       return this.parent!.allParents(includeMixins);
 
     return [...this.parent == null ? [] : this.parent.allParents(includeMixins), this];
+  }
+
+  addMixin<T extends MixinEntity>(mixin: Type<T>, property: ((val: T) => any) | string) {
+    return this.addMember("Mixin", mixin.typeName, true).addLambda(property);
   }
 
   addLambda(property: ((val: any) => any) | string): PropertyRoute {
@@ -1940,7 +2020,7 @@ export class PropertyRoute {
             return {};
 
           const ti = tryGetTypeInfos(this.typeReference()).single("Ambiguity due to multiple Implementations"); //[undefined]
-          if (ti && isTypeEntity(ti))
+          if (ti && (isTypeEntity(ti) || isTypeModel(ti)))
             return simpleMembersAfter(ti, "");
           else
             return simpleMembersAfter(this.findRootType(), this.propertyPath() + (this.propertyRouteType == "Field" ? "." : ""));

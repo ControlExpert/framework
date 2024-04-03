@@ -6,17 +6,6 @@ using System.IO;
 
 namespace Signum.Engine.Files;
 
-public static class BlobContainerClientPool
-{
-    static ConcurrentDictionary<(string connectionString, string blobContainerName), BlobContainerClient> Pool =
-        new ConcurrentDictionary<(string connectionString, string blobContainerName), BlobContainerClient>();
-
-    public static BlobContainerClient Get(string connectionString, string blobContainerName)
-    {
-        return Pool.GetOrAdd((connectionString, blobContainerName), t => new BlobContainerClient(t.connectionString, t.blobContainerName));
-    }
-}
-
 public enum BlobAction 
 {
     Open,
@@ -27,7 +16,7 @@ public class AzureBlobStoragebFileTypeAlgorithm : FileTypeAlgorithmBase, IFileTy
 {
     public Func<IFilePath, BlobContainerClient> GetClient { get; private set; }
 
-    public Func<bool> WebDownload { get; private set; } = () => false;
+    public Func<bool> WebDownload { get; set; } = () => false;
 
     public Func<IFilePath, string> CalculateSuffix { get; set; } = SuffixGenerators.Safe.YearMonth_Guid_Filename;
     public bool WeakFileReference { get; set; }
@@ -50,8 +39,7 @@ public class AzureBlobStoragebFileTypeAlgorithm : FileTypeAlgorithmBase, IFileTy
 
         if (!this.WebDownload())
             return PrefixPair.None();
-
-        //return PrefixPair.WebOnly($"https://{client.Uri}/{efp.Suffix}");
+        
         return PrefixPair.WebOnly($"{client.Uri}");
     }
 

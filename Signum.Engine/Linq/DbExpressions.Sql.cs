@@ -633,6 +633,7 @@ internal enum SqlFunction
     YEAR,
     DATEPART,
     DATEDIFF,
+    DATEDIFF_BIG,
     DATEADD,
 
     COALESCE,
@@ -1391,11 +1392,12 @@ internal class DeleteExpression : CommandExpression
     public readonly bool UseHistoryTable;
     public ObjectName Name { get { return UseHistoryTable ? Table.SystemVersioned!.TableName : Table.Name; } }
 
+    public readonly Alias? Alias;
     public readonly SourceWithAliasExpression Source;
     public readonly Expression? Where;
     public readonly bool ReturnRowCount;
 
-    public DeleteExpression(ITable table, bool useHistoryTable, SourceWithAliasExpression source, Expression? where, bool returnRowCount)
+    public DeleteExpression(ITable table, bool useHistoryTable, SourceWithAliasExpression source, Expression? where, bool returnRowCount, Alias? alias)
         : base(DbExpressionType.Delete)
     {
         this.Table = table;
@@ -1403,12 +1405,13 @@ internal class DeleteExpression : CommandExpression
         this.Source = source;
         this.Where = where;
         this.ReturnRowCount = returnRowCount;
+        this.Alias = alias;
     }
 
     public override string ToString()
     {
         return "DELETE FROM {0}\r\nFROM {1}\r\n{2}".FormatWith(
-            Table.Name,
+            (object?)Alias ?? Name,
             Source.ToString(),
             Where?.Let(w => "WHERE " + w.ToString())) + 
             (ReturnRowCount ? "\r\nSELECT @@rowcount" : "");

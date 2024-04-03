@@ -19,7 +19,7 @@ export default function TimesPage(p: TimesPageProps) {
   useTitle("Times state");
 
   function handleClear(e: React.MouseEvent<any>) {
-    API.Times.clear().then(() => reloadTimes()).done();
+    API.Times.clear().then(() => reloadTimes());
   }
 
   if (times == undefined)
@@ -27,7 +27,7 @@ export default function TimesPage(p: TimesPageProps) {
 
   return (
     <div>
-      <h3>Times</h3>
+      <h3 className="display-6">Times</h3>
       <div className="btn-toolbar">
         <button onClick={() => reloadTimes()} className="btn btn-light">Reload</button>
         <button onClick={handleClear} className="btn btn-warning">Clear</button>

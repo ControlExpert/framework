@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { classes, Dic, KeyGenerator } from '../Globals'
-import { ModifiableEntity, Lite, Entity, MListElement, MList, EntityControlMessage, newMListElement, isLite, parseLiteList, is } from '../Signum.Entities'
+import { ModifiableEntity, Lite, Entity, MListElement, MList, EntityControlMessage, newMListElement, isLite, parseLiteList, is, liteKey } from '../Signum.Entities'
 import * as Finder from '../Finder'
 import * as Navigator from '../Navigator'
 import { FilterOption, FindOptions } from '../FindOptions'
@@ -10,9 +10,12 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { LineBaseController, LineBaseProps, tasks } from './LineBase'
 import { FindOptionsAutocompleteConfig, LiteAutocompleteConfig } from './AutoCompleteConfig'
 import { tryGetTypeInfos } from '../Reflection'
+import { KeyCodes } from '../Components'
+import { isRtl } from '../AppContext'
 
 export interface EntityListBaseProps extends EntityBaseProps {
   move?: boolean | ((item: ModifiableEntity | Lite<Entity>) => boolean);
+  moveMode?: "DragIcon" | "MoveIcons";
   onFindMany?: () => Promise<(ModifiableEntity | Lite<Entity>)[] | undefined> | undefined;
   filterRows?: (ctxs: TypeContext<any /*T*/>[]) => TypeContext<any /*T*/>[]; /*Not only filter, also order, skip, take is supported*/
   onAddElement?: (list: MList<Lite<Entity> | ModifiableEntity /*T*/>, newItem: Lite<Entity> | ModifiableEntity /*T*/) => void,
@@ -39,13 +42,12 @@ export abstract class EntityListBaseController<T extends EntityListBaseProps> ex
 
   keyGenerator = new KeyGenerator();
   getDefaultProps(state: T) {
-
     super.getDefaultProps(state);
+    state.moveMode = "DragIcon";
   }
 
   overrideProps(p: T, overridenProps: T) {
     if (overridenProps.onFind) {
-      debugger;
       throw new Error(`'onFind' property is not applicable to ${this.constructor.name.before("Controller")} (ctx = ${p.ctx.propertyPath}). Use 'onFindMany' instead`);
     }
 
@@ -71,15 +73,34 @@ export abstract class EntityListBaseController<T extends EntityListBaseProps> ex
     this.setValue(list);
   }
 
-  renderMoveUp(btn: boolean, index: number) {
+  renderMoveUp(btn: boolean, index: number, orientation: "h" | "v") {
     if (!this.canMove(this.props.ctx.value[index].element) || this.props.ctx.readOnly)
       return undefined;
 
     return (
       <a href="#" className={classes("sf-line-button", "sf-move", "sf-move-step", btn ? "input-group-text" : undefined)}
         onClick={e => { e.preventDefault(); this.moveUp(index); }}
-        title={this.props.ctx.titleLabels ? EntityControlMessage.MoveUp.niceToString() : undefined}>
-        <FontAwesomeIcon icon="chevron-up" />
+        title={this.props.ctx.titleLabels ? (orientation == "v" ? EntityControlMessage.MoveUp : (isRtl() ? EntityControlMessage.MoveRight : EntityControlMessage.MoveLeft)).niceToString() : undefined}>
+        <FontAwesomeIcon icon={orientation == "v" ? "chevron-up" : (isRtl() ? "chevron-right" : "chevron-left")} />
+      </a>
+    );
+  }
+
+  moveDown(index: number) {
+    const list = this.props.ctx.value!;
+    list.moveDown(index);
+    this.setValue(list);
+  }
+
+  renderMoveDown(btn: boolean, index: number, orientation: "h" | "v") {
+    if (!this.canMove(this.props.ctx.value[index].element) || this.props.ctx.readOnly)
+      return undefined;
+
+    return (
+      <a href="#" className={classes("sf-line-button", "sf-move", "sf-move-step", btn ? "input-group-text" : undefined)}
+        onClick={e => { e.preventDefault(); this.moveDown(index); }}
+        title={this.props.ctx.titleLabels ? (orientation == "v" ? EntityControlMessage.MoveDown : (isRtl() ? EntityControlMessage.MoveLeft : EntityControlMessage.MoveRight)).niceToString() : undefined}>
+        <FontAwesomeIcon icon={orientation == "v" ? "chevron-down" : (isRtl() ? "chevron-left" : "chevron-right")} />
       </a>
     );
   }
@@ -132,28 +153,12 @@ export abstract class EntityListBaseController<T extends EntityListBaseProps> ex
             this.setValue(list);
           }
 
-        }).done();
-      }).done();
+        });
+      });
     }
   }
 
-  moveDown(index: number) {
-    const list = this.props.ctx.value!;
-    list.moveDown(index);
-    this.setValue(list);
-  }
 
-  renderMoveDown(btn: boolean, index: number) {
-    if (!this.canMove(this.props.ctx.value[index].element) || this.props.ctx.readOnly)
-      return undefined;
-
-    return (
-      <a href="#" className={classes("sf-line-button", "sf-move", "sf-move-step", btn ? "input-group-text" : undefined)}
-        onClick={e => { e.preventDefault(); this.moveDown(index); }}
-        title={this.props.ctx.titleLabels ? EntityControlMessage.MoveUp.niceToString() : undefined}>
-        <FontAwesomeIcon icon="chevron-down" />
-      </a>);
-  }
 
 
   handleCreateClick = (event: React.SyntheticEvent<any>) => {
@@ -184,9 +189,8 @@ export abstract class EntityListBaseController<T extends EntityListBaseProps> ex
           return;
 
         this.convert(e)
-          .then(m => this.addElement(m))
-          .done();
-      }).done();
+          .then(m => this.addElement(m));
+      });
   };
 
   defaultFindMany(): Promise<(ModifiableEntity | Lite<Entity>)[] | undefined> {
@@ -244,8 +248,7 @@ export abstract class EntityListBaseController<T extends EntityListBaseProps> ex
     event.preventDefault();
 
     navigator.clipboard.readText()
-      .then(text => this.paste(text))
-      .done();
+      .then(text => this.paste(text));
   }
 
   handleFindClick = (event: React.SyntheticEvent<any>) => {
@@ -263,8 +266,8 @@ export abstract class EntityListBaseController<T extends EntityListBaseProps> ex
 
       Promise.all(lites.map(a => this.convert(a))).then(entites => {
         entites.forEach(e => this.addElement(e));
-      }).done();
-    }).done();
+      });
+    });
   };
 
   handleRemoveElementClick = (event: React.SyntheticEvent<any>, index: number) => {
@@ -280,7 +283,7 @@ export abstract class EntityListBaseController<T extends EntityListBaseProps> ex
           return;
 
         this.removeElement(mle)
-      }).done();
+      });
   };
 
   removeElement(mle: MListElement<ModifiableEntity | Lite<Entity>>) {
@@ -320,7 +323,7 @@ export abstract class EntityListBaseController<T extends EntityListBaseProps> ex
     const margin = Math.min(50, rect.width / 2);
 
     const width = rect.width;
-    const offsetX = dragEvent.pageX - rect.left;
+    const offsetX = dragEvent.x - rect.left;
 
     if (offsetX < margin)
       return 0;
@@ -336,7 +339,7 @@ export abstract class EntityListBaseController<T extends EntityListBaseProps> ex
     var margin = Math.min(50, rect.height / 2);
 
     const height = rect.height;
-    const offsetY = dragEvent.pageY - rect.top;
+    const offsetY = dragEvent.y - rect.top;
 
     if (offsetY < margin)
       return 0;
@@ -377,9 +380,20 @@ export abstract class EntityListBaseController<T extends EntityListBaseProps> ex
         this.dropClass(index, orientation)),
       onDragStart: e => this.handleDragStart(e, index),
       onDragEnd: this.handleDragEnd,
+      onKeyDown: e => this.handleMoveKeyDown(e, index),
       onDragOver: e => this.handlerDragOver(e, index, orientation),
       onDrop: this.handleDrop,
+      title: !this.props.ctx.titleLabels ? undefined :
+        orientation == "h" ? EntityControlMessage.MoveWithDragAndDropOrCtrlLeftRight.niceToString() :
+          EntityControlMessage.MoveWithDragAndDropOrCtrlUpDown.niceToString()
     };
+  }
+
+  getMoveConfig(btn: boolean, index: number, orientation: "h" | "v") {
+    return {
+      renderMoveUp: () => this.renderMoveUp(false, index, orientation)!,
+      renderMoveDown: () => this.renderMoveDown(false, index, orientation)
+    }
   }
 
   dropClass(index: number, orientation: "h" | "v") {
@@ -388,6 +402,34 @@ export abstract class EntityListBaseController<T extends EntityListBaseProps> ex
     return dropBorderIndex != null && index == dropBorderIndex ? (orientation == "h" ? "drag-left" : "drag-top") :
       dropBorderIndex != null && index == dropBorderIndex - 1 ? (orientation == "h" ? "drag-right" : "drag-bottom") :
         undefined;
+  }
+
+
+
+  handleMoveKeyDown = (ke: React.KeyboardEvent<any>, index : number) => {
+    ke.preventDefault();
+
+    if (ke.ctrlKey) {
+      var direction =
+        ke.keyCode == KeyCodes.down || ke.keyCode == KeyCodes.right ? +1 :
+          ke.keyCode == KeyCodes.up || ke.keyCode == KeyCodes.left ? -1 :
+            null;
+
+      if (direction != null) {
+        const list = this.props.ctx.value!;
+        if (index + direction < 0 || list.length <= index + direction)
+          return;
+
+        var temp = list[index + direction];
+        list[index + direction] = list[index];
+        list[index] = temp;
+
+        this.setValue(list);
+        this.setDropBorderIndex(undefined);
+        this.setDragIndex(undefined);
+        this.forceUpdate();
+      }
+    }
   }
 
   handleDrop = (de: React.DragEvent<any>) => {
@@ -416,7 +458,14 @@ export interface DragConfig {
   onDragEnd?: React.DragEventHandler<any>;
   onDragOver?: React.DragEventHandler<any>;
   onDrop?: React.DragEventHandler<any>;
+  onKeyDown?: React.KeyboardEventHandler<any>;
   dropClass?: string;
+  title?: string;
+}
+
+export interface MoveConfig {
+  renderMoveUp: () => (JSX.Element | undefined);
+  renderMoveDown: () => (JSX.Element | undefined);
 }
 
 
@@ -430,4 +479,5 @@ export function taskSetMove(lineBase: LineBaseController<any>, state: LineBasePr
     (state as EntityListBaseProps).move = true;
   }
 }
+
 

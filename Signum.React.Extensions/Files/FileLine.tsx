@@ -3,7 +3,7 @@ import { classes } from '@framework/Globals'
 import { TypeContext } from '@framework/TypeContext'
 import { getSymbol } from '@framework/Reflection'
 import { FormGroup } from '@framework/Lines/FormGroup'
-import { ModifiableEntity, Lite, Entity, } from '@framework/Signum.Entities'
+import { ModifiableEntity, Lite, Entity, getToString, } from '@framework/Signum.Entities'
 import { IFile, FileTypeSymbol } from './Signum.Entities.Files'
 import { EntityBaseProps, EntityBaseController } from '@framework/Lines/EntityBase'
 import { FileDownloader, FileDownloaderConfiguration, DownloadBehaviour } from './FileDownloader'
@@ -51,8 +51,7 @@ export class FileLineController extends EntityBaseController<FileLineProps>{
   handleFileLoaded = (file: IFile & ModifiableEntity) => {
 
     this.convert(file)
-      .then(f => this.setValue(f))
-      .done();
+      .then(f => this.setValue(f));
   }
 }
 
@@ -66,7 +65,7 @@ export const FileLine = React.memo(React.forwardRef(function FileLine(props: Fil
   const hasValue = !!p.ctx.value;
 
   return (
-    <FormGroup ctx={p.ctx} labelText={p.labelText}
+    <FormGroup ctx={p.ctx} label={p.label}
       labelHtmlAttributes={p.labelHtmlAttributes}
       htmlAttributes={{ ...c.baseHtmlAttributes(), ...EntityBaseController.entityHtmlAttributes(p.ctx.value), ...p.formGroupHtmlAttributes }}
       helpText={p.helpText}>
@@ -94,7 +93,7 @@ export const FileLine = React.memo(React.forwardRef(function FileLine(props: Fil
     const val = ctx.value!;
 
     const content = p.download == "None" ?
-      <span className={classes(ctx.formControlClass, "file-control")} > {val.toStr}</span > :
+      <span className={classes(ctx.formControlClass, "file-control")} > {getToString(val)}</span > :
       <FileDownloader
         configuration={p.configuration}
         download={p.download}

@@ -4,10 +4,6 @@ declare global {
     escape(s: string): string;
   }
 
-  interface Promise<T> {
-    done(this: Promise<T>): void;
-  }
-
   interface Window {
     __allowNavigatorWithoutUser?: boolean;
     __baseUrl: string;
@@ -432,10 +428,17 @@ Array.prototype.sum = function (this: any[], selector?: (element: any, index: nu
   if (this.length == 0)
     return 0;
 
-  var result = selector ? selector(this[0], 0, this) : this[0];
-  for (var i = 1; i < this.length; i++) {
-    result += selector ? selector(this[i], i, this) : this[i];
+  var result = 0;
+  if (selector) {
+    for (var i = 0; i < this.length; i++) {
+      result += selector(this[i], i, this) ?? 0;
+    }
+  } else {
+    for (var i = 0; i < this.length; i++) {
+      result +=  this[i];
+    }
   }
+
   return result;
 };
 
@@ -904,10 +907,6 @@ String.prototype.repeat = function (this: string, n: number) {
   for (let i = 0; i < n; i++)
     result += this;
   return result;
-};
-
-Promise.prototype.done = function () {
-  this.catch(error => setTimeout(() => { throw error; }, 0));
 };
 
 export module Dic {

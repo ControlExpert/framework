@@ -17,7 +17,7 @@ import { getTypeInfo } from '@framework/Reflection'
 import { useTitle } from '@framework/AppContext'
 import { CultureInfoEntity } from '../../Basics/Signum.Entities.Basics'
 import { TranslationMember, initialElementIf } from '../Code/TranslationTypeTable'
-import { Lite } from '@framework/Signum.Entities'
+import { getToString, Lite } from '@framework/Signum.Entities'
 
 
 
@@ -65,13 +65,12 @@ export default function TranslatedInstanceSync(p: RouteComponentProps<{ type: st
       });
     }).notNull());
 
-    lock(() => API.saveTranslatedInstanceData(records, type, culture)
-      .then(() => { reloadResult(); notifySuccess(); }))
-      .done();
+    lock(() => API.saveTranslatedInstanceData(records, type, true, culture)
+      .then(() => { reloadResult(); notifySuccess(); }));
   }
 
   const message = result && result.totalInstances == 0 ? TranslationMessage._0AlreadySynchronized.niceToString(getTypeInfo(type).niceName) :
-    TranslationMessage.Synchronize0In1.niceToString(getTypeInfo(type).niceName, cultures ? cultures[culture].toStr : culture) +
+    TranslationMessage.Synchronize0In1.niceToString(getTypeInfo(type).niceName, cultures ? getToString(cultures[culture]) : culture) +
     (result && result.instances.length < result.totalInstances ? " [{0}/{1}]".formatWith(result.instances.length, result.totalInstances) : "");
 
   useTitle(message);
@@ -125,7 +124,7 @@ export function TranslateSearchBox(p: { filter: string, setFilter: (newFilter: s
       <input type="text" className="form-control"
         placeholder={TranslationMessage.Search.niceToString()} value={tmpFilter} onChange={e => setTmpFilter(e.currentTarget.value)} onKeyDown={handleKeyDown} />
       <button className="btn btn-outline-secondary" type="submit" title={TranslationMessage.Search.niceToString()}>
-        <FontAwesomeIcon icon="search" />
+        <FontAwesomeIcon icon="magnifying-glass" />
       </button>
     </form>
   );
@@ -217,7 +216,9 @@ export function TranslationProperty({ property }: { property: PropertyChange }) 
   }
 
   var translations = Object.entries(property.support)
-    .flatMap(([c, rc]) => rc.automaticTranslations.map(at => ({ culture: c, text: at.text, translatorName: at.translatorName })));
+    .flatMap(([c, rc]) => rc.automaticTranslations.map(at => ({ culture: c, text: at.text, translatorName: at.translatorName }))
+      .concat(rc.oldTranslation ? [{ culture: c, text: rc.oldTranslation, translatorName: "Previous translation" }] : [])
+  );
 
   if (translations.length == 0 || avoidCombo)
     return (

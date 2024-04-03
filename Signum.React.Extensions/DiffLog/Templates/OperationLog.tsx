@@ -53,12 +53,12 @@ export function DiffMixinTabs(p: { ctx: TypeContext<OperationLogEntity> }) {
       <Tab eventKey="prev" className="linkTab" title={
         <LinkContainer to={Navigator.navigateRoute(prev)} onClick={e => {
           if (!(e.ctrlKey || e.button == 1)) {
-            Navigator.API.fetchEntityPack(prev).then(ep => p.ctx.frame!.onReload(ep)).done();
+            Navigator.API.fetchEntityPack(prev).then(ep => p.ctx.frame!.onReload(ep));
             e.preventDefault();
           }
         }}>
           <span title={DiffLogMessage.NavigatesToThePreviousOperationLog.niceToString()}>
-             <FontAwesomeIcon icon="arrow-circle-left" />
+             <FontAwesomeIcon icon="circle-arrow-left" />
             &nbsp;
             {DiffLogMessage.PreviousLog.niceToString()}
           </span>
@@ -72,7 +72,7 @@ export function DiffMixinTabs(p: { ctx: TypeContext<OperationLogEntity> }) {
     return (
       <Tab eventKey="prev" disabled title={
           <span title={DiffLogMessage.NavigatesToThePreviousOperationLog.niceToString()}>
-            <FontAwesomeIcon icon="arrow-circle-left" />
+            <FontAwesomeIcon icon="circle-arrow-left" />
             &nbsp;
             {DiffLogMessage.PreviousLog.niceToString()}
           </span>
@@ -88,8 +88,8 @@ export function DiffMixinTabs(p: { ctx: TypeContext<OperationLogEntity> }) {
 
     const title = (
       <span title={DiffLogMessage.DifferenceBetweenFinalStateOfPreviousLogAndTheInitialState.niceToString()}>
-        <FontAwesomeIcon icon="fast-backward" className={`colorIcon red ${eq ? "mini" : ""}`} />
-        <FontAwesomeIcon icon="step-backward" className={`colorIcon green ${eq ? "mini" : ""}`} />
+        <FontAwesomeIcon icon="backward-fast" className={`colorIcon red ${eq ? "mini" : ""}`} />
+        <FontAwesomeIcon icon="backward-step" className={`colorIcon green ${eq ? "mini" : ""}`} />
       </span>
     );
 
@@ -104,8 +104,8 @@ export function DiffMixinTabs(p: { ctx: TypeContext<OperationLogEntity> }) {
 
     const title = (
       <span title={DiffLogMessage.DifferenceBetweenFinalStateOfPreviousLogAndTheInitialState.niceToString()}>
-        <FontAwesomeIcon icon="fast-backward" className={`colorIcon gray`} />
-        <FontAwesomeIcon icon="step-backward" className={`colorIcon gray`} />
+        <FontAwesomeIcon icon="backward-fast" className={`colorIcon gray`} />
+        <FontAwesomeIcon icon="backward-step" className={`colorIcon gray`} />
       </span>
     );
 
@@ -132,8 +132,8 @@ export function DiffMixinTabs(p: { ctx: TypeContext<OperationLogEntity> }) {
 
     const title = (
       <span title={DiffLogMessage.DifferenceBetweenInitialStateAndFinalState.niceToString()}>
-        <FontAwesomeIcon icon="step-backward" className={`colorIcon red ${eq ? "mini" : ""}`} />
-        <FontAwesomeIcon icon="step-forward" className={`colorIcon green ${eq ? "mini" : ""}`} />
+        <FontAwesomeIcon icon="backward-step" className={`colorIcon red ${eq ? "mini" : ""}`} />
+        <FontAwesomeIcon icon="forward-step" className={`colorIcon green ${eq ? "mini" : ""}`} />
       </span>
     );
 
@@ -158,8 +158,8 @@ export function DiffMixinTabs(p: { ctx: TypeContext<OperationLogEntity> }) {
     const title = (
       <span title={DiffLogMessage.DifferenceBetweenFinalStateAndTheInitialStateOfNextLog.niceToString()}>
 
-        <FontAwesomeIcon icon="step-forward" className={`colorIcon red ${eq ? "mini" : ""}`} />
-        <FontAwesomeIcon icon="fast-forward" className={`colorIcon green ${eq ? "mini" : ""}`} />
+        <FontAwesomeIcon icon="forward-step" className={`colorIcon red ${eq ? "mini" : ""}`} />
+        <FontAwesomeIcon icon="forward-fast" className={`colorIcon green ${eq ? "mini" : ""}`} />
       </span>
     );
 
@@ -175,14 +175,14 @@ export function DiffMixinTabs(p: { ctx: TypeContext<OperationLogEntity> }) {
       <Tab eventKey="next" className="linkTab" title={
         <LinkContainer to={Navigator.navigateRoute(next)} onClick={e => {
           if (!(e.ctrlKey || e.button == 1)) {
-            Navigator.API.fetchEntityPack(next).then(ep => p.ctx.frame!.onReload(ep)).done();
+            Navigator.API.fetchEntityPack(next).then(ep => p.ctx.frame!.onReload(ep));
             e.preventDefault();
           }
         }}>
           <span title={DiffLogMessage.NavigatesToTheNextOperationLog.niceToString()}>
             {DiffLogMessage.NextLog.niceToString()}
             &nbsp;
-              <FontAwesomeIcon icon="arrow-circle-right" />
+              <FontAwesomeIcon icon="circle-arrow-right" />
           </span>
         </LinkContainer> as any}>
       </Tab>
@@ -199,7 +199,7 @@ export function DiffMixinTabs(p: { ctx: TypeContext<OperationLogEntity> }) {
           <span title={DiffLogMessage.NavigatesToTheCurrentEntity.niceToString()}>
             {DiffLogMessage.CurrentEntity.niceToString()}
             &nbsp;
-                        <FontAwesomeIcon icon="external-link-alt" />
+            <FontAwesomeIcon icon="up-right-from-square" />
           </span>
         </LinkContainer> as any}>
       </Tab>

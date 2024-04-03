@@ -56,11 +56,11 @@ export default function DynamicPanelPage(p: RouteComponentProps<{}>) {
       {restarting ? undefined :
         startErrors?.length ?
           <div role="alert" className="alert alert-danger" style={{ marginTop: "20px" }}>
-            <FontAwesomeIcon icon="exclamation-triangle" />
+            <FontAwesomeIcon icon="triangle-exclamation" />
             {" "}The server started, but there {startErrors.length > 1 ? "are" : "is"} <a href="#" onClick={handleErrorClick}>{startErrors.length} {startErrors.length > 1 ? "errors" : "error"}</a>.
         </div> :
           <div role="alert" className="alert alert-success">
-            <FontAwesomeIcon icon="check-circle" />
+            <FontAwesomeIcon icon="circle-check" />
             {" "}The server is started successfully.
         </div>
       }
@@ -119,7 +119,7 @@ export function CompileStep(p: DynamicCompileStepProps) {
         setSelectedErrorIndex(undefined);
         setCompilationErrors(errors);
         p.refreshView && p.refreshView();
-      }).done();
+      });
   }
 
   function handleCheck(e: React.MouseEvent<any>) {
@@ -128,8 +128,7 @@ export function CompileStep(p: DynamicCompileStepProps) {
       .then(errors => {
         setSelectedErrorIndex(undefined);
         setCompilationErrors(errors);
-      })
-      .done();
+      });
   }
 
 
@@ -268,8 +267,7 @@ export function RestartServerAppStep(p: RestartServerAppStepProps) {
       .then(() => {
         p.setRestarting(DateTime.local());
         return Promise.all([refreshScreen(), reconnectWithServer()]);
-      })
-      .done();
+      });
   }
 
   useInterval(p.restarting ? 1000 : null, 0, a => a + 1);

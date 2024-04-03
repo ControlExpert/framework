@@ -4,10 +4,12 @@ import * as AppContext from "@framework/AppContext";
 import * as AuthClient from "../AuthClient";
 import { LoginContext } from "../Login/LoginPage";
 import { ExternalServiceError } from "../../../Signum.React/Scripts/Services";
+import { LoginAuthMessage } from "../Signum.Entities.Authorization";
 
 /*     Add this to Index.cshtml
-       var __azureApplicationId = @Json.Serialize(Starter.Configuration.Value.ActiveDirectory.Azure_ApplicationID);
-       var __azureTenantId = @Json.Serialize(Starter.Configuration.Value.ActiveDirectory.Azure_DirectoryID);
+       var __azureApplicationId = @Json.Serialize(TenantLogic.GetCurrentTenant()!.ActiveDirectoryConfiguration.Azure_ApplicationID);
+       var __azureTenantId = @Json.Serialize(TenantLogic.GetCurrentTenant()!.ActiveDirectoryConfiguration.Azure_DirectoryID);
+       var __tenantLogo = @Json.Serialize(TenantLogic.GetCurrentTenant()!.Logo.BinaryFile);
  * */
 
 declare global {
@@ -44,6 +46,7 @@ export function signIn(ctx: LoginContext) {
     scopes: Config.scopes,
   };
 
+  (msalClient as any).browserStorage.setInteractionInProgress(false); //Without this cancelling log-out makes log-in impossible without cleaning cookies and local storage
   msalClient.loginPopup(userRequest)
     .then(a => {
       return AuthClient.API.loginWithAzureAD(a.idToken, true)
@@ -59,16 +62,14 @@ export function signIn(ctx: LoginContext) {
     })
     .catch(e => {
       ctx.setLoading(undefined);
-
-      if (e && e.name == "ClientAuthError" && e.errorCode == "user_cancelled")
+      if (e instanceof msal.BrowserAuthError && (e.errorCode == "user_login_error" || e.errorCode == "user_cancelled"))
         return;
 
       if (e instanceof msal.AuthError)
         throw new ExternalServiceError("MSAL", e, e.name + ": " + e.errorCode, e.errorMessage, e.subError + "\n" + e.stack);
 
       throw e;
-    })
-    .done();
+    });
 }
 
 export function loginWithAzureAD(): Promise<AuthClient.API.LoginResponse | undefined> {
@@ -86,13 +87,14 @@ export function loginWithAzureAD(): Promise<AuthClient.API.LoginResponse | undef
     account: ai,
   };
 
-  return adquireTokenSilentOrPopup(userRequest)
+  return msalClient.acquireTokenSilent(userRequest)
     .then(res => {
       const rawIdToken = res.idToken;
 
       return AuthClient.API.loginWithAzureAD(rawIdToken, false);
     }, e => {
-      if (e instanceof msal.InteractionRequiredAuthError || e instanceof msal.BrowserAuthError && e.errorCode == "user_login_error")
+      if (e instanceof msal.InteractionRequiredAuthError ||
+        e instanceof msal.BrowserAuthError && (e.errorCode == "user_login_error" || e.errorCode =="user_cancelled"))
         return Promise.resolve(undefined);
 
       console.log(e);
@@ -149,7 +151,7 @@ export function signOut() {
   if (account) {
     msalClient.logout({
       account: account
-    }).done();
+    });
   }
 }
 
@@ -165,4 +167,4 @@ export function MicrosoftSignIn({ ctx }: { ctx: LoginContext }) {
   );
 }
 
-MicrosoftSignIn.iconUrl = AppContext.toAbsoluteUrl("~/signin_light.png");
+MicrosoftSignIn.iconUrl = AppContext.toAbsoluteUrl("~/signin_light.svg");

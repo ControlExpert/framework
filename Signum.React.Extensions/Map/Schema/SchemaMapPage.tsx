@@ -83,8 +83,8 @@ export default function SchemaMapPage(p: RouteComponentProps<{}>) {
           setSchemaInfo(smi);
           setProviders(providers.toObject(a => a.name));
 
-        }).done();
-      }).done();
+        });
+      });
   }, []);
 
   const { size, setContainer } = useSize();
@@ -144,7 +144,7 @@ export default function SchemaMapPage(p: RouteComponentProps<{}>) {
             </span>
             &nbsp;
             <a id="sfFullScreen" className="sf-popup-fullscreen" onClick={handleFullscreenClick} href="#">
-              <FontAwesomeIcon icon="external-link-alt" />
+              <FontAwesomeIcon icon="up-right-from-square" />
             </a>
           </div>
         </div>

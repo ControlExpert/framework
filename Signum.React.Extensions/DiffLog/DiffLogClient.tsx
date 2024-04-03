@@ -5,7 +5,7 @@ import { EntitySettings } from '@framework/Navigator'
 import * as AppContext from '@framework/AppContext'
 import * as Navigator from '@framework/Navigator'
 import * as Finder from '@framework/Finder'
-import { Lite, Entity } from '@framework/Signum.Entities'
+import { Lite, Entity, getToString } from '@framework/Signum.Entities'
 import { OperationLogEntity } from '@framework/Signum.Entities.Basics'
 import * as QuickLinks from '@framework/QuickLinks'
 import { TimeMachineMessage, TimeMachinePermission } from './Signum.Entities.DiffLog';
@@ -30,7 +30,7 @@ export function start(options: { routes: JSX.Element[], timeMachine: boolean }) 
       new QuickLinks.QuickLinkLink("TimeMachine",
         () => TimeMachineMessage.TimeMachine.niceToString(),
         timeMachineRoute(ctx.lite), {
-          icon: "history",
+          icon: "clock-rotate-left",
           iconColor: "blue",
       }) : undefined);
 
@@ -61,7 +61,7 @@ export function start(options: { routes: JSX.Element[], timeMachine: boolean }) 
 
       return new QuickLinks.QuickLinkAction("CompareTimeMachine",
         () => TimeMachineMessage.CompareVersions.niceToString(),
-        e => TimeMachineModal.show(lite, versions).done(), {
+        e => TimeMachineModal.show(lite, versions), {
         icon: "not-equal",
         iconColor: "blue",
       });
@@ -83,9 +83,18 @@ export function start(options: { routes: JSX.Element[], timeMachine: boolean }) 
     });
 
     Finder.formatRules.push({
-      name: "Lite",
+      name: "Lite_TM",
       isApplicable: (qt, sc) => qt.filterType == "Lite" && sc != null && sc.props.findOptions.systemTime != null && isSystemVersioned(qt.type),
-      formatter: qt => new CellFormatter((cell: Lite<Entity>, ctx) => !cell ? undefined : <TimeMachineLink lite={cell} />)
+      formatter: qt => new CellFormatter((cell: Lite<Entity>, ctx) => !cell ? undefined : <TimeMachineLink lite={cell} />, true)
+    });
+
+    Finder.formatRules.push({
+      name: "LiteNoFill_TM",
+      isApplicable: (qt, sc) => {
+        return qt.filterType == "Lite" && sc != null && sc.props.findOptions.systemTime != null && isSystemVersioned(qt.type) &&
+          tryGetTypeInfos(qt.type)?.every(ti => ti && Navigator.getSettings(ti)?.avoidFillSearchColumnWidth);
+      },
+      formatter: qt => new CellFormatter((cell: Lite<Entity> | undefined, ctx) => !cell ? undefined : <TimeMachineLink lite={cell} />, false)
     });
   }
 }
@@ -147,17 +156,17 @@ export default function TimeMachineLink(p : TimeMachineLinkProps){
   const { lite, inSearch, children, ...htmlAtts } = p;
 
   if (!Navigator.isViewable(lite.EntityType, { isSearch: p.inSearch }))
-    return <span data-entity={liteKey(lite)}>{p.children ?? lite.toStr}</span>;
+    return <span data-entity={liteKey(lite)}>{p.children ?? getToString(lite)}</span>;
 
 
   return (
     <Link
       to={timeMachineRoute(lite)}
-      title={lite.toStr}
+      title={getToString(lite)}
       onClick={handleClick}
       data-entity={liteKey(lite)}
       {...(htmlAtts as React.HTMLAttributes<HTMLAnchorElement>)}>
-      {children ?? lite.toStr}
+      {children ?? getToString(lite)}
     </Link>
   );
 }

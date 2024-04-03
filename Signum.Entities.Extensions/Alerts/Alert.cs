@@ -9,6 +9,12 @@ public class AlertEntity : Entity
     [ImplementedByAll]
     public Lite<Entity>? Target { get; set; }
 
+    [ImplementedByAll]
+    public Lite<Entity>? LinkTarget { get; set; }
+
+    [ImplementedByAll]
+    public Lite<Entity>? GroupTarget { get; set; }
+
     public DateTime CreationDate { get; private set; } = Clock.Now;
 
     [NotNullValidator]
@@ -175,6 +181,14 @@ public enum AlertMessage
     YouHaveSomePendingAlerts,
     [Description("Please visit {0}")]
     PleaseVisit0,
+    OtherNotifications,
+    Expand,
+    Collapse,
+    [Description("Show {0} alerts more")]
+    Show0AlertsMore,
+
+    [Description("Show {0} groups more ({1} remaining)")]
+    Show0GroupsMore1Remaining,
 }
 
 [InTypeScript(true)]

@@ -4,7 +4,7 @@ import * as Constructor from '@framework/Constructor'
 import { TypeContext } from '@framework/TypeContext'
 import { getSymbol } from '@framework/Reflection'
 import { FormGroup } from '@framework/Lines/FormGroup'
-import { ModifiableEntity, Lite, Entity, MList, SearchMessage, EmbeddedEntity, EntityControlMessage } from '@framework/Signum.Entities'
+import { ModifiableEntity, Lite, Entity, MList, SearchMessage, EmbeddedEntity, EntityControlMessage, getToString } from '@framework/Signum.Entities'
 import { IFile, FileTypeSymbol } from './Signum.Entities.Files'
 import { FileDownloader, FileDownloaderConfiguration, DownloadBehaviour } from './FileDownloader'
 import { FileUploader } from './FileUploader'
@@ -69,12 +69,10 @@ export class MultiFileImageLineController extends EntityListBaseController<Multi
   handleFileLoaded = (file: IFile & ModifiableEntity) => {
     if (this.props.createEmbedded)
       this.props.createEmbedded(file)
-        .then(em => em && this.addElement(em))
-        .done();
+        .then(em => em && this.addElement(em));
     else
       this.convert(file)
-        .then(f => this.addElement(f))
-        .done();
+        .then(f => this.addElement(f));
   }
 
   defaultCreate() {
@@ -91,7 +89,7 @@ export const MultiFileImageLine = React.forwardRef(function MultiFileLine(props:
     return null;
 
   return (
-    <FormGroup ctx={p.ctx} labelText={p.labelText}
+    <FormGroup ctx={p.ctx} label={p.label}
       htmlAttributes={{ ...c.baseHtmlAttributes(), ...p.formGroupHtmlAttributes }}
       helpText={p.helpText}
       labelHtmlAttributes={p.labelHtmlAttributes}>
@@ -101,13 +99,13 @@ export const MultiFileImageLine = React.forwardRef(function MultiFileLine(props:
             c.getMListItemContext(p.ctx.subCtx({ formGroupStyle: "None" })).map(mlec =>
               <div className="sf-file-image-container m-2" key={mlec.index}>
                 {p.getComponent ? p.getComponent(mlec) :
-                  p.download == "None" ? <span className={classes(mlec.formControlClass, "file-control")} > {mlec.value.toStr}</span > :
+                  p.download == "None" ? <span className={classes(mlec.formControlClass, "file-control")} > {getToString(mlec.value)}</span > :
                     renderFile(p.getFile ? (mlec as TypeContext<EmbeddedEntity>).subCtx(p.getFile) : mlec as TypeContext<ModifiableEntity & IFile | Lite<IFile & Entity> | undefined | null>)}
                 {!p.ctx.readOnly &&
                   <a href="#" title={EntityControlMessage.Remove.niceToString()}
                     className="sf-line-button sf-remove"
                     onClick={e => { e.preventDefault(); c.handleDeleteValue(mlec.index!); }}>
-                    <FontAwesomeIcon icon="times" />
+                    <FontAwesomeIcon icon="xmark" />
                   </a>}
               </div>
             )
@@ -139,7 +137,7 @@ export const MultiFileImageLine = React.forwardRef(function MultiFileLine(props:
 
     return ctx.propertyRoute!.typeReference().isLite ?
       <FetchAndRemember lite={val! as Lite<IFile & Entity>}>{file => <FileImage file={file} {...p.imageHtmlAttributes} style={{ maxWidth: "100px" }} />}</FetchAndRemember> :
-      <FileImage file={val as IFile & ModifiableEntity} {...p.imageHtmlAttributes} style={{ maxWidth: "100px" }} onClick={e => ImageModal.show(val as IFile & ModifiableEntity)} />;
+      <FileImage file={val as IFile & ModifiableEntity} {...p.imageHtmlAttributes} style={{ maxWidth: "100px" }} onClick={e => ImageModal.show(val as IFile & ModifiableEntity, e)} />;
   }
 
 });

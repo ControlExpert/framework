@@ -109,7 +109,7 @@ export default function OperationMapPage(p: RouteComponentProps<{ type: string }
             </span>
             &nbsp;
             <a id="sfFullScreen" className="sf-popup-fullscreen" onClick={handleFullscreenClick} href="#">
-              <FontAwesomeIcon icon="external-link-alt" />
+              <FontAwesomeIcon icon="up-right-from-square" />
             </a>
           </div>
         </div>
@@ -189,7 +189,13 @@ export function OperationMapRenderer(p: OperationMapRendererProps) {
       .flatMap(op => op.toStates.map(s => ({ source: op, target: statesDic[s], isFrom: false }) as ForceLink));
 
     map.allLinks = fromRelationships.concat(toRelationships);
-    map.allTransition = map.operations.flatMap(o => o.fromStates.flatMap(f => o.toStates.map(t => ({
+    map.allTransition = map.operations.flatMap(o =>
+      o.fromToStates ? o.fromToStates.map(fts => ({
+        fromState: statesDic[fts.from],
+        operation: o,
+        toState: statesDic[fts.to]
+      }) as Transition) : 
+      o.fromStates.flatMap(f => o.toStates.map(t => ({
       fromState: statesDic[f],
       operation: o,
       toState: statesDic[t]

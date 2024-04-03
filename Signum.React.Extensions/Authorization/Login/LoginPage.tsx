@@ -94,8 +94,7 @@ export function LoginForm(p: { ctx: LoginContext }) {
         } else {
           throw e;
         }
-      })
-      .done();
+      });
   }
 
   function error(field: string) {
@@ -149,7 +148,7 @@ export function LoginForm(p: { ctx: LoginContext }) {
         <div className="col-md-6 offset-md-3">
           <button type="submit" id="login" className="btn btn-success" disabled={p.ctx.loading != null}>
             {p.ctx.loading == "password" ?
-              <FontAwesomeIcon icon="cog" fixedWidth style={{ fontSize: "larger" }} spin /> : < FontAwesomeIcon icon="sign-in-alt" />}
+              <FontAwesomeIcon icon="gear" fixedWidth style={{ fontSize: "larger" }} spin /> : < FontAwesomeIcon icon="right-to-bracket" />}
             &nbsp;
             {p.ctx.loading == "password" ? JavascriptMessage.loading.niceToString() : AuthClient.currentUser() ? LoginAuthMessage.SwitchUser.niceToString() : LoginAuthMessage.Login.niceToString()}
           </button>
@@ -173,13 +172,13 @@ export function LoginWithWindowsButton() {
     return AuthClient.API.loginWindowsAuthentication(true)
       .then(lr => {
         if (lr == null) {
-          MessageModal.showError(LoginAuthMessage.LooksLikeYourWindowsUserIsNotAllowedToUseThisApplication.niceToString(), LoginAuthMessage.NoWindowsUserFound.niceToString()).done();
+          MessageModal.showError(LoginAuthMessage.LooksLikeYourWindowsUserIsNotAllowedToUseThisApplication.niceToString(), LoginAuthMessage.NoWindowsUserFound.niceToString());
         } else {
           AuthClient.setAuthToken(lr.token, lr.authenticationType);
           AuthClient.setCurrentUser(lr.userEntity);
           AuthClient.Options.onLogin();
         }
-      }).done();
+      });
   }
 
   return (

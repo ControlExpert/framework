@@ -17,7 +17,7 @@ export interface FileDownloaderProps {
   download?: DownloadBehaviour;
   configuration?: FileDownloaderConfiguration<IFile>;
   htmlAttributes?: React.HTMLAttributes<HTMLSpanElement | HTMLAnchorElement>;
-  children?: React.ReactNode;
+  children?: React.ReactNode | ((info: ExtensionInfo | undefined) => React.ReactNode)
   showFileIcon?: boolean;
 }
 
@@ -39,7 +39,7 @@ export function FileDownloader(p: FileDownloaderProps) {
 
     promise.then(entity => {
 
-      const configuration = p.configuration ?? configurtions[entity.Type];
+      const configuration = p.configuration ?? configurations[entity.Type];
       if (!configuration)
         throw new Error("No configuration registered in FileDownloader.configurations for ");
 
@@ -56,7 +56,7 @@ export function FileDownloader(p: FileDownloaderProps) {
           configuration.viewClick ? configuration.viewClick(e, entity) : viewUrl(e, configuration.fileUrl!(entity));
       }
 
-    }).done();
+    });
   }
 
   const entityOrLite = p.entityOrLite;
@@ -66,6 +66,10 @@ export function FileDownloader(p: FileDownloaderProps) {
   const fileName = getFileName(toStr); //Hacky
 
   const info: ExtensionInfo | undefined = extensionInfo[fileName.tryAfterLast(".")?.toLowerCase()!]
+
+  function getChildren(){
+    return !p.children ? null : (typeof p.children === 'function') ? p.children(info) : p.children
+  }
 
   return (
     <div {...p.htmlAttributes}>
@@ -78,7 +82,7 @@ export function FileDownloader(p: FileDownloaderProps) {
         title={toStr ?? undefined}
         target="_blank"
       >
-        {p.children ??
+        {getChildren() ??
           <>
             {p.showFileIcon && <FontAwesomeIcon className="me-1" icon={["far", info?.icon ?? "file"]} color={info?.color ?? "grey"} />}
             {toStr}
@@ -103,25 +107,31 @@ FileDownloader.defaultProps = {
   showFileIcon: true,
 }
 
-export const configurtions: { [typeName: string]: FileDownloaderConfiguration<IFile> } = {};
+export const configurations: { [typeName: string]: FileDownloaderConfiguration<IFile> } = {};
 
 export function registerConfiguration<T extends IFile & ModifiableEntity>(type: Type<T>, configuration: FileDownloaderConfiguration<T>) {
-  configurtions[type.typeName] = configuration as FileDownloaderConfiguration<IFile>;
+  configurations[type.typeName] = configuration as FileDownloaderConfiguration<IFile>;
+}
+
+export function getConfiguration<T extends IFile & ModifiableEntity>(type: Type<T>): FileDownloaderConfiguration<T> | undefined {
+  return configurations[type.typeName] as FileDownloaderConfiguration<T> | undefined
 }
 
 export interface FileDownloaderConfiguration<T extends IFile> {
   fileUrl?: (file: T) => string;
+  fileLiteUrl?: (file: Lite<T & Entity>) => string;
   downloadClick?: (event: React.MouseEvent<any>, file: T) => void;
   viewClick?: (event: React.MouseEvent<any>, file: T) => void;
 }
 
 registerConfiguration(FileEntity, {
   fileUrl: file => AppContext.toAbsoluteUrl("~/api/files/downloadFile/" + file.id),
-  viewClick: (event, file) => viewUrl(event, AppContext.toAbsoluteUrl("~/api/files/downloadFile/" + file.id))
+  fileLiteUrl: file => AppContext.toAbsoluteUrl("~/api/files/downloadFile/" + file.id),
 });
 
 registerConfiguration(FilePathEntity, {
   fileUrl: file => AppContext.toAbsoluteUrl("~/api/files/downloadFilePath/" + file.id),
+  fileLiteUrl: file => AppContext.toAbsoluteUrl("~/api/files/downloadFilePath/" + file.id),
 });
 
 registerConfiguration(FileEmbedded, {
@@ -134,19 +144,18 @@ registerConfiguration(FilePathEmbedded, {
 });
 
 export function downloadFile(file: IFilePath & ModifiableEntity): Promise<Response> {
-  var fileUrl = configurtions[file.Type].fileUrl!(file);
+  var fileUrl = configurations[file.Type].fileUrl!(file);
   return Services.ajaxGetRaw({ url: fileUrl });
 }
 
-function downloadUrl(e: React.MouseEvent<any>, url: string) {
+export function downloadUrl(e: React.MouseEvent<any>, url: string) {
 
   e.preventDefault();
   Services.ajaxGetRaw({ url: url })
-    .then(resp => Services.saveFile(resp))
-    .done();
+    .then(resp => Services.saveFile(resp));
 };
 
-function viewUrl(e: React.MouseEvent<any>, url: string) {
+export function viewUrl(e: React.MouseEvent<any>, url: string) {
 
   e.preventDefault();
   const win = window.open();
@@ -158,8 +167,7 @@ function viewUrl(e: React.MouseEvent<any>, url: string) {
     .then(blob => {
       const url = URL.createObjectURL(blob);
       win.location.assign(url);
-    })
-    .done();
+    });
 
 }
 

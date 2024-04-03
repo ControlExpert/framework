@@ -1,9 +1,8 @@
 import * as React from 'react'
 import { Location } from 'history'
-import { ToolbarConfig, ToolbarResponse } from '../Toolbar/ToolbarClient'
+import { IconColor, ToolbarConfig, ToolbarResponse } from '../Toolbar/ToolbarClient'
 import * as DashboardClient from './DashboardClient'
 import { DashboardEntity } from './Signum.Entities.Dashboard'
-import { coalesceIcon } from '@framework/Operations/ContextualOperations';
 import * as AppContext from '@framework/AppContext'
 import { parseIcon } from '../Basics/Templates/IconTypeahead'
 
@@ -14,8 +13,11 @@ export default class DashboardToolbarConfig extends ToolbarConfig<DashboardEntit
     super(type);
   }
 
-  getIcon(element: ToolbarResponse<DashboardEntity>) {
-    return ToolbarConfig.coloredIcon(coalesceIcon(parseIcon(element.iconName), "th-large"), element.iconColor ?? "darkslateblue");
+  getDefaultIcon(): IconColor{
+    return ({
+      icon: "table-cells-large",
+      iconColor: "darkslateblue",
+    });
   }
 
   navigateTo(element: ToolbarResponse<DashboardEntity>): Promise<string> {

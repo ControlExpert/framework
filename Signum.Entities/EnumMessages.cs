@@ -16,6 +16,8 @@ public enum OperationMessage
     Create,
     [Description("^Create (.*) from .*$")]
     CreateFromRegex,
+    [Description("Create {0}")]
+    Create0,
     [Description("State should be {0} (instead of {1})")]
     StateShouldBe0InsteadOf1,
     [Description("The state of {0} should be {1} (instead of {2})")]
@@ -27,6 +29,10 @@ public enum OperationMessage
     Confirm,
     [Description("Please confirm you would like to delete {0} from the system")]
     PleaseConfirmYouWouldLikeToDelete0FromTheSystem,
+
+    [Description("Please confirm you would like to {0} {1}")]
+    PleaseConfirmYouWouldLikeTo01,
+
     [Description("{0} didn't return an entity")]
     TheOperation0DidNotReturnAnEntity,
     Logs,
@@ -46,6 +52,15 @@ public enum OperationMessage
     AddSetter,
     [Description("multi setter")]
     MultiSetter,
+
+    [Description("Deleting")]
+    Deleting,
+
+    [Description("Executing {0}")]
+    Executing0,
+
+    [Description("{0} error[s]")]
+    _0Errors,
 }
 
 public enum SynchronizerMessage
@@ -93,7 +108,13 @@ public enum EntityControlMessage
     Detail,
     MoveDown,
     MoveUp,
+    MoveRight,
+    MoveLeft,
     Move,
+    [Description("Move with Drag and Drop or Ctrl + Up / Down")]
+    MoveWithDragAndDropOrCtrlUpDown,
+    [Description("Move with Drag and Drop or Ctrl + Left / Right")]
+    MoveWithDragAndDropOrCtrlLeftRight,
     Navigate,
     Remove,
     View,
@@ -118,6 +139,7 @@ public enum SearchMessage
     [Description("Add column")]
     AddColumn,
     CollectionsCanNotBeAddedAsColumns,
+    InvalidColumnExpression,
     [Description("Add filter")]
     AddFilter,
     [Description("Add group")]
@@ -223,6 +245,9 @@ public enum SearchMessage
     DerivedGroupKey,
 
     Copy,
+
+    [Description("More than one {0} selected")]
+    MoreThanOne0Selected
 }
 
 public enum SelectorMessage
@@ -248,7 +273,12 @@ public enum SelectorMessage
     PleaseChooseA0ToContinue,
 
     [Description("Creation of {0} cancelled")]
-    CreationOf0Cancelled
+    CreationOf0Cancelled,
+
+    ChooseValues,
+
+    [Description("Please select at least one value to continue:")]
+    PleaseSelectAtLeastOneValueToContinue
 }
 
 [AllowUnathenticated]
@@ -276,6 +306,10 @@ public enum NormalControlMessage
     [Description("View for type {0} is not allowed")]
     ViewForType0IsNotAllowed,
     SaveChangesFirst,
+    [Description("Copy Entity Type and Id (for autocomplete)")]
+    CopyEntityTypeAndIdForAutocomplete,
+    [Description("Copy Entity URL")]
+    CopyEntityUrl
 }
 
 public enum SaveChangesMessage

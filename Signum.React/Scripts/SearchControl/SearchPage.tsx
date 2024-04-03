@@ -89,6 +89,7 @@ function SearchPage(p: SearchPageProps) {
         showFilters={SearchPage.showFilters(fo, qd, qs)}
         showGroupButton={true}
         showSystemTimeButton={true}
+        showFooter={true}
         avoidChangeUrl={false}
         view={qs?.inPlaceNavigation ? "InPlace" : undefined}
         maxResultsHeight={"none"}
@@ -108,7 +109,7 @@ function anyPinned(filterOptions?: FilterOption[]): boolean {
   if (filterOptions == null)
     return false;
 
-  return filterOptions.some(a => Boolean(a.pinned) || isFilterGroupOption(a) && anyPinned(a.filters));
+  return filterOptions.some(a => Boolean(a.pinned) || isFilterGroupOption(a) && anyPinned(a.filters.notNull()));
 }
 
 

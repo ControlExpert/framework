@@ -99,7 +99,7 @@ public enum AuthMessage
 {
     [Description("Not authorized to {0} the {1} with Id {2}")]
     NotAuthorizedTo0The1WithId2,
-    [Description("Not authorized to Retrieve '{0}'")]
+    [Description("Not authorized to retrieve '{0}'")]
     NotAuthorizedToRetrieve0
 }
 
@@ -129,8 +129,6 @@ public enum AuthAdminMessage
 {
     [Description("{0} of {1}")]
     _0of1,
-    Nothing,
-    Everything,
     TypeRules,
     PermissionRules,
 
@@ -138,11 +136,12 @@ public enum AuthAdminMessage
     Deny,
 
     Overriden,
-    NoRoles,
     Filter,
     PleaseSaveChangesFirst,
     ResetChanges,
     SwitchTo,
+
+    OnlyActive,
 
     [Description("{0} (in UI)")]
     _0InUI,
@@ -175,4 +174,42 @@ public enum AuthAdminMessage
     ConflictMergingTypeConditions,
 
     Save,
+
+    [Description("Default Authorization: ")]
+    DefaultAuthorization,
+
+    [Description("Maximum of the {0}")]
+    MaximumOfThe0,
+    [Description("Minimum of the {0}")]
+    MinumumOfThe0,
+    [Description("Same as {0}")]
+    SameAs0,
+    Nothing,
+    Everything,
+
+    [Description("Select Type Condition(s)")]
+    SelectTypeConditions,
+
+    [Description("There are {0} Type Conditions defined for {1}.")]
+    ThereAre0TypeConditionsDefinedFor1,
+
+    [Description("Select one to override the access for {0} that satisfy this condition.")]
+    SelectOneToOverrideTheAccessFor0ThatSatisfyThisCondition,
+
+    [Description("Select more than one to override access for {0} that satisfy all the conditions at the same time.")]
+    SelectMoreThanOneToOverrideAccessFor0ThatSatisfyAllTheConditionsAtTheSameTime,
+
+    [Description("Repeated Type Conditions")]
+    RepeatedTypeCondition,
+
+    [Description("The following Type Conditions have already been used:")]
+    TheFollowingTypeConditionsHaveAlreadyBeenUsed,
+
+    [Description("Role {0} inherits from trivial merge role {1}")]
+    Role0InheritsFromTrivialMergeRole1,
+
+    IncludeTrivialMerges,
+
+    [Description("Role {0} is trivial merge")]
+    Role0IsTrivialMerge,
 }

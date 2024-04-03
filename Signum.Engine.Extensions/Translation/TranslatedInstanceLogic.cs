@@ -6,6 +6,7 @@ using System.Collections.Concurrent;
 using System.IO;
 using Signum.Engine.Excel;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.Intrinsics.Arm;
 
 namespace Signum.Engine.Translation;
 
@@ -29,8 +30,10 @@ public static class TranslatedInstanceLogic
                     Entity = e,
                     e.Id,
                     e.Culture,
-                    e.Instance,
                     e.PropertyRoute,
+                    e.PropertyRoute.RootType,
+                    e.Instance,
+                    e.RowId,
                     e.TranslatedText,
                     e.OriginalText,
                 });
@@ -75,9 +78,9 @@ public static class TranslatedInstanceLogic
         }
     }
 
-    public static void AddRoute<T, S>(Expression<Func<T, S>> propertyRoute) where T : Entity
+    public static void AddRoute<T, S>(Expression<Func<T, S>> propertyRoute, TranslateableRouteType type = TranslateableRouteType.Text) where T : Entity
     {
-        AddRoute(PropertyRoute.Construct<T, S>(propertyRoute));
+        AddRoute(PropertyRoute.Construct<T, S>(propertyRoute), type);
     }
 
     public static void AddRoute(PropertyRoute route, TranslateableRouteType type = TranslateableRouteType.Text)
@@ -192,16 +195,16 @@ public static class TranslatedInstanceLogic
         new((pr, ci) => AnyNoTranslated<Entity>(pr, ci));
     static bool AnyNoTranslated<T>(PropertyRoute pr, CultureInfo ci) where T : Entity
     {
-        var exp = pr.GetLambdaExpression<T, string>(safeNullAccess: false);
+        var exp = pr.GetLambdaExpression<T, string?>(safeNullAccess: false);
 
         return (from e in Database.Query<T>()
                 let str = exp.Evaluate(e)
-                where str != null && str != "" &&
-                !Database.Query<TranslatedInstanceEntity>().Any(ti =>
+                let ti = Database.Query<TranslatedInstanceEntity>().SingleOrDefault(ti =>
                     ti.Instance.Is(e) &
                     ti.PropertyRoute.IsPropertyRoute(pr) &&
-                    ti.Culture.Is(ci.ToCultureInfoEntity()) &&
-                    ti.OriginalText == str)
+                    ti.Culture.Is(ci.ToCultureInfoEntity()))
+
+                where (str ?? "") != (ti!.OriginalText ?? "")
                 select e).Any();
     }
 
@@ -212,67 +215,113 @@ public static class TranslatedInstanceLogic
         var mlistItemPr = pr.GetMListItemsRoute()!;
         var mListProperty = mlistItemPr.Parent!.GetLambdaExpression<T, MList<M>>(safeNullAccess: false);
 
-        var exp = pr.GetLambdaExpression<M, string>(safeNullAccess: false, skipBefore: mlistItemPr);
+        var exp = pr.GetLambdaExpression<M, string?>(safeNullAccess: false, skipBefore: mlistItemPr);
 
         return (from mle in Database.MListQuery(mListProperty)
                 let str = exp.Evaluate(mle.Element)
-                where str != null &&
-                !Database.Query<TranslatedInstanceEntity>().Any(ti =>
+                let ti = Database.Query<TranslatedInstanceEntity>().SingleOrDefaultEx(ti =>
                     ti.Instance.Is(mle.Parent) &&
                     ti.PropertyRoute.IsPropertyRoute(pr) &&
                     ti.RowId == mle.RowId.ToString() &&
-                    ti.Culture.Is(ci.ToCultureInfoEntity()) &&
-                    ti.OriginalText == str)
-                select mle).Any();
+                    ti.Culture.Is(ci.ToCultureInfoEntity()))
+                where (str ?? "") != (ti!.OriginalText ?? "")
+                select mle)
+                .Any();
     }
 
     public static int CleanTranslations(Type t)
     {
-        var routes = TranslateableRoutes.GetOrThrow(t).Keys.Select(pr => pr.ToPropertyRouteEntity()).Where(a => !a.IsNew).ToList();
+        var routeDic = TranslateableRoutes.GetOrThrow(t).Keys.ToDictionary(r => r, r => r.ToPropertyRouteEntity()).Where(kvp => !kvp.Value.IsNew).ToDictionary();
 
-        int deletedPr = Database.Query<TranslatedInstanceEntity>().Where(a => a.PropertyRoute.RootType.Is(t.ToTypeEntity()) && !routes.Contains(a.PropertyRoute)).UnsafeDelete();
+        int deletedPr = Database.Query<TranslatedInstanceEntity>().Where(a => a.PropertyRoute.RootType.Is(t.ToTypeEntity()) && !routeDic.Values.Contains(a.PropertyRoute)).UnsafeDelete();
         int deleteInconsistent = Database.Query<TranslatedInstanceEntity>().Where(a => a.PropertyRoute.RootType.Is(t.ToTypeEntity()) && (a.RowId != null) != a.PropertyRoute.Path.Contains("/")).UnsafeDelete();
 
-        int deletedInstance = giRemoveTranslationsForMissingEntities.GetInvoker(t)();
+        var routeGroups = routeDic.GroupBy(kvp => kvp.Key.GetMListItemsRoute());
 
-        var mlistsRoutes = TranslateableRoutes.GetOrThrow(t).GroupBy(a => a.Key.GetMListItemsRoute()?.Parent).Select(a => a.Key).NotNull();
+        var mainGroup = routeGroups.SingleOrDefaultEx(a => a.Key == null);
+
+        int deletedInstance = mainGroup == null ? 0 : giRemoveTranslationsForMissingEntities.GetInvoker(t)(mainGroup.ToDictionary());
 
         var deletedMList = 0; 
-        foreach (var pr in mlistsRoutes)
+        foreach (var gr in routeGroups.Where(a => a.Key != null))
         {
-            deletedMList += giRemoveTranslationsForMissingRowIds.GetInvoker(t, pr.Type.ElementType()!)(pr);
+            deletedMList += giRemoveTranslationsForMissingRowIds.GetInvoker(t, gr.Key!.Parent!.Type.ElementType()!)(gr.Key, gr.ToDictionary());
         }
 
         return deletedPr + deleteInconsistent + deletedInstance + deletedMList;
     }
 
-    static GenericInvoker<Func<int>> giRemoveTranslationsForMissingEntities = new(() => RemoveTranslationsForMissingEntities<Entity>());
-    static int RemoveTranslationsForMissingEntities<T>() where T : Entity
+    static GenericInvoker<Func<Dictionary<PropertyRoute, PropertyRouteEntity>, int>> giRemoveTranslationsForMissingEntities = new(dic => RemoveTranslationsForMissingEntities<Entity>(dic));
+    static int RemoveTranslationsForMissingEntities<T>(Dictionary<PropertyRoute, PropertyRouteEntity> routes) where T : Entity
     {
-        return (from ti in Database.Query<TranslatedInstanceEntity>()
-                where ti.PropertyRoute.RootType.Is(typeof(T).ToTypeEntity())
-                join e in Database.Query<T>().DefaultIfEmpty() on ti.Instance.Entity equals e
-                where e == null
-                select ti).UnsafeDelete();
+        var result = (from ti in Database.Query<TranslatedInstanceEntity>()
+                                where ti.PropertyRoute.RootType.Is(typeof(T).ToTypeEntity())
+                                join e in Database.Query<T>().DefaultIfEmpty() on ti.Instance.Entity equals e
+                                where e == null
+                                select ti).UnsafeDelete();
+
+        foreach (var item in routes)
+        {
+            if(((IColumn)Schema.Current.Field(item.Key)).Nullable != IsNullable.No)
+            {
+                var exp = item.Key.GetLambdaExpression<T, string?>(false, null);
+
+                result += (from ti in Database.Query<TranslatedInstanceEntity>()
+                           where ti.PropertyRoute.Is(item.Value)
+                           join e in Database.Query<T>().DefaultIfEmpty() on ti.Instance.Entity equals e
+                           where exp.Evaluate(e) == null || exp.Evaluate(e) == ""
+                           select ti).UnsafeDelete();
+            }
+        }
+
+        return result;
+
     }
 
-    static GenericInvoker<Func<PropertyRoute, int>> giRemoveTranslationsForMissingRowIds = new(pr => RemoveTranslationsForMissingRowIds<Entity, EmbeddedEntity>(pr));
-    static int RemoveTranslationsForMissingRowIds<T, E>(PropertyRoute route) where T : Entity
+    static GenericInvoker<Func<PropertyRoute, Dictionary<PropertyRoute, PropertyRouteEntity>, int>> giRemoveTranslationsForMissingRowIds = new((pr, dic) => RemoveTranslationsForMissingRowIds<Entity, EmbeddedEntity>(pr, dic));
+    static int RemoveTranslationsForMissingRowIds<T, E>(PropertyRoute mlistRoute, Dictionary<PropertyRoute, PropertyRouteEntity> routes) where T : Entity
     {
-        Expression<Func<T, MList<E>>> expression = route.GetLambdaExpression<T, MList<E>>(false);
-        var prefix = route.PropertyString() + "/";
-        return (from ti in Database.Query<TranslatedInstanceEntity>()
-                where ti.PropertyRoute.RootType.Is(typeof(T).ToTypeEntity()) && ti.PropertyRoute.Path.StartsWith(prefix)
-                join mle in Database.MListQuery(expression).DefaultIfEmpty() on new { ti.Instance.Entity, ti.RowId } equals new { Entity = (Entity)mle.Parent, RowId = mle.RowId.ToString() }
-                where mle == null
-                select ti).UnsafeDelete();
+        Expression<Func<T, MList<E>>> expression = mlistRoute.Parent!.GetLambdaExpression<T, MList<E>>(false);
+        var prefix = mlistRoute.PropertyString();
+        var result = (from ti in Database.Query<TranslatedInstanceEntity>()
+                      where ti.PropertyRoute.RootType.Is(typeof(T).ToTypeEntity()) && ti.PropertyRoute.Path.StartsWith(prefix)
+                      join mle in Database.MListQuery(expression).DefaultIfEmpty() on new { ti.Instance.Entity, ti.RowId } equals new { Entity = (Entity)mle.Parent, RowId = mle.RowId.ToString() }
+                      where mle == null
+                      select ti).UnsafeDelete();
+
+        foreach (var item in routes)
+        {
+            if (((IColumn)Schema.Current.Field(item.Key)).Nullable != IsNullable.No)
+            {
+                var exp = item.Key.GetLambdaExpression<E, string?>(false, mlistRoute);
+
+                result += (from ti in Database.Query<TranslatedInstanceEntity>()
+                           where ti.PropertyRoute.Is(item.Value)
+                           join mle in Database.MListQuery(expression).DefaultIfEmpty() on new { ti.Instance.Entity, ti.RowId } equals new { Entity = (Entity)mle.Parent, RowId = mle.RowId.ToString() }
+                           where exp.Evaluate(mle.Element) == null || exp.Evaluate(mle.Element) == ""
+                           select ti).UnsafeDelete();
+            }
+        }
+
+        return result;
     }
 
     public static string TranslatedField<T>(this T entity, Expression<Func<T, string>> property) where T : Entity
     {
-        string fallbackString = TranslatedInstanceLogic.GetPropertyRouteAccesor(property)(entity);
+        string? fallbackString = TranslatedInstanceLogic.GetPropertyRouteAccesor(property)(entity);
 
-        return entity.ToLite().TranslatedField(property, fallbackString);
+        var pr = PropertyRoute.Construct(property);
+
+        return entity.ToLite().TranslatedField(pr, fallbackString);
+    }
+
+    public static string? TranslatedFieldNullable<T>(this T entity, Expression<Func<T, string?>> property) where T : Entity
+    {
+        string? fallbackString = TranslatedInstanceLogic.GetPropertyRouteAccesor(property)(entity);
+
+        var pr = PropertyRoute.Construct(property);
+
+        return entity.ToLite().TranslatedField(pr, fallbackString);
     }
 
     public static IEnumerable<TranslatableElement<T>> TranslatedMList<E, T>(this E entity, Expression<Func<E, MList<T>>> mlistProperty) where E : Entity
@@ -292,6 +341,15 @@ public static class TranslatedInstanceLogic
     public static string TranslatedElement<T>(this TranslatableElement<T> element, Expression<Func<T, string>> property)
     {
         string fallback = GetPropertyRouteAccesor(property)(element.Value);
+
+        PropertyRoute route = element.ElementRoute.Continue(property);
+
+        return TranslatedField(element.Lite, route, element.RowId, fallback);
+    }
+
+    public static string? TranslatedElementNullable<T>(this TranslatableElement<T> element, Expression<Func<T, string?>> property)
+    {
+        string? fallback = GetPropertyRouteAccesor(property)(element.Value);
         
         PropertyRoute route = element.ElementRoute.Continue(property); 
 
@@ -299,7 +357,7 @@ public static class TranslatedInstanceLogic
     }
 
     [return: NotNullIfNotNull("fallbackString")]
-    public static string? TranslatedField<T>(this Lite<T> lite, Expression<Func<T, string>> property, string? fallbackString) where T : Entity
+    public static string? TranslatedField<T>(this Lite<T> lite, Expression<Func<T, string?>> property, string? fallbackString) where T : Entity
     {
         PropertyRoute route = PropertyRoute.Construct(property);
 
@@ -308,7 +366,7 @@ public static class TranslatedInstanceLogic
 
 
     [return: NotNullIfNotNull("fallbackString")]
-    public static string? TranslatedField(Lite<Entity> lite, PropertyRoute route, string? fallbackString)
+    public static string? TranslatedField(this Lite<Entity> lite, PropertyRoute route, string? fallbackString)
     {
         return TranslatedField(lite, route, null, fallbackString);
     }
@@ -357,7 +415,7 @@ public static class TranslatedInstanceLogic
     }
 
 
-    public static T SaveTranslation<T>(this T entity, CultureInfoEntity ci, Expression<Func<T, string>> propertyRoute, string translatedText)
+    public static T SaveTranslation<T>(this T entity, CultureInfoEntity ci, Expression<Func<T, string?>> propertyRoute, string? translatedText)
         where T : Entity
     {
         entity.Save();
@@ -368,7 +426,7 @@ public static class TranslatedInstanceLogic
                 PropertyRoute = PropertyRoute.Construct(propertyRoute).ToPropertyRouteEntity(),
                 Culture = ci,
                 TranslatedText = translatedText,
-                OriginalText = GetPropertyRouteAccesor(propertyRoute)(entity),
+                OriginalText = GetPropertyRouteAccesor(propertyRoute)(entity)!,
                 Instance = entity.ToLite(),
             }.Save();
 
@@ -381,6 +439,14 @@ public static class TranslatedInstanceLogic
     public static Func<T, R> GetPropertyRouteAccesor<T, R>(Expression<Func<T, R>> propertyRoute)
     {
         return (Func<T, R>)compiledExpressions.GetOrAdd(propertyRoute, ld => ld.Compile());
+    }
+
+    public static string ExportExcelFile(Type type, CultureInfo culture, string folder)
+    {
+        var fc = ExportExcelFile(type, culture);
+        var fileName = Path.Combine(folder, fc.FileName);
+        File.WriteAllBytes(fileName, fc.Bytes);
+        return fileName;
     }
 
     public static FileContent ExportExcelFile(Type type, CultureInfo culture)
@@ -450,7 +516,7 @@ public static class TranslatedInstanceLogic
             TranslatedText = cellValues[4]
         });
 
-        SaveRecords(records, type, culture);
+        SaveRecords(records, type, isSync: false, culture);
 
         return new TypeCulturePair(type, culture);
     }
@@ -503,9 +569,10 @@ public static class TranslatedInstanceLogic
 
 
 
-    public static void SaveRecords(List<TranslationRecord> records, Type t, CultureInfo? c)
+    public static void SaveRecords(List<TranslationRecord> records, Type t, bool isSync, CultureInfo? c)
     {
-        Dictionary<(CultureInfo culture, LocalizedInstanceKey instanceKey), TranslationRecord> should = records.Where(a => a.TranslatedText.HasText())
+        Dictionary<(CultureInfo culture, LocalizedInstanceKey instanceKey), TranslationRecord> should = records
+            .Where(a => !isSync || a.TranslatedText.HasText())
             .ToDictionary(a => (a.Culture, a.Key));
 
         Dictionary<(CultureInfo culture, LocalizedInstanceKey instanceKey), TranslatedInstanceEntity> current =
@@ -517,10 +584,14 @@ public static class TranslatedInstanceLogic
         {
             Dictionary<PropertyRoute, PropertyRouteEntity> routes = should.Keys.Select(a => a.instanceKey.Route).Distinct().ToDictionary(a => a, a => a.ToPropertyRouteEntity());
 
+            routes.Values.Where(a => a.IsNew).SaveList();
+
+            List<TranslatedInstanceEntity> toInsert = new List<TranslatedInstanceEntity>(); 
+
             Synchronizer.Synchronize(
                 should,
                 current,
-                (k, n) => new TranslatedInstanceEntity
+                (k, n) => toInsert.Add(new TranslatedInstanceEntity
                 {
                     Culture = n.Culture.ToCultureInfoEntity(),
                     PropertyRoute = routes.GetOrThrow(n.Key.Route),
@@ -528,7 +599,7 @@ public static class TranslatedInstanceLogic
                     RowId  = n.Key.RowId?.ToString(),
                     OriginalText = n.OriginalText,
                     TranslatedText = n.TranslatedText,
-                }.Save(),
+                }),
                 (k, o) => { },
                 (k, n, o) =>
                 {
@@ -544,6 +615,8 @@ public static class TranslatedInstanceLogic
                         r.Save();
                     }
                 });
+
+            toInsert.BulkInsert(message: "auto");
 
             tr.Commit();
         }
