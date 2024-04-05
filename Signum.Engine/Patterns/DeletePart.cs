@@ -6,7 +6,7 @@ namespace Signum.Engine;
 public static class DeletePart
 {
     static readonly Variable<ImmutableStack<Type>> avoidTypes = Statics.ThreadVariable<ImmutableStack<Type>>("avoidDeletePart");
- 
+
     public static bool ShouldAvoidDeletePart(Type partType)
     {
         var stack = avoidTypes.Value;
@@ -45,7 +45,7 @@ public static class DeletePart
                 if (!e.IsNew && handleOnSaving!(e))
                 {
                     var lite = e.InDB().Select(relatedEntity).Select(a => a.ToLite()).SingleEx();
-                    if(!lite.Is(relatedEntity.Evaluate(e)))
+                    if (lite != null && !lite.Is(relatedEntity.Evaluate(e)))
                     {
                         Transaction.PreRealCommit += dic =>
                         {
@@ -63,7 +63,7 @@ public static class DeletePart
     {
         fi.SchemaBuilder.Schema.EntityEvents<T>().PreUnsafeDelete += query =>
         {
-            var toDelete = query.Select(relatedEntity).ToList().NotNull().Distinct().ToList();;
+            var toDelete = query.Select(relatedEntity).ToList().NotNull().Distinct().ToList(); ;
             return new Disposable(() =>
             {
                 Database.DeleteList(toDelete);
