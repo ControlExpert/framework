@@ -2,15 +2,19 @@
 <Translations>
   <Type Name="CollectionMessage">
     <Member Name="And" Description=" et " />
+    <Member Name="MoreThanOne0Found" Description="Plusieurs résultats trouvés pour {0}" />
+    <Member Name="No0Found" Description="{0} non trouvé" />
     <Member Name="Or" Description=" ou " />
   </Type>
   <Type Name="ConsoleMessage">
     <Member Name="EnterYourSelection" Description="Entrez votre sélection: " />
     <Member Name="EnterYoutSelectionsSeparatedByComma" Description="Entrez votre sélection séparé par une virgule: " />
+    <Member Name="More" Description="plus..." />
     <Member Name="NoOptionWithKey0Found" Description="Pas d'option avec la touche {0} trouvée" />
     <Member Name="SelectOneOfTheFollowingOptions" Description="Choisissez une des options suivantes:" />
   </Type>
   <Type Name="DateTimeMessage">
+    <Member Name="_0Ago" Description="il y a {0}" />
     <Member Name="_0Day" Description="{0} Jour" />
     <Member Name="_0Days" Description="{0} Jours" />
     <Member Name="_0Hour" Description="{0} Heure" />
@@ -21,8 +25,13 @@
     <Member Name="_0Months" Description="{0} Mois" />
     <Member Name="_0Second" Description="{0} Seconde" />
     <Member Name="_0Seconds" Description="{0} Secondes" />
+    <Member Name="_0Week" Description="{0} semaine" />
+    <Member Name="_0Weeks" Description="{0} semaines" />
     <Member Name="_0Year" Description="{0} Année" />
     <Member Name="_0Years" Description="{0} Années" />
+    <Member Name="In0" Description="En {0}" />
+    <Member Name="Last0" Description="Dernière {0}" />
+    <Member Name="This0" Description="Cette {0}" />
     <Member Name="Today" Description="Aujourd'hui" />
     <Member Name="Tomorrow" Description="Demain" />
     <Member Name="Yesterday" Description="Hier" />
