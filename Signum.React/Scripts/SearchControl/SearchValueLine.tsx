@@ -15,6 +15,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { EntityBaseController } from '../Lines/EntityBase'
 import SelectorModal from '../SelectorModal'
 import { useForceUpdate } from '../Hooks'
+import { toAbsoluteUrl } from '../AppContext'
 
 export interface SearchValueLineProps {
   ctx: StyleContext;
@@ -39,7 +40,7 @@ export interface SearchValueLineProps {
   avoidAutoRefresh?: boolean;
   deps?: React.DependencyList;
   extraButtons?: (vscc: SearchValueController) => React.ReactNode;
-  create?: boolean;
+  create?: boolean | "ifNull" ;
   onCreate?: () => Promise<any>;
   getViewPromise?: (e: any /*Entity*/) => undefined | string | Navigator.ViewPromise<any /*Entity*/>;
   searchControlProps?: Partial<SearchControlProps>;
@@ -48,6 +49,7 @@ export interface SearchValueLineProps {
   onViewEntity?: (entity: Lite<Entity>) => void;
   onValueChanged?: (value: any) => void;
   customRequest?: (req: QueryValueRequest, fop: FindOptionsParsed, token: QueryToken | null, signal: AbortSignal) => Promise<any>,
+  onRender?: (value: any | undefined, vsc: SearchValueController) => React.ReactElement | null | undefined | false,
 }
 
 export interface SearchValueLineController {
@@ -129,8 +131,8 @@ const SearchValueLine = React.forwardRef(function SearchValueLine(p: SearchValue
       title={ctx.titleLabels ? EntityControlMessage.Find.niceToString() : undefined}>
       {EntityBaseController.findIcon}
     </a>;
-
-  const create = (p.create ?? false) &&
+  
+  const create = ((p.create == "ifNull" && value === null) || (p.create ?? false)) &&
     <a href="#" className={classes("sf-line-button sf-create", isFormControl ? "btn input-group-text" : undefined)}
       onClick={handleCreateClick}
       title={ctx.titleLabels ? EntityControlMessage.Create.niceToString() : undefined}>
@@ -177,7 +179,9 @@ const SearchValueLine = React.forwardRef(function SearchValueLine(p: SearchValue
           onExplored={p.onExplored}
           searchControlProps={p.searchControlProps}
           modalSize={p.modalSize}
+          unit={null}
           deps={p.deps}
+          onRender={p.onRender}
           customRequest={p.customRequest}
         />
 
@@ -229,7 +233,7 @@ const SearchValueLine = React.forwardRef(function SearchValueLine(p: SearchValue
           if (isWindowsOpen || (s != null && s.avoidPopup)) {
             var vp = getViewPromise && getViewPromise(null)
 
-            window.open(Navigator.createRoute(tn, vp && typeof vp == "string" ? vp : undefined));
+            window.open(toAbsoluteUrl(Navigator.createRoute(tn, vp && typeof vp == "string" ? vp : undefined)));
           } else {
             Finder.parseFilterOptions(fo.filterOptions || [], false, qd)
               .then(fos => Finder.getPropsFromFilters(tn, fos)

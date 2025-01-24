@@ -13,6 +13,7 @@ import { TypeEntity } from "../Signum.Entities.Basics";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { FindOptionsAutocompleteConfig } from './AutoCompleteConfig'
 import { FilterOption } from '../Search'
+import { toAbsoluteUrl } from '../AppContext'
 
 export interface EntityBaseProps extends LineBaseProps {
   view?: boolean | ((item: any/*T*/) => boolean);
@@ -167,7 +168,7 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
     if (openWindow) {
       event.preventDefault();
       const route = Navigator.navigateRoute(entity as Lite<Entity> /*or Entity*/);
-      window.open(route);
+      window.open(toAbsoluteUrl(route));
     }
     else {
       const promise = this.doView(entity);
@@ -182,7 +183,7 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
         //Modifying the sub entity, saving and coming back should change the entity in the UI (ToString, or EntityDetails), 
         //the parent entity is not really modified, but I'm not sure it his is a real problem in practice, till then the line is commented out
         //if (e.modified || !is(e, entity)) 
-        this.convert(e).then(m => this.setValue(m));
+        this.convert(e).then(m => this.setValue(m, event));
       });
     }
   }
@@ -263,7 +264,7 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
       if (!e)
         return;
 
-      this.convert(e).then(m => this.setValue(m));
+      this.convert(e).then(m => this.setValue(m, event));
     });
   };
 
@@ -375,7 +376,7 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
       if (!entity)
         return;
 
-      this.convert(entity).then(e => this.setValue(e));
+      this.convert(entity).then(e => this.setValue(e, event));
     });
   };
 
@@ -401,7 +402,7 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
         if (result == false)
           return;
 
-        this.setValue(null);
+        this.setValue(null, event);
       });
   };
 

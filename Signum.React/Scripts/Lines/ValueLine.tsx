@@ -39,6 +39,8 @@ export interface ValueLineProps extends LineBaseProps {
   maxDate?: Date;
   calendarProps?: Partial<CalendarProps>;
   calendarAlignEnd?: boolean;
+  initiallyShowOnly?: "Date" | "Time";
+  valueRef?: React.Ref<HTMLElement>;
 }
 
 export interface OptionItem {
@@ -84,6 +86,16 @@ export class ValueLineController extends LineBaseController<ValueLineProps>{
       }
 
     }, []);
+  }
+
+  setRefs = (node: HTMLElement | null) => {
+    if (this.props?.valueRef) {
+      if (typeof this.props.valueRef == "function")
+        this.props.valueRef(node);
+      else
+        (this.props.valueRef as React.MutableRefObject<HTMLElement | null>).current = node;
+    }
+    (this.inputElement as React.MutableRefObject<HTMLElement | null>).current = node;
   }
 
   static autoFixString(str: string, autoTrim: boolean): string {
@@ -229,7 +241,7 @@ ValueLineRenderers.renderers.set("Checkbox", (vl) => {
 
   const handleCheckboxOnChange = (e: React.SyntheticEvent<any>) => {
     const input = e.currentTarget as HTMLInputElement;
-    vl.setValue(input.checked);
+    vl.setValue(input.checked, e);
   };
 
   if (s.inlineCheckbox) {
@@ -324,7 +336,7 @@ function internalDropDownList(vl: ValueLineController) {
           <FormControlReadonly htmlAttributes={{
             ...vl.props.valueHtmlAttributes,
             ...({ 'data-value': s.ctx.value } as any) /*Testing*/
-          }} ctx={s.ctx} innerRef={vl.inputElement}>
+          }} ctx={s.ctx} innerRef={vl.setRefs}>
             {label}
           </FormControlReadonly>)}
       </FormGroup>
@@ -339,16 +351,18 @@ function internalDropDownList(vl: ValueLineController) {
   }
 
   if (vl.props.onRenderDropDownListItem) {
-    const handleOptionItem = (e: OptionItem) => {
-      vl.setValue(e.value);
-    };
 
-    var oi = optionItems.single(a => a.value == s.ctx.value);
+    var oi = optionItems.singleOrNull(a => a.value == s.ctx.value) ?? {
+      value: s.ctx.value,
+      label: s.ctx.value,
+    };
 
     return (
       <FormGroup ctx={s.ctx} label={s.label} helpText={s.helpText} htmlAttributes={{ ...vl.baseHtmlAttributes(), ...s.formGroupHtmlAttributes }} labelHtmlAttributes={s.labelHtmlAttributes}>
         {vl.withItemGroup(
-          <DropdownList<OptionItem> className={addClass(vl.props.valueHtmlAttributes, classes(s.ctx.formControlClass, vl.mandatoryClass, "p-0"))} data={optionItems} onChange={handleOptionItem} value={oi}
+          <DropdownList<OptionItem> className={addClass(vl.props.valueHtmlAttributes, classes(s.ctx.formControlClass, vl.mandatoryClass, "p-0"))} data={optionItems}
+            onChange={(oe, md) => vl.setValue(oe.value, md.originalEvent)}
+            value={oi}
             filter={false}
             autoComplete="off"
             dataKey="value"
@@ -365,7 +379,7 @@ function internalDropDownList(vl: ValueLineController) {
     const handleEnumOnChange = (e: React.SyntheticEvent<any>) => {
       const input = e.currentTarget as HTMLInputElement;
       const option = optionItems.filter(a => toStr(a.value) == input.value).single();
-      vl.setValue(option.value);
+      vl.setValue(option.value, e);
     };
 
     return (
@@ -410,23 +424,22 @@ function internalComboBoxText(vl: ValueLineController) {
           <FormControlReadonly htmlAttributes={{
             ...vl.props.valueHtmlAttributes,
             ...({ 'data-value': s.ctx.value } as any) /*Testing*/
-          }} ctx={s.ctx} innerRef={vl.inputElement}>
+          }} ctx={s.ctx} innerRef={vl.setRefs}>
             {label}
           </FormControlReadonly>)}
       </FormGroup>
     );
   }
 
-  const handleOptionItem = (e: string | OptionItem) => {
-    vl.setValue(e == null ? null : typeof e == "string" ? e : e.value);
-  };
 
   var renderItem = vl.props.onRenderDropDownListItem ? (a: any) => vl.props.onRenderDropDownListItem!(a.item) : undefined;
 
   return (
     <FormGroup ctx={s.ctx} label={s.label} helpText={s.helpText} htmlAttributes={{ ...vl.baseHtmlAttributes(), ...s.formGroupHtmlAttributes }} labelHtmlAttributes={s.labelHtmlAttributes}>
       {vl.withItemGroup(
-        <Combobox<OptionItem> className={addClass(vl.props.valueHtmlAttributes, classes(s.ctx.formControlClass, vl.mandatoryClass))} data={optionItems} onChange={handleOptionItem} value={s.ctx.value}
+        <Combobox<OptionItem> className={addClass(vl.props.valueHtmlAttributes, classes(s.ctx.formControlClass, vl.mandatoryClass))} data={optionItems} onChange={(e: string | OptionItem, md) => {
+          vl.setValue(e == null ? null : typeof e == "string" ? e : e.value, md.originalEvent);
+        }} value={s.ctx.value}
           dataKey="value"
           textField="label"
           focusFirstItem
@@ -456,7 +469,7 @@ function internalTextBox(vl: ValueLineController, password: boolean) {
   if (s.ctx.readOnly)
     return (
       <FormGroup ctx={s.ctx} label={s.label} helpText={s.helpText} htmlAttributes={{ ...vl.baseHtmlAttributes(), ...s.formGroupHtmlAttributes }} labelHtmlAttributes={s.labelHtmlAttributes}>
-        {vl.withItemGroup(<FormControlReadonly htmlAttributes={htmlAtts} ctx={s.ctx} innerRef={vl.inputElement}>
+        {vl.withItemGroup(<FormControlReadonly htmlAttributes={htmlAtts} ctx={s.ctx} innerRef={vl.setRefs}>
           {s.ctx.value}
         </FormControlReadonly>)}
       </FormGroup>
@@ -464,7 +477,7 @@ function internalTextBox(vl: ValueLineController, password: boolean) {
 
   const handleTextOnChange = (e: React.SyntheticEvent<any>) => {
     const input = e.currentTarget as HTMLInputElement;
-    vl.setValue(input.value);
+    vl.setValue(input.value, e);
   };
 
   let handleBlur: ((e: React.FocusEvent<any>) => void) | undefined = undefined;
@@ -473,7 +486,7 @@ function internalTextBox(vl: ValueLineController, password: boolean) {
       const input = e.currentTarget as HTMLInputElement;
       var fixed = ValueLineController.autoFixString(input.value, s.autoTrimString != null ? s.autoTrimString : true);
       if (fixed != input.value)
-        vl.setValue(fixed);
+        vl.setValue(fixed, e);
 
       if (htmlAtts?.onBlur)
         htmlAtts.onBlur(e);
@@ -492,7 +505,7 @@ function internalTextBox(vl: ValueLineController, password: boolean) {
           onChange={handleTextOnChange} //https://github.com/facebook/react/issues/7211
           placeholder={vl.getPlaceholder()}
           list={s.datalist ? s.ctx.getUniqueId("dataList") : undefined}
-          ref={vl.inputElement as React.RefObject<HTMLInputElement>} />)
+          ref={vl.setRefs} />)
       }
       {s.datalist &&
         <datalist id={s.ctx.getUniqueId("dataList")}>
@@ -520,7 +533,7 @@ ValueLineRenderers.renderers.set("TextArea", (vl) => {
 
   const handleTextOnChange = (e: React.SyntheticEvent<any>) => {
     const input = e.currentTarget as HTMLInputElement;
-    vl.setValue(input.value);
+    vl.setValue(input.value, e);
   };
 
   let handleBlur: ((e: React.FocusEvent<any>) => void) | undefined = undefined;
@@ -529,12 +542,23 @@ ValueLineRenderers.renderers.set("TextArea", (vl) => {
       const input = e.currentTarget as HTMLInputElement;
       var fixed = ValueLineController.autoFixString(input.value, s.autoTrimString != null ? s.autoTrimString : false);
       if (fixed != input.value)
-        vl.setValue(fixed);
+        vl.setValue(fixed, e);
 
       if (htmlAtts?.onBlur)
         htmlAtts.onBlur(e);
     };
   }
+
+  const handleOnFocus = (e: React.FocusEvent<any>) => {
+    console.log("onFocus handler called");
+    if (htmlAtts?.onFocus) {
+        console.log("passed onFocus called");
+
+        htmlAtts?.onFocus(e);
+    }
+  }
+    
+
 
   return (
     <FormGroup ctx={s.ctx} label={s.label} helpText={s.helpText} htmlAttributes={{ ...vl.baseHtmlAttributes(), ...s.formGroupHtmlAttributes }} labelHtmlAttributes={s.labelHtmlAttributes}>
@@ -542,8 +566,9 @@ ValueLineRenderers.renderers.set("TextArea", (vl) => {
         <TextArea {...vl.props.valueHtmlAttributes} autoResize={autoResize} className={addClass(vl.props.valueHtmlAttributes, classes(s.ctx.formControlClass, vl.mandatoryClass))} value={s.ctx.value || ""}
           onChange={handleTextOnChange}
           onBlur={handleBlur ?? htmlAtts?.onBlur}
+          onFocus={handleOnFocus}
           placeholder={vl.getPlaceholder()}
-          innerRef={vl.inputElement as any} />
+          innerRef={vl.setRefs} />
       )}
     </FormGroup>
   );
@@ -566,7 +591,7 @@ function numericTextBox(vl: ValueLineController, validateKey: (e: React.Keyboard
     return (
       <FormGroup ctx={s.ctx} label={s.label} helpText={s.helpText} htmlAttributes={{ ...vl.baseHtmlAttributes(), ...s.formGroupHtmlAttributes }} labelHtmlAttributes={s.labelHtmlAttributes}>
         {vl.withItemGroup(
-          <FormControlReadonly htmlAttributes={vl.props.valueHtmlAttributes} ctx={s.ctx} className="numeric" innerRef={vl.inputElement}>
+          <FormControlReadonly htmlAttributes={vl.props.valueHtmlAttributes} ctx={s.ctx} className="numeric" innerRef={vl.setRefs}>
             {s.ctx.value == null ? "" : numberFormat.format(s.ctx.value)}
           </FormControlReadonly>)}
       </FormGroup>
@@ -581,10 +606,10 @@ function numericTextBox(vl: ValueLineController, validateKey: (e: React.Keyboard
   const handleKeyDown = (e: React.KeyboardEvent<any>) => {
     if (e.keyCode == KeyCodes.down) {
       e.preventDefault();
-      vl.setValue((s.ctx.value ?? 0) - incNumber);
+      vl.setValue((s.ctx.value ?? 0) - incNumber, e);
     } else if (e.keyCode == KeyCodes.up) {
       e.preventDefault();
-      vl.setValue((s.ctx.value ?? 0) + incNumber);
+      vl.setValue((s.ctx.value ?? 0) + incNumber, e);
     }
   }
 
@@ -604,7 +629,7 @@ function numericTextBox(vl: ValueLineController, validateKey: (e: React.Keyboard
           formControlClass={classes(s.ctx.formControlClass, vl.mandatoryClass)}
           validateKey={validateKey}
           format={numberFormat}
-          innerRef={vl.inputElement as React.RefObject<HTMLInputElement>}
+          innerRef={vl.setRefs}
         />
       )}
     </FormGroup>
@@ -739,7 +764,7 @@ ValueLineRenderers.renderers.set("DateTime", (vl) => {
   if (s.ctx.readOnly)
     return (
       <FormGroup ctx={s.ctx} label={s.label} helpText={s.helpText} htmlAttributes={{ ...vl.baseHtmlAttributes(), ...s.formGroupHtmlAttributes }} labelHtmlAttributes={s.labelHtmlAttributes}>
-        {vl.withItemGroup(<FormControlReadonly htmlAttributes={vl.props.valueHtmlAttributes} className={addClass(vl.props.valueHtmlAttributes, "sf-readonly-date")} ctx={s.ctx} innerRef={vl.inputElement}>
+        {vl.withItemGroup(<FormControlReadonly htmlAttributes={vl.props.valueHtmlAttributes} className={addClass(vl.props.valueHtmlAttributes, "sf-readonly-date")} ctx={s.ctx} innerRef={vl.setRefs}>
           {m && toFormatWithFixes(m, luxonFormat)}
         </FormControlReadonly>)}
       </FormGroup>
@@ -825,7 +850,7 @@ ValueLineRenderers.renderers.set("DateTimeSplitted", (vl) => {
   if (s.ctx.readOnly)
     return (
       <FormGroup ctx={s.ctx} label={s.label} helpText={s.helpText} htmlAttributes={{ ...vl.baseHtmlAttributes(), ...s.formGroupHtmlAttributes }} labelHtmlAttributes={s.labelHtmlAttributes}>
-        {vl.withItemGroup(<FormControlReadonly htmlAttributes={vl.props.valueHtmlAttributes} className={addClass(vl.props.valueHtmlAttributes, "sf-readonly-date")} ctx={s.ctx} innerRef={vl.inputElement}>
+        {vl.withItemGroup(<FormControlReadonly htmlAttributes={vl.props.valueHtmlAttributes} className={addClass(vl.props.valueHtmlAttributes, "sf-readonly-date")} ctx={s.ctx} innerRef={vl.setRefs}>
           {dt && toFormatWithFixes(dt, luxonFormat)}
         </FormControlReadonly>)}
       </FormGroup>
@@ -847,6 +872,7 @@ ValueLineRenderers.renderers.set("DateTimeSplitted", (vl) => {
       {vl.withItemGroup(
         <DateTimePickerSplitted value={dt?.toJSDate()} onChange={handleDatePickerOnChange}
           initiallyFocused={Boolean(vl.props.initiallyFocused)}
+          initiallyShowOnly={vl.props.initiallyShowOnly}
           luxonFormat={luxonFormat}
           minDate={s.minDate}
           maxDate={s.maxDate}
@@ -876,11 +902,23 @@ function DateTimePickerSplitted(p: {
   maxDate?: Date,
   initiallyFocused?: boolean,
   calendarProps?: Partial<CalendarProps>;
+  initiallyShowOnly?: "Date" | "Time";
 }) {
 
   const [dateFormat, timeFormat] = splitLuxonFormat(p.luxonFormat);
 
-  const [temp, setTemp] = React.useState<{ type: "Date", date: string } | { type: "Time", time: string } | null>(null);
+  const [temp, setTemp] = React.useState<{ type: "Date", date: string } | { type: "Time", time: string } | null>(() => {
+    if (p.initiallyShowOnly == null || p.value == null)
+      return null;
+
+    if (p.initiallyShowOnly == "Date")
+      return ({ type: "Date", date: DateTime.fromJSDate(p.value).toISODate() });
+
+    if (p.initiallyShowOnly == "Time")
+      return ({ type: "Time", time: getTimeOfDay(DateTime.fromJSDate(p.value)).toISOTime() });
+
+    return null;
+  });
 
   function handleTimeChange(time: string | null) {
     if (time == null) {
@@ -983,7 +1021,7 @@ function timeTextBox(vl: ValueLineController, validateKey: (e: React.KeyboardEve
     return (
       <FormGroup ctx={s.ctx} label={s.label} helpText={s.helpText} htmlAttributes={{ ...vl.baseHtmlAttributes(), ...s.formGroupHtmlAttributes }} labelHtmlAttributes={s.labelHtmlAttributes}>
         {vl.withItemGroup(
-          <FormControlReadonly htmlAttributes={vl.props.valueHtmlAttributes} ctx={s.ctx} className={addClass(vl.props.valueHtmlAttributes, "numeric")} innerRef={vl.inputElement}>
+          <FormControlReadonly htmlAttributes={vl.props.valueHtmlAttributes} ctx={s.ctx} className={addClass(vl.props.valueHtmlAttributes, "numeric")} innerRef={vl.setRefs}>
             {timeToString(s.ctx.value, s.format)}
           </FormControlReadonly>
         )}
@@ -1014,7 +1052,7 @@ function timeTextBox(vl: ValueLineController, validateKey: (e: React.KeyboardEve
           validateKey={validateKey}
           formControlClass={classes(s.ctx.formControlClass, vl.mandatoryClass)}
           durationFormat={durationFormat}
-          innerRef={vl.inputElement as React.RefObject<HTMLInputElement>} />
+          innerRef={vl.setRefs} />
       )}
     </FormGroup>
   );
@@ -1027,7 +1065,7 @@ export interface TimeTextBoxProps {
   formControlClass?: string;
   durationFormat?: string;
   htmlAttributes?: React.HTMLAttributes<HTMLInputElement>;
-  innerRef?: React.RefObject<HTMLInputElement>;
+  innerRef?: React.Ref<HTMLInputElement>;
 }
 
 export function TimeTextBox(p: TimeTextBoxProps) {
@@ -1120,7 +1158,7 @@ function internalRadioGroup(vl: ValueLineController) {
   const handleEnumOnChange = (e: React.SyntheticEvent<any>) => {
     const input = e.currentTarget as HTMLInputElement;
     const option = optionItems.filter(a => a.value == input.value).single();
-    vl.setValue(option.value);
+    vl.setValue(option.value, e);
   };
 
   return (

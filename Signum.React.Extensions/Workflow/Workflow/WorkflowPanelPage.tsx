@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { DateTime } from 'luxon'
-import { RouteComponentProps } from 'react-router'
+import { useLocation, useParams } from 'react-router'
 import * as AppContext from '@framework/AppContext'
 import * as Navigator from '@framework/Navigator'
 import { SearchControl } from '@framework/Search'
@@ -13,7 +13,7 @@ import { useAPIWithReload, useInterval } from '@framework/Hooks'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { classes } from '@framework/Globals'
 
-export default function WorkflowPanelPage(p: RouteComponentProps<{}>, {}){
+export default function WorkflowPanelPage(){
 
   return (
     <div>
@@ -24,7 +24,7 @@ export default function WorkflowPanelPage(p: RouteComponentProps<{}>, {}){
           <WorkflowScriptRunnerTab />
         </Tab>
         <Tab title="Timers" eventKey="timers">
-          <a href="#" className="sf-button btn btn-link" onClick={e => { e.preventDefault(); window.open(AppContext.toAbsoluteUrl("~/scheduler/view")); }}>Open Scheduler Panel</a>
+          <a href="#" className="sf-button btn btn-link" onClick={e => { e.preventDefault(); window.open(AppContext.toAbsoluteUrl("/scheduler/view")); }}>Open Scheduler Panel</a>
         </Tab>
       </Tabs>
     </div>
@@ -37,7 +37,7 @@ export function WorkflowScriptRunnerTab(p: {}) {
   const [state, reloadState] = useAPIWithReload(() => {
     AuthClient.assertPermissionAuthorized(WorkflowPermission.ViewWorkflowPanel);
     return API.view();
-  }, []);
+  }, [], { avoidReset: true });
 
   const tick = useInterval(state == null || state.running ? 500 : null, 0, n => n + 1);
 
@@ -60,12 +60,14 @@ export function WorkflowScriptRunnerTab(p: {}) {
   if (state == undefined)
     return <h4>{title} (loading...) </h4>;
 
+  const s = state;
+
   return (
     <div>
       <h4>{title}</h4>
       <div className="btn-toolbar mt-3">
-        <button className={classes("sf-button btn btn-outline-success", state.running && "active pe-none")} onClick={!state.running ? handleStart : undefined}><FontAwesomeIcon icon="play" /> Start</button>
-        <button className={classes("sf-button btn btn-outline-danger", !state.running && "active pe-none")} onClick={state.running ? handleStop : undefined}><FontAwesomeIcon icon="stop" /> Stop</button>
+        <button className={classes("sf-button btn", s.running ? "btn-success disabled" : "btn-outline-success")} onClick={!s.running ? handleStart : undefined}><FontAwesomeIcon icon="play" /> Start</button>
+        <button className={classes("sf-button btn", !s.running ? "btn-danger disabled" : "btn-outline-danger")} onClick={s.running ? handleStop : undefined}><FontAwesomeIcon icon="stop" /> Stop</button>
       </div >
 
       <div>
@@ -73,7 +75,7 @@ export function WorkflowScriptRunnerTab(p: {}) {
           {state.running ?
             <span style={{ color: "green" }}> RUNNING </span> :
             <span style={{ color: state.initialDelayMilliseconds == null ? "gray" : "red" }}> STOPPED </span>
-          }</strong> <a className="ms-2" href={AppContext.toAbsoluteUrl("~/api/workflow/scriptRunner/simpleStatus")} target="_blank">SimpleStatus</a>
+          }</strong> <a className="ms-2" href={AppContext.toAbsoluteUrl("/api/workflow/scriptRunner/simpleStatus")} target="_blank">SimpleStatus</a>
         <br />
         InitialDelayMilliseconds: {state.initialDelayMilliseconds}
         <br />

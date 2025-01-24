@@ -26,6 +26,7 @@ export interface EntityComboProps extends EntityBaseProps {
   nullPlaceHolder?: string;
   delayLoadData?: boolean;
   toStringFromData?: boolean;
+  overrideSelectedLite?: () => Lite<Entity> | null;
 }
 
 export class EntityComboController extends EntityBaseController<EntityComboProps> {
@@ -59,12 +60,12 @@ export class EntityComboController extends EntityBaseController<EntityComboProps
     return promise;
   }
 
-  handleOnChange = (lite: Lite<Entity> | null) => {
+  handleOnChange = (e: React.SyntheticEvent | undefined, lite: Lite<Entity> | null) => {
     if (lite == null)
       this.setValue(lite);
     else
       this.convert(lite)
-        .then(v => this.setValue(v));
+        .then(v => this.setValue(v, e));
   }
 }
 
@@ -124,6 +125,7 @@ export const EntityCombo = React.memo(React.forwardRef(function EntityCombo(prop
             type={p.type!}
             data={p.data}
             findOptions={p.findOptions}
+            findOptionsDictionary={p.findOptionsDictionary}
             onDataLoaded={p.labelTextWithData == null ? undefined : () => c.forceUpdate()}
             mandatoryClass={c.mandatoryClass}
             deps={p.deps}
@@ -133,6 +135,7 @@ export const EntityCombo = React.memo(React.forwardRef(function EntityCombo(prop
             liteToString={p.liteToString}
             nullPlaceHolder={p.nullPlaceHolder}
             onRenderItem={p.onRenderItem}
+            overrideSelectedLite={p.overrideSelectedLite}
           />
           {EntityBaseController.hasChildrens(buttons) ? buttons : undefined}
         </div>
@@ -143,9 +146,10 @@ export const EntityCombo = React.memo(React.forwardRef(function EntityCombo(prop
 
 export interface EntityComboSelectProps {
   ctx: TypeContext<ModifiableEntity | Lite<Entity> | null | undefined>;
-  onChange: (lite: Lite<Entity> | null) => void;
+  onChange: (e: React.SyntheticEvent | undefined, lite: Lite<Entity> | null) => void;
   type: TypeReference;
   findOptions?: FindOptions;
+  findOptionsDictionary?: { [typeName: string]: FindOptions };
   data?: Lite<Entity>[];
   mandatoryClass: string | null;
   onDataLoaded?: (data: Lite<Entity>[] | ResultTable | undefined) => void;
@@ -156,6 +160,7 @@ export interface EntityComboSelectProps {
   nullPlaceHolder?: string;
   delayLoadData?: boolean;
   toStringFromData?: boolean;
+  overrideSelectedLite?: () => Lite<Entity> | null
 }
 
 
@@ -205,14 +210,17 @@ export const EntityComboSelect = React.forwardRef(function EntityComboSelect(p: 
       setData(p.data);
     } else if (loadData) {
       requestStarted.current = true;
-      const fo = p.findOptions;
-      if (fo) {
+
+      if (p.type.name.contains(",")) {
+        Promise.all(getTypeInfos(p.type.name).map(t => {
+          var fo = p.findOptionsDictionary?.[t.name] ?? { queryName: t!.name };
+          return Finder.getResultTable(Finder.defaultNoColumnsAllRows(fo, undefined))
+        })).then(array => setData(array.flatMap(a => a.rows.map(a => a.entity!))));
+      } else {
+        const fo = p.findOptions ?? { queryName: p.type!.name };;
         Finder.getResultTable(Finder.defaultNoColumnsAllRows(fo, undefined))
           .then(data => setData(data));
       }
-      else
-        Finder.API.fetchAllLites({ types: p.type!.name })
-          .then(data => setData(data.orderBy(a => a)));
     }
   }, [normalizeEmptyArray(p.data), p.type.name, p.deps, loadData, p.findOptions && Finder.findOptionsPath(p.findOptions)]);
 
@@ -235,7 +243,7 @@ export const EntityComboSelect = React.forwardRef(function EntityComboSelect(p: 
     return (
       <DropdownList
         className={classes(ctx.formControlClass, p.mandatoryClass)} data={getOptionRows()}
-        onChange={row => p.onChange(row?.entity ?? null)}
+        onChange={(row, e) => p.onChange(e.originalEvent, row?.entity ?? null)}
         value={getResultRow(lite)}
         title={getToString(lite)}
         filter={(e, query) => {
@@ -264,11 +272,11 @@ export const EntityComboSelect = React.forwardRef(function EntityComboSelect(p: 
 
     if (current.value != (lite ? liteKey(lite) : undefined)) {
       if (!current.value) {
-        p.onChange(null);
+        p.onChange(event, null);
       } else {
         const liteFromData = Array.isArray(data) ? data!.single(a => liteKey(a) == current.value) :
           data?.rows.single(a => liteKey(a.entity!) == current.value).entity!;
-        p.onChange(liteFromData);
+        p.onChange(event, liteFromData);
       }
     }
   }
@@ -289,8 +297,12 @@ export const EntityComboSelect = React.forwardRef(function EntityComboSelect(p: 
 
   function getLite() {
     const v = p.ctx.value;
-    if (v == undefined)
+    if (v == undefined) {
+      if (p.overrideSelectedLite) {
+        return (p.overrideSelectedLite() ?? undefined);
+      }
       return undefined;
+    }
 
     if (isEntity(v))
       return toLite(v, v.isNew, p.liteToString && p.liteToString(v));

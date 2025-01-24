@@ -1,10 +1,5 @@
-import * as React from 'react'
-import * as History from 'history'
-import { FindOptions, ResultTable } from './Search';
-import * as Finder from './Finder';
+import * as React from 'react';
 import * as AppContext from './AppContext';
-import { Entity, Lite, liteKey, isEntity } from './Signum.Entities';
-import { Type, QueryTokenString, newLite } from './Reflection';
 
 export function useForceUpdate(): () => void {
   const [count, setCount] = React.useState(0);
@@ -68,13 +63,14 @@ export function whenVisible<T extends HTMLElement>(element: T, callback: (visibl
   return observer;
 }
 
-export function useSize<T extends HTMLElement = HTMLDivElement>(initialTimeout = 0, resizeTimeout = 300, autoResetOnHide = false): { size: Size | undefined, setContainer: (element: T | null) => void } {
+export function useSize<T extends HTMLElement = HTMLDivElement>(initialTimeout = 0, resizeTimeout = 300, autoResetOnHide = false):
+  { size: Size | undefined, setContainer: (element: T | null) => void, element: T | null } {
   const [size, setSize] = React.useState<Size | undefined>();
   const sizeRef = useUpdatedRef(size);
-  const divElement = React.useRef<T | null>(null);
+  const htmlElement = React.useRef<T | null>(null);
 
   function setNewSize() {
-    const rect = divElement.current!.getBoundingClientRect();
+    const rect = htmlElement.current!.getBoundingClientRect();
     if (size == null || size.width != rect.width || size.height != rect.height)
       setSize({ width: rect.width, height: rect.height });
   }
@@ -90,7 +86,7 @@ export function useSize<T extends HTMLElement = HTMLDivElement>(initialTimeout =
     if (visibleObserver.current)
       visibleObserver.current.disconnect();
 
-    if (divElement.current = div) {
+    if (htmlElement.current = div) {
 
       if (div.clientHeight == 0 && div.clientWidth == 0)
         setSize(undefined);
@@ -111,7 +107,7 @@ export function useSize<T extends HTMLElement = HTMLDivElement>(initialTimeout =
     }
   }
 
-  const setContainerMemo = React.useCallback(setContainer, [divElement]);
+  const setContainerMemo = React.useCallback(setContainer, [htmlElement]);
 
   const resizeHandle = React.useRef<number | null>(null);
   React.useEffect(() => {
@@ -120,7 +116,7 @@ export function useSize<T extends HTMLElement = HTMLDivElement>(initialTimeout =
         clearTimeout(resizeHandle.current);
 
       resizeHandle.current = setTimeout(() => {
-        if (divElement.current) {
+        if (htmlElement.current) {
           setNewSize()
         }
       }, resizeTimeout);
@@ -142,7 +138,7 @@ export function useSize<T extends HTMLElement = HTMLDivElement>(initialTimeout =
     };
   }, []);
 
-  return { size, setContainer: setContainerMemo };
+  return { size, setContainer: setContainerMemo, element: htmlElement.current };
 }
 
 export function useDocumentEvent<K extends keyof DocumentEventMap>(type: K, listener: (this: Document, ev: DocumentEventMap[K]) => any, deps: any[]): void;
@@ -298,16 +294,6 @@ export function useLock<T>(): [/*isLocked:*/boolean, /*lock:*/(makeCall: () => P
   return [isLocked, lock];
 }
 
-export function useHistoryListen(locationChanged: (location: History.Location, action: History.Action) => void, enabled: boolean = true, extraDeps?: ReadonlyArray<any>) {
-  const unregisterCallback = React.useRef<History.UnregisterCallback | undefined>(undefined);
-  React.useEffect(() => {
-    if (!enabled)
-      return;
-
-    unregisterCallback.current = AppContext.history.listen(locationChanged);
-    return () => { unregisterCallback.current!(); }
-  }, [enabled, ...(extraDeps || [])]);
-}
 
 export const useDoubleClick = (doubleClick: React.MouseEventHandler, click: React.MouseEventHandler, options?: { timeout?: number }) => {
   options = {

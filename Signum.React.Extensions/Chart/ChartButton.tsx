@@ -21,7 +21,6 @@ export default class ChartButton extends React.Component<ChartButtonProps> {
     if (e.button == 2)
       return;
 
-    e.persist();
 
     const sc = this.props.searchControl;
 
@@ -35,7 +34,7 @@ export default class ChartButton extends React.Component<ChartButtonProps> {
         filterOptions: fo.filterOptions
       })
 
-      if (sc.props.avoidChangeUrl || e.ctrlKey || e.button == 1)
+      if (sc.props.avoidChangeUrl)
         window.open(AppContext.toAbsoluteUrl(path));
       else
         AppContext.pushOrOpenInTab(path, e);
@@ -43,7 +42,7 @@ export default class ChartButton extends React.Component<ChartButtonProps> {
   }
 
   render() {
-    var label = this.props.searchControl.props.largeToolbarButtons == true ? " " + ChartMessage.Chart.niceToString() : undefined;
+    var label = this.props.searchControl.props.largeToolbarButtons == true ? <span className="d-none d-sm-inline">{" " + ChartMessage.Chart.niceToString()}</span> : undefined;
     return (
       <Button variant="light" onMouseUp={this.handleOnMouseUp} title={ChartMessage.Chart.niceToString()}><FontAwesomeIcon icon="chart-bar" />&nbsp;{label}</Button>
     );

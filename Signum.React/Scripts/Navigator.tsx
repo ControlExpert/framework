@@ -1,10 +1,11 @@
 import * as React from "react"
+import { RouteObject } from 'react-router'
 import { Dic, classes, softCast, } from './Globals';
 import { ajaxGet, ajaxPost, clearContextHeaders } from './Services';
-import { Lite, Entity, ModifiableEntity, EntityPack, isEntity, isLite, isEntityPack, toLite, liteKey, FrameMessage, ModelEntity, getToString, isModifiableEntity } from './Signum.Entities';
+import { Lite, Entity, ModifiableEntity, EntityPack, isEntity, isLite, isEntityPack, toLite, liteKey, FrameMessage, ModelEntity, getToString, isModifiableEntity, EnumEntity } from './Signum.Entities';
 import { IUserEntity, TypeEntity, ExceptionEntity } from './Signum.Entities.Basics';
-import { PropertyRoute, PseudoType, Type, getTypeInfo, tryGetTypeInfos, getTypeName, isTypeModel, OperationType, TypeReference, IsByAll, isTypeEntity, tryGetTypeInfo, getTypeInfos, newLite, TypeInfo } from './Reflection';
-import { TypeContext } from './TypeContext';
+import { PropertyRoute, PseudoType, Type, getTypeInfo, tryGetTypeInfos, getTypeName, isTypeModel, OperationType, TypeReference, IsByAll, isTypeEntity, tryGetTypeInfo, getTypeInfos, newLite, TypeInfo, EnumType } from './Reflection';
+import { EntityFrame, TypeContext } from './TypeContext';
 import * as AppContext from './AppContext';
 import * as Finder from './Finder';
 import * as Operations from './Operations';
@@ -12,7 +13,7 @@ import * as Constructor from './Constructor';
 import { ViewReplacer } from './Frames/ReactVisitor'
 import { AutocompleteConfig, FindOptionsAutocompleteConfig, getLitesWithSubStr, LiteAutocompleteConfig, MultiAutoCompleteConfig } from './Lines/AutoCompleteConfig'
 import { FindOptions } from './FindOptions'
-import { ImportRoute } from "./AsyncImport";
+import { ImportComponent } from './ImportComponent'
 import { BsSize } from "./Components/Basic";
 import { ButtonBarManager } from "./Frames/ButtonBar";
 import { clearWidgets } from "./Frames/Widgets";
@@ -24,13 +25,14 @@ import CopyLiteButton from "./Components/CopyLiteButton";
 import { Typeahead } from "./Components";
 import { TypeaheadOptions } from "./Components/Typeahead";
 import CopyLinkButton from "./Components/CopyLinkButton";
+import { object } from "prop-types";
 
 if (!window.__allowNavigatorWithoutUser && (currentUser == null || getToString(currentUser) == "Anonymous"))
   throw new Error("To improve intial performance, no dependency to any module that depends on Navigator should be taken for anonymous user. Review your dependencies or write var __allowNavigatorWithoutUser = true in Index.cshtml to disable this check.");
 
-export function start(options: { routes: JSX.Element[] }) {
-  options.routes.push(<ImportRoute path="~/view/:type/:id" onImportModule={() => NavigatorManager.getFramePage() } />);
-  options.routes.push(<ImportRoute path="~/create/:type" onImportModule={() => NavigatorManager.getFramePage()} />);
+export function start(options: { routes: RouteObject[] }) {
+  options.routes.push({ path: "/view/:type/:id", element: <ImportComponent onImport={() => NavigatorManager.getFramePage() } /> });
+  options.routes.push({ path: "/create/:type", element: <ImportComponent onImport={() => NavigatorManager.getFramePage()} /> });
 
   AppContext.clearSettingsActions.push(clearEntitySettings);
   AppContext.clearSettingsActions.push(clearWidgets)
@@ -51,7 +53,7 @@ export namespace NavigatorManager {
   }
 
   export function onFramePageCreationCancelled() {
-    AppContext.history.replace("~/");
+    AppContext.navigate("/", { replace : true });
   }
 }
 
@@ -170,12 +172,12 @@ export function navigateRoute(entityOrLite: Entity | Lite<Entity>, viewName?: st
 }
 
 export function navigateRouteDefault(typeName: string, id: number | string, viewName?: string) {
-  return toAbsoluteUrl("~/view/" + typeName.firstLower() + "/" + id + (viewName ? "?viewName=" + viewName : ""));
+  return "/view/" + typeName.firstLower() + "/" + id + (viewName ? "?viewName=" + viewName : "");
 
 }
 
 export function createRoute(type: PseudoType, viewName?: string) {
-  return toAbsoluteUrl("~/create/" + getTypeName(type) + (viewName ? "?viewName=" + viewName : ""));
+  return "/create/" + getTypeName(type) + (viewName ? "?viewName=" + viewName : "");
 }
 
 
@@ -472,27 +474,27 @@ export function typeRequiresSaveOperation(typeName: string): boolean {
 }
 
 export interface IsFindableOptions {
-    isSearch?: boolean;
-    isEmbedded?: boolean;
+    fullScreenSearch?: boolean;
+    isEmbeddedEntity?: boolean;
 }
 
 export function isFindable(type: PseudoType, options?: IsFindableOptions) {
 
   const typeName = getTypeName(type);
 
-  const baseIsReadOnly = typeIsFindable(typeName, options?.isEmbedded);
+  const baseIsReadOnly = typeIsFindable(typeName, options?.isEmbeddedEntity);
 
-  return baseIsReadOnly && Finder.isFindable(typeName, true);
+  return baseIsReadOnly && Finder.isFindable(typeName, options?.fullScreenSearch ?? true);
 }
 
-function typeIsFindable(typeName: string, isEmbedded: boolean | undefined) {
+function typeIsFindable(typeName: string, isEmbeddedEntity: boolean | undefined) {
 
   const es = entitySettings[typeName];
 
   if (es != undefined && es.isFindable != undefined)
     return es.isFindable;
 
-  if (isEmbedded)
+  if (isEmbeddedEntity)
     return false;
 
   const typeInfo = tryGetTypeInfo(typeName);
@@ -606,38 +608,16 @@ export function getAutoComplete(type: TypeReference, findOptions: FindOptions | 
   if (type.isEmbedded || type.name == IsByAll)
     return null;
 
-  const types = tryGetTypeInfos(type).notNull();
+  let types = tryGetTypeInfos(type).notNull();
   showType ??= types.length > 1;
+
+  types = types.filter(t => isFindable(t, { fullScreenSearch: false }));
 
   if (types.length == 0)
     return null;
 
   if (types.length == 1)
     return getAutoCompleteBasic(types[0]!, findOptions, ctx, create, showType);
-
-  if (findOptionsDictionary == null && types.every(t => {
-    var s = getSettings(t!);
-    return s?.autocomplete == null && s?.defaultFindOptions == null;
-  })) {
-
-    var maxDelay = types.map(t => getSettings(t!)?.autocompleteDelay).notNull().max() ?? undefined;
-
-    return new LiteAutocompleteConfig((signal, subStr: string) => {
-      return Finder.API.findLiteLike({
-        types: type.name,
-        subString: subStr,
-        count: 5
-      }, signal)
-        .then(lites => [
-          ...lites,
-          ...(getAutocompleteConstructors(type, subStr, { ctx, foundLites: lites, create: create }) as AutocompleteConstructor<Entity>[])
-        ]);
-    },
-      {
-        showType: showType,
-        itemsDelay: maxDelay,
-      });
-  }
 
   return new MultiAutoCompleteConfig(types.toObject(t => t!.name,
     t => getAutoCompleteBasic(t!, (findOptionsDictionary && findOptionsDictionary[t!.name]), ctx, create, showType!)
@@ -656,30 +636,13 @@ export function getAutoCompleteBasic(type: TypeInfo, findOptions: FindOptions | 
       return acc;
   }
 
-  findOptions ??= s?.defaultFindOptions;
+  var fo = findOptions ?? s?.defaultFindOptions ?? { queryName: type.name };
 
-  if (findOptions)
-    return new FindOptionsAutocompleteConfig(findOptions, {
-      itemsDelay: s?.autocompleteDelay,
-      getAutocompleteConstructor: (subStr, rows) => getAutocompleteConstructors(type, subStr, { ctx, foundLites: rows.map(a => a.entity!), findOptions, create: create }) as AutocompleteConstructor<Entity>[]
-    });
-
-  return new LiteAutocompleteConfig((signal, subStr: string) => {
-
-    return Finder.API.findLiteLike({
-      types: type.name,
-      subString: subStr,
-      count: 5
-    }, signal)
-      .then(lites => [
-        ...lites,
-        ...(getAutocompleteConstructors(type, subStr, { ctx, foundLites: lites, create: create }) as AutocompleteConstructor<Entity>[])
-      ]);
-  },
-    {
-      showType: showType ?? type.name.contains(","),
-      itemsDelay: s?.autocompleteDelay,
-    });
+  return new FindOptionsAutocompleteConfig(fo, {
+    showType: showType,
+    itemsDelay: s?.autocompleteDelay,
+    getAutocompleteConstructor: (subStr, rows) => getAutocompleteConstructors(type, subStr, { ctx, foundLites: rows.map(a => a.entity!), findOptions, create: create }) as AutocompleteConstructor<Entity>[]
+  });
 }
 
 export interface ViewOptions {
@@ -723,13 +686,13 @@ export function viewDefault(entityOrPack: Lite<Entity> | ModifiableEntity | Enti
 export function createInNewTab(pack: EntityPack<ModifiableEntity>, viewName?: string) {
   var url = createRoute(pack.entity.Type, viewName) + "?waitOpenerData=true";
   window.dataForChildWindow = pack;
-  var win = window.open(url);
+  var win = window.open(toAbsoluteUrl(url));
 }
 
 export function createInCurrentTab(pack: EntityPack<ModifiableEntity>, viewName?: string) {
   var url = createRoute(pack.entity.Type, viewName) + "?waitCurrentData=true";
   window.dataForCurrentWindow = pack;
-  AppContext.history.push(url);
+  AppContext.navigate(url);
 }
 
 export function createNavigateOrTab(pack: EntityPack<Entity> | undefined, event: React.MouseEvent<any>): Promise<void> {
@@ -763,6 +726,16 @@ export function toEntityPack(entityOrEntityPack: Lite<Entity> | ModifiableEntity
     return Promise.resolve({ entity: cloneEntity(entity), canExecute: {} });
 
   return API.fetchEntityPackEntity(entity as Entity).then(ep => ({ ...ep, entity: cloneEntity(entity)}));
+}
+
+export async function reloadFrameIfNecessary(frame: EntityFrame) {
+
+  var entity = frame.pack.entity;
+  if (isEntity(entity) && entity.id && entity.ticks != null) {
+    var newPack = await API.fetchEntityPack(toLite(entity));
+    if (newPack.entity.ticks != entity.ticks)
+      frame.onReload(newPack);
+  }
 }
 
 function cloneEntity(obj: any) {
@@ -840,13 +813,13 @@ export module API {
     if (!realLites.length)
       return Promise.resolve();
 
-    return ajaxPost<unknown[]>({ url: "~/api/liteModels" }, realLites).then(models => {
+    return ajaxPost<unknown[]>({ url: "/api/liteModels" }, realLites).then(models => {
       realLites.forEach((l, i) => l.model = models[i]);
     });
   }
 
   export function fetchAll<T extends Entity>(type: Type<T>): Promise<Array<T>> {
-    return ajaxGet({ url: "~/api/fetchAll/" + type.typeName });
+    return ajaxGet({ url: "/api/fetchAll/" + type.typeName });
   }
 
 
@@ -875,7 +848,7 @@ export module API {
     const typeName = getTypeName(type);
     let idVal = id;
 
-    return ajaxGet({ url: "~/api/entity/" + typeName + "/" + id });
+    return ajaxGet({ url: "/api/entity/" + typeName + "/" + id });
   }
 
   export function exists<T extends Entity>(lite: Lite<T>): Promise<boolean>;
@@ -896,7 +869,7 @@ export module API {
     if (id == null)
       throw new Error("No id found");
 
-    return ajaxGet({ url: "~/api/exists/" + typeName + "/" + id });
+    return ajaxGet({ url: "/api/exists/" + typeName + "/" + id });
   }
 
 
@@ -908,21 +881,39 @@ export module API {
     const typeName = (typeOrLite as Lite<any>).EntityType ?? getTypeName(typeOrLite as PseudoType);
     let idVal = (typeOrLite as Lite<any>).id != null ? (typeOrLite as Lite<any>).id : id;
 
-    return ajaxGet({ url: "~/api/entityPack/" + typeName + "/" + idVal });
+    return ajaxGet({ url: "/api/entityPack/" + typeName + "/" + idVal });
   }
 
   export function fetchEntityPackEntity<T extends Entity>(entity: T): Promise<EntityPack<T>> {
-    return ajaxPost({ url: "~/api/entityPackEntity" }, entity);
+    return ajaxPost({ url: "/api/entityPackEntity" }, entity);
   }
 
   export function validateEntity(entity: ModifiableEntity): Promise<void> {
-    return ajaxPost({ url: "~/api/validateEntity" }, entity);
+    return ajaxPost({ url: "/api/validateEntity" }, entity);
   }
 
   export function getType(typeName: string): Promise<TypeEntity | null> {
 
-    return ajaxGet({ url: `~/api/reflection/typeEntity/${typeName}` });
+    return ajaxGet({ url: `/api/reflection/typeEntity/${typeName}` });
   }
+
+  export function getEnumEntities<T extends string>(type: EnumType<T>): Promise<EnumConverter<T>>;
+  export function getEnumEntities(typeName: string): Promise<EnumConverter<string>>;
+  export function getEnumEntities(type: string | EnumType<string>): Promise<EnumConverter<string>> {
+
+    var typeName = typeof type == "string" ? type : type.type;
+
+    return ajaxGet<{ [enumValue: string]: Entity }>({ url: `/api/reflection/enumEntities/${typeName}` })
+      .then(enumToEntity => softCast<EnumConverter<string>>({
+        enumToEntity: enumToEntity,
+        idToEnum: Object.entries(enumToEntity).toObject(a => a[1].id!.toString(), a => a[0])
+      }));
+  }
+}
+
+export interface EnumConverter<T> {
+  enumToEntity: { [enumValue: string]: EnumEntity<T> };
+  idToEnum: { [id: string]: T };
 }
 
 

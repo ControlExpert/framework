@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { RouteComponentProps } from 'react-router'
+import { useLocation, useParams } from 'react-router'
 import { DateTime } from 'luxon'
 import * as Navigator from '@framework/Navigator'
 import { SearchControl, SearchValueLine } from '@framework/Search'
@@ -15,13 +15,11 @@ import { toAbsoluteUrl, useTitle } from '@framework/AppContext'
 import { classes } from '../../Signum.React/Scripts/Globals'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 
-interface SchedulerPanelProps extends RouteComponentProps<{}> {
 
-}
 
-export default function SchedulerPanelPage(p: SchedulerPanelProps) {
+export default function SchedulerPanelPage() {
 
-  const [state, reloadState] = useAPIWithReload(() => API.view(), []);
+  const [state, reloadState] = useAPIWithReload(() => API.view(), [], { avoidReset: true });
 
   const tick = useInterval(state == null || state.running ? 500 : null, 0, n => n + 1);
 
@@ -54,8 +52,8 @@ export default function SchedulerPanelPage(p: SchedulerPanelProps) {
     <div>
       <h2 className="display-6"><FontAwesomeIcon icon={["far", "clock"]} /> Scheduler Panel</h2>
       <div className="btn-toolbar">
-        <button className={classes("sf-button btn btn-outline-success", s.running && "active pe-none")} onClick={!s.running ? handleStart : undefined}><FontAwesomeIcon icon="play" /> Start</button>
-        <button className={classes("sf-button btn btn-outline-danger", !s.running && "active pe-none")} onClick={s.running ? handleStop : undefined}><FontAwesomeIcon icon="stop" /> Stop</button>
+        <button className={classes("sf-button btn", s.running ? "btn-success disabled" : "btn-outline-success")} onClick={!s.running ? handleStart : undefined}><FontAwesomeIcon icon="play" /> Start</button>
+        <button className={classes("sf-button btn", !s.running ? "btn-danger disabled" :  "btn-outline-danger")} onClick={s.running ? handleStop : undefined}><FontAwesomeIcon icon="stop" /> Stop</button>
       </div >
       <div id="processMainDiv">
         State: <strong>
@@ -63,7 +61,7 @@ export default function SchedulerPanelPage(p: SchedulerPanelProps) {
             <span style={{ color: "green" }}> RUNNING </span> :
             <span style={{ color: state.initialDelayMilliseconds == null ? "gray" : "red" }}> STOPPED </span>
           }</strong>
-        <a className="ms-2" href={toAbsoluteUrl("~/api/scheduler/simpleStatus")} target="_blank">SimpleStatus</a>
+        <a className="ms-2" href={toAbsoluteUrl("/api/scheduler/simpleStatus")} target="_blank">SimpleStatus</a>
         <br />
         InitialDelayMilliseconds: {s.initialDelayMilliseconds}
         <br />

@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Location } from 'history'
+import { RouteObject, Location } from 'react-router'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { IconProp } from '@fortawesome/fontawesome-svg-core'
 import { ajaxGet } from '@framework/Services';
@@ -18,7 +18,7 @@ import { SidebarMode } from './SidebarContainer';
 import { Dic } from '../../Signum.React/Scripts/Globals';
 import { ToolbarNavItem } from './Renderers/ToolbarRenderer';
 
-export function start(options: { routes: JSX.Element[] }, ...configs: ToolbarConfig<any>[]) {
+export function start(options: { routes: RouteObject[] }, ...configs: ToolbarConfig<any>[]) {
   Navigator.addSettings(new EntitySettings(ToolbarEntity, t => import('./Templates/Toolbar')));
   Navigator.addSettings(new EntitySettings(ToolbarMenuEntity, t => import('./Templates/ToolbarMenu')));
   Navigator.addSettings(new EntitySettings(ToolbarElementEmbedded, t => import('./Templates/ToolbarElement')));
@@ -66,14 +66,14 @@ export abstract class ToolbarConfig<T extends Entity> {
     return <FontAwesomeIcon icon={icon} className={"icon"} color={color} />;
   }
 
-  abstract navigateTo(element: ToolbarResponse<T>): Promise<string>;
+  abstract navigateTo(element: ToolbarResponse<T>): Promise<string | null>;
   abstract isCompatibleWithUrlPrio(element: ToolbarResponse<T>, location: Location, query: any): number;
 
   handleNavigateClick(e: React.MouseEvent<any>, res: ToolbarResponse<any>) {
     e.preventDefault();
-    e.persist();
     this.navigateTo(res).then(url => {
-      AppContext.pushOrOpenInTab(url, e);
+      if (url)
+        AppContext.pushOrOpenInTab(url, e);
     });
   }
 
@@ -109,7 +109,7 @@ export function getConfig(res: ToolbarResponse<any>) {
 
 export namespace API {
   export function getCurrentToolbar(location: ToolbarLocation): Promise<ToolbarResponse<any> | null> {
-    return ajaxGet({ url: `~/api/toolbar/current/${location}` });
+    return ajaxGet({ url: `/api/toolbar/current/${location}` });
   }
 }
 
