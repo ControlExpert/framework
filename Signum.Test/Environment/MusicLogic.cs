@@ -1,6 +1,6 @@
-using Signum.Engine.Basics;
-using Signum.Engine.DynamicQuery;
 using Signum.Engine.Maps;
+using Signum.DynamicQuery;
+using Signum.Basics;
 
 namespace Signum.Test.Environment;
 
@@ -31,17 +31,6 @@ public static class MusicLogic
 
 
 
-            sb.Include<AlbumReEditionEntity>()
-                  .WithSave(AlbumReEditionOperation.Save)
-                  .WithDelete(AlbumReEditionOperation.Delete)
-                  .WithQuery(() => e => new
-                  {
-                      Entity = e,
-                      e.Id,
-                      e.Album,
-                      e.Date,
-                  });
-
             sb.Include<NoteWithDateEntity>()
                 .WithSave(NoteWithDateOperation.Save)
                 .WithQuery(() => a => new
@@ -52,6 +41,9 @@ public static class MusicLogic
                     a.Target,
                     a.CreationTime,
                 });
+
+            if (Connector.Current.SupportsFullTextSearch)
+                sb.AddFullTextIndex<NoteWithDateEntity>(a => new { a.Text });
 
             sb.Include<ConfigEntity>()
                 .WithSave(ConfigOperation.Save);

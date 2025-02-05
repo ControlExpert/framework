@@ -1,5 +1,7 @@
 using Signum.Utilities.DataStructures;
 using Signum.Engine.Maps;
+using Signum.Engine.Sync.Postgres;
+using Signum.Engine.Sync.SqlServer;
 
 namespace Signum.Test.LinqProvider;
 
@@ -100,12 +102,6 @@ public class SelectTest
     public void SelectLiteCustomModel()
     {
         var list = Database.Query<AlbumEntity>().Select(a => a.ToLite(a.Label.Name)).ToList();
-    }
-
-    [Fact]
-    public void SelectLiteWithComplicateModel()
-    {
-        var list = Database.Query<AlbumReEditionEntity>().Select(a => a.ToLite()).ToList();
     }
 
     [Fact]
@@ -625,11 +621,11 @@ public class SelectTest
     {
         if (Schema.Current.Settings.IsPostgres)
         {
-            var list = Database.View<Signum.Engine.PostgresCatalog.PgClass>().ToList();
+            var list = Database.View<PgClass>().ToList();
         }
         else
         {
-            var list = Database.View<Signum.Engine.SchemaInfoTables.SysDatabases>().ToList();
+            var list = Database.View<SysDatabases>().ToList();
         }
     }
 

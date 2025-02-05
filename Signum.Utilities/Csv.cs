@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using System.Globalization;
 using System.Collections.Concurrent;
 using System.Collections;
+using System.IO.Pipes;
 
 namespace Signum.Utilities;
 
@@ -38,7 +39,7 @@ public static class Csv
         Func<CsvMemberInfo<T>, CultureInfo, Func<object?, string?>>? toStringFactory = null)
     {
         var defEncoding = encoding ?? DefaultEncoding;
-        var defCulture = culture ?? DefaultCulture ?? CultureInfo.CurrentCulture;
+        var defCulture = GetDefaultCulture(culture);
 
         string separator = GetListSeparator(defCulture).ToString();
 
@@ -157,7 +158,7 @@ public static class Csv
         return p.Replace("__", "^").Replace("_", " ").Replace("^", "_");
     }
 
-    public static List<T> ReadFile<T>(string fileName, Encoding? encoding = null, CultureInfo? culture = null, int skipLines = 1, CsvReadOptions<T>? options = null) where T : class, new()
+    public static List<T> ReadFile<T>(string fileName, Encoding? encoding = null, CultureInfo? culture = null, int skipLines = 1, CsvReadOptions<T>? options = null) where T : class
     {
         encoding ??= DefaultEncoding;
         culture ??= DefaultCulture ?? CultureInfo.CurrentCulture;
@@ -166,16 +167,16 @@ public static class Csv
             return ReadStream<T>(fs, encoding, culture, skipLines, options).ToList();
     }
 
-    public static List<T> ReadBytes<T>(byte[] data, Encoding? encoding = null, CultureInfo? culture = null, int skipLines = 1, CsvReadOptions<T>? options = null) where T : class, new()
+    public static List<T> ReadBytes<T>(byte[] data, Encoding? encoding = null, CultureInfo? culture = null, int skipLines = 1, CsvReadOptions<T>? options = null) where T : class
     {
         using (MemoryStream ms = new MemoryStream(data))
             return ReadStream<T>(ms, encoding, culture, skipLines, options).ToList();
     }
 
-    public static IEnumerable<T> ReadStream<T>(Stream stream, Encoding? encoding = null, CultureInfo? culture = null, int skipLines = 1, CsvReadOptions<T>? options = null) where T : class, new()
+    public static IEnumerable<T> ReadStream<T>(Stream stream, Encoding? encoding = null, CultureInfo? culture = null, int skipLines = 1, CsvReadOptions<T>? options = null) where T : class
     {
         encoding ??= DefaultEncoding;
-        var defCulture = culture ?? DefaultCulture ?? CultureInfo.CurrentCulture;
+        var defCulture = GetDefaultCulture(culture);
         var defOptions = options ?? new CsvReadOptions<T>();
 
         var members = CsvMemberCache<T>.Members;
@@ -218,6 +219,8 @@ public static class Csv
 
                     if (t != null)
                         yield return t;
+
+                    line++;
                 }
             }
         }
@@ -262,11 +265,11 @@ public static class Csv
     }
 
     public static T ReadLine<T>(string csvLine, CultureInfo? culture = null, CsvReadOptions<T>? options = null)
-        where T : class, new()
+        where T : class
     {
         var defOptions = options ?? new CsvReadOptions<T>();
 
-        var defCulture = culture ?? DefaultCulture ?? CultureInfo.CurrentCulture;
+        var defCulture = GetDefaultCulture(culture);
 
         Regex regex = GetRegex(defCulture, defOptions.RegexTimeout);
 
@@ -294,14 +297,14 @@ public static class Csv
         return str => ConvertTo(str, type, culture, column.Format);
     }
 
-    static T ReadObject<T>(Match m, List<CsvMemberInfo<T>> members, List<Func<string, object?>> parsers) where T : new()
+    static T ReadObject<T>(Match m, List<CsvMemberInfo<T>> members, List<Func<string, object?>> parsers)
     {
         var vals = m.Groups["val"].Captures;
 
         if (vals.Count < members.Count)
             throw new FormatException("Only {0} columns found (instead of {1}) in line: {2}".FormatWith(vals.Count, members.Count, m.Value));
 
-        T t = new T();
+        T t = Activator.CreateInstance<T>();
 
         for (int i = 0; i < members.Count; i++)
         {
@@ -344,6 +347,188 @@ public static class Csv
         return t;
     }
 
+
+    public static List<string[]> ReadUntypedFile(string fileName, Encoding? encoding = null, CultureInfo? culture = null, CsvReadOptions? options = null)
+    {
+        encoding ??= DefaultEncoding;
+        culture ??= DefaultCulture ?? CultureInfo.CurrentCulture;
+
+        using (FileStream fs = File.OpenRead(fileName))
+            return ReadUntypedStream(fs, encoding, culture, options).ToList();
+    }
+
+    public static List<string[]> ReadUntypedBytes(byte[] data, Encoding? encoding = null, CultureInfo? culture = null, CsvReadOptions? options = null) 
+    {
+        using (MemoryStream ms = new MemoryStream(data))
+            return ReadUntypedStream(ms, encoding, culture, options).ToList();
+    }
+
+    public static IEnumerable<string[]> ReadUntypedStream(Stream stream, Encoding? encoding = null, CultureInfo? culture = null, CsvReadOptions? options = null) 
+    {
+        encoding ??= DefaultEncoding;
+        var defCulture = GetDefaultCulture(culture);
+        var defOptions = options ?? new CsvReadOptions();
+
+        Regex regex = GetRegex(defCulture, defOptions.RegexTimeout, defOptions.ListSeparator);
+        if (defOptions.AsumeSingleLine)
+        {
+            using (StreamReader sr = new StreamReader(stream, encoding))
+            {
+                var line = 0;
+                while (true)
+                {
+                    string? csvLine = sr.ReadLine();
+
+                    if (csvLine == null)
+                        yield break;
+
+                    Match? m = null;
+                    string[]? t = null;
+                    try
+                    {
+                        m = regex.Match(csvLine);
+                        if (m.Length > 0)
+                        {
+                            t = m.Groups["val"].Captures.Select(c => c.Value).ToArray();
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        e.Data["row"] = line;
+
+                        if (defOptions.SkipError == null || !defOptions.SkipError(e, m))
+                            throw new ParseCsvException(e);
+                    }
+
+                    if (t != null)
+                        yield return t;
+
+                    line++;
+                }
+            }
+        }
+        else
+        {
+            using (StreamReader sr = new StreamReader(stream, encoding))
+            {
+                string str = sr.ReadToEnd();
+
+                var matches = regex.Matches(str).Cast<Match>();
+
+                int line = 0;
+                foreach (var m in matches)
+                {
+                    if (m.Length > 0)
+                    {
+                        string[]? t = null;
+                        try
+                        {
+                            t = m.Groups["val"].Captures.Select(c => c.Value).ToArray();
+                        }
+                        catch (Exception e)
+                        {
+                            e.Data["row"] = line;
+
+                            if (defOptions.SkipError == null || !defOptions.SkipError(e, m))
+                                throw new ParseCsvException(e);
+                        }
+                        if (t != null)
+                            yield return t;
+                    }
+                    line++;
+                }
+            }
+        }
+    }
+
+    private static CultureInfo GetDefaultCulture(CultureInfo? culture)
+    {
+        return culture ?? DefaultCulture ?? CultureInfo.CurrentCulture;
+    }
+
+    public static string InferClassFromFile(string fileName, Encoding? encoding = null, CultureInfo? culture = null, CsvReadOptions? options = null)
+    {
+        var lines = ReadUntypedFile(fileName, encoding, culture, options);
+        var classCode = InferClass(lines, culture);
+        return classCode;
+    }
+
+    public static string InferClassFromBytes(byte[] data, Encoding? encoding = null, CultureInfo? culture = null, CsvReadOptions? options = null)
+    {
+        var lines = ReadUntypedBytes(data, encoding, culture, options);
+        var classCode = InferClass(lines, culture);
+        return classCode;
+    }
+
+    public static string InferClassFromStream(Stream stream, Encoding? encoding = null, CultureInfo? culture = null, CsvReadOptions? options = null) 
+    {
+        var lines = ReadUntypedStream(stream, encoding, culture, options);
+        var classCode = InferClass(lines.ToList(), culture);
+        return classCode;
+    }
+
+    private static string InferClass(List<string[]> lines, CultureInfo? culture)
+    {
+        var defCulture = GetDefaultCulture(culture);
+        var header = lines.FirstEx();
+        var values = lines.Skip(1).ToList();
+
+        string ToName(string name)
+        {
+            return name.Replace("-", "_").ToPascal();
+        }
+
+        string? InferType(int index)
+        {
+            var vals = values.Select(a => a[index]).ToList();
+            var isNullable = values.Any(a => string.IsNullOrEmpty(a[index]));
+
+
+            if (isNullable)
+            {
+                vals.RemoveAll(a => !a.HasText());
+                var result = InferTypeFromVals(vals);
+                return result == null ? null : result + "?";
+            }
+
+            return InferTypeFromVals(vals);
+        }
+
+        string? InferTypeFromVals(List<string> vals)
+        {
+            if (vals.Count == 0)
+                return null;
+
+            var longs = vals.Select(a => a.ToLong(NumberStyles.Integer, defCulture));
+            if(longs.All(a=> a != null))
+                return longs.All(a => int.MinValue <= a && a <= int.MaxValue) ? "int" : "long";
+
+            if (vals.All(a => decimal.TryParse(a, defCulture, out _)))
+                return "decimal";
+
+            if (vals.All(a => DateOnly.TryParse(a, defCulture, out _)))
+                return "DateOnly";
+
+            if (vals.All(a => TimeOnly.TryParse(a, defCulture, out _)))
+                return "TimeOnly";
+
+            if (vals.All(a => DateTime.TryParse(a, defCulture, out _)))
+                return "DateTime";
+
+            return "string";
+        }
+
+        return $$"""
+            public class MyFileCSV
+            {
+            {{header.Select((name, i) =>
+        {
+            var type = InferType(i);
+            return $"    public required {type ?? "string?"} {(type == null ? "_" : "") + ToName(name)};" + (type == null ? " //Empty" : null);
+        }).ToString("\r\n")}}
+            }
+            """;
+    }
 
 
     static ConcurrentDictionary<char, Regex> regexCache = new ConcurrentDictionary<char, Regex>();
@@ -430,11 +615,16 @@ public static class Csv
     }
 }
 
-public class CsvReadOptions<T> where T : class
+public class CsvReadOptions<T> : CsvReadOptions
+    where T : class 
 {
     public Func<CsvMemberInfo<T>, CultureInfo, Func<string, object?>?>? ParserFactory;
-    public bool AsumeSingleLine = false;
     public Func<Match, T>? Constructor;
+}
+
+public class CsvReadOptions
+{
+    public bool AsumeSingleLine = false;
     public Func<Exception, Match?, bool>? SkipError;
     public TimeSpan RegexTimeout = Regex.InfiniteMatchTimeout;
     public char? ListSeparator;

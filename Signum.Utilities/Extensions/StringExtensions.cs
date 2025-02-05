@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 
 namespace Signum.Utilities;
@@ -570,7 +571,7 @@ public static class StringExtensions
     {
         if (str.HasText() && (str.Length > max))
         {
-            if(etcString.Length <= max)
+            if (max <= etcString.Length)
                 return str.Substring(0, max);
 
             return str.Start(max - etcString.Length) + etcString;
@@ -851,5 +852,10 @@ public static class StringExtensions
     public static string[] SplitNoEmpty(this string text, params char[] separators)
     {
         return text.Split(separators, StringSplitOptions.RemoveEmptyEntries);
+    }
+
+    public static Uri Combine(this Uri baseUrl, string suffix)
+    {
+        return new Uri(baseUrl.ToString().TrimEnd('/') + "/" + suffix.TrimStart('/'));
     }
 }
