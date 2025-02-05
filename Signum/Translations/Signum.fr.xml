@@ -14,6 +14,16 @@
     <Member Name="False" Description="Non" />
     <Member Name="True" Description="Oui" />
   </Type>
+  <Type Name="BootstrapStyle" Description="Style bootstrap">
+    <Member Name="Danger" Description="Danger" />
+    <Member Name="Dark" Description="Sombre" />
+    <Member Name="Info" Description="Info" />
+    <Member Name="Light" Description="Clair" />
+    <Member Name="Primary" Description="Primaire" />
+    <Member Name="Secondary" Description="Secondaire" />
+    <Member Name="Success" Description="Succès" />
+    <Member Name="Warning" Description="Avertissement" />
+  </Type>
   <Type Name="CalendarMessage">
     <Member Name="Today" Description="Aujourd'hui" />
   </Type>
@@ -22,6 +32,16 @@
     <Member Name="Message" Description="Message" />
     <Member Name="Name" Description="Nom" />
     <Member Name="Stack" Description="Pile" />
+  </Type>
+  <Type Name="CultureInfoEntity" Description="Culture Information" PluralDescription="Culture Informations">
+    <Member Name="EnglishName" Description="Nom en anglais" />
+    <Member Name="IsNeutral" Description="Est neutre" />
+    <Member Name="Name" Description="Nom" />
+    <Member Name="NativeName" Description="Nom natif" />
+  </Type>
+  <Type Name="CultureInfoOperation">
+    <Member Name="Delete" Description="Supprimer" />
+    <Member Name="Save" Description="Sauvegarder" />
   </Type>
   <Type Name="CollectionAnyAllType">
     <Member Name="All" Description="Tout" />
