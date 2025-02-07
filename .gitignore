@@ -1,4 +1,3 @@
-
 #ignore thumbnails created by windows
 Thumbs.db
 #Ignore files build by Visual Studio
@@ -39,3 +38,4 @@ Signum.Analyzer/packages/*
 /Signum.TSGenerator/Binaries/*
 /Utils/CheckUrl/.vs/**
 **/ts_out/**
+/Signum/node_modules/**
