@@ -128,17 +128,24 @@ export function MultiValueLineElement(props: MultiValueLineElementProps) {
   const ctx = props.ctx;
 
   var renderItem = props.onRenderItem ?? getAppropiateComponentFactory(ctx.propertyRoute!)
-
+  var element = renderItem(ctx) as React.ReactElement;
   return (
     <div style={{ display: "flex", alignItems: "center", marginBottom: "2px" }}>
-      {!ctx.readOnly &&
-        <a href="#" title={ctx.titleLabels ? SearchMessage.DeleteFilter.niceToString() : undefined}
+      {!ctx.readOnly && (
+        <a
+          href="#"
+          title={
+            ctx.titleLabels
+              ? SearchMessage.DeleteFilter.niceToString()
+              : undefined
+          }
           className="sf-line-button sf-remove"
-          onClick={props.onRemove}>
+          onClick={props.onRemove}
+        >
           <FontAwesomeIcon icon="xmark" />
         </a>
-      }
-      {React.cloneElement(renderItem(ctx) as React.ReactElement, { mandatory: true })}
+      )}
+      {element && React.cloneElement(element, { mandatory: true })}
     </div>
   );
 }
