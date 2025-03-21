@@ -17,25 +17,11 @@ public class SchemaBuilder
 
     public WebServerBuilder? WebServerBuilder { get; init; }
 
-    public SchemaBuilder(bool isDefault)
+    public SchemaBuilder()
     {
         schema = new Schema(new SchemaSettings());
 
-        if (isDefault)
-        {
-            if (TypeEntity.AlreadySet)
-                throw new InvalidOperationException("Only one default SchemaBuilder per application allowed");
-
-            TypeEntity.SetTypeNameCallbacks(
-                t => schema.TypeToName.GetOrThrow(t, "Type {0} not found in the schema"),
-                cleanName => schema.NameToType.TryGetC(cleanName));
-
-            FromEnumMethodExpander.miQuery = ReflectionTools.GetMethodInfo(() => Database.Query<Entity>()).GetGenericMethodDefinition();
-            MListElementPropertyToken.miMListElementsLite = ReflectionTools.GetMethodInfo(() => Database.MListElementsLite<Entity, Entity>(null!, null!)).GetGenericMethodDefinition();
-            MListElementPropertyToken.HasAttribute = (pr, type) => this.Settings.FieldAttributes(pr)?.Any(a => a.GetType() == type) ?? false;
-        }
-
-        Settings.AssertNotIncluded = MixinDeclarations.AssertNotIncluded = t =>
+        schema.Settings.AssertNotIncluded = MixinDeclarations.AssertNotIncluded = t =>
         {
             if (schema.Tables.ContainsKey(t))
                 throw new InvalidOperationException("{0} is already included in the Schema".FormatWith(t.TypeName()));
@@ -341,7 +327,7 @@ public class SchemaBuilder
                 new ObjectName(tableName.Schema, tableName.Name + "_History", isPostgres);
 
         if (isPostgres)
-            return new SystemVersionedInfo(tn, att.PostgreeSysPeriodColumname);
+            return new SystemVersionedInfo(tn, att.PostgresSysPeriodColumname);
 
         return new SystemVersionedInfo(tn, att.StartDateColumnName, att.EndDateColumnName);
     }
@@ -583,6 +569,7 @@ public class SchemaBuilder
             Collation = Settings.GetCollate(attr),
             UserDefinedTypeName = pair.UserDefinedTypeName,
             Default = attr.GetDefault(Settings.IsPostgres),
+            Check = attr.GetCheck(Settings.IsPostgres),
             Identity = attr.Identity,
             Size = attr.HasSize ? attr.Size : (int?)null,
         };
@@ -624,6 +611,7 @@ public class SchemaBuilder
             Precision = Settings.GetSqlPrecision(ticksAttr, null, pair.DbType),
             Scale = Settings.GetSqlScale(ticksAttr, null, pair.DbType),
             Default = ticksAttr?.GetDefault(Settings.IsPostgres),
+            Check = ticksAttr?.GetCheck(Settings.IsPostgres),
         };
     }
 
@@ -647,6 +635,7 @@ public class SchemaBuilder
             Precision = Settings.GetSqlPrecision(toStrAttribute, null, pair.DbType),
             Scale = Settings.GetSqlScale(toStrAttribute, null, pair.DbType),
             Default = toStrAttribute?.GetDefault(Settings.IsPostgres),
+            Check = toStrAttribute?.GetCheck(Settings.IsPostgres),
         };
     }
 
@@ -668,6 +657,7 @@ public class SchemaBuilder
             Precision = Settings.GetSqlPrecision(att, route, pair.DbType),
             Scale = Settings.GetSqlScale(att, route, pair.DbType),
             Default = att?.GetDefault(Settings.IsPostgres),
+            Check = att?.GetCheck(Settings.IsPostgres),
             DateTimeKind = att?.DateTimeKind ?? 
             (route.Type.UnNullify() != typeof(DateTime) ? DateTimeKind.Unspecified :
              this.Schema.TimeZoneMode == TimeZoneMode.Utc ? DateTimeKind.Utc : DateTimeKind.Local),
@@ -688,6 +678,7 @@ public class SchemaBuilder
             IsLite = false,
             AvoidForeignKey = Settings.FieldAttribute<AvoidForeignKeyAttribute>(route) != null,
             Default = att?.GetDefault(Settings.IsPostgres),
+            Check = att?.GetCheck(Settings.IsPostgres),
         }.Do(f => f.UniqueIndex = f.GenerateUniqueIndex(table, Settings.FieldAttribute<UniqueIndexAttribute>(route)));
     }
 
@@ -702,6 +693,8 @@ public class SchemaBuilder
 
         var isLite = route.Type.IsLite();
 
+        var attr = Settings.FieldAttribute<DbTypeAttribute>(route);
+
         return new FieldReference(route, null, name.ToString(), referenceTable)
         {
             Nullable = nullable,
@@ -709,7 +702,8 @@ public class SchemaBuilder
             CustomLiteModelType = !isLite ? null : Settings.FieldAttributes(route)?.OfType<LiteModelAttribute>().SingleOrDefaultEx()?.LiteModelType,
             AvoidForeignKey = Settings.FieldAttribute<AvoidForeignKeyAttribute>(route) != null,
             AvoidExpandOnRetrieving = Settings.FieldAttribute<AvoidExpandQueryAttribute>(route) != null,
-            Default = Settings.FieldAttribute<DbTypeAttribute>(route)?.GetDefault(Settings.IsPostgres)
+            Default = attr?.GetDefault(Settings.IsPostgres),
+            Check = attr?.GetCheck(Settings.IsPostgres)
         }.Do(f => f.UniqueIndex = f.GenerateUniqueIndex(table, Settings.FieldAttribute<UniqueIndexAttribute>(route)));
     }
 
@@ -819,6 +813,7 @@ public class SchemaBuilder
                 Collation = Settings.GetCollate(orderAttr),
                 UserDefinedTypeName = pair.UserDefinedTypeName,
                 Default = keyAttr.GetDefault(Settings.IsPostgres),
+                Check = keyAttr.GetCheck(Settings.IsPostgres),
                 Identity = keyAttr.Identity,
             };
         }
@@ -1185,6 +1180,7 @@ public class ViewBuilder : SchemaBuilder
             IsLite = false,
             AvoidForeignKey = Settings.FieldAttribute<AvoidForeignKeyAttribute>(route) != null,
             Default = att?.GetDefault(Settings.IsPostgres),
+            Check = att?.GetCheck(Settings.IsPostgres),
         }.Do(f => f.UniqueIndex = f.GenerateUniqueIndex(table, Settings.FieldAttribute<UniqueIndexAttribute>(route)));
     }
 }

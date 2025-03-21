@@ -1,13 +1,13 @@
 import * as React from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { ValueLine, EntityLine, TypeContext, LiteAutocompleteConfig } from '@framework/Lines'
+import { AutoLine, EntityLine, TypeContext, LiteAutocompleteConfig, TextAreaLine } from '@framework/Lines'
 import { PropertyRoute, Binding } from '@framework/Reflection'
 import * as Navigator from '@framework/Navigator'
 import CSharpCodeMirror from '../../Signum.CodeMirror/CSharpCodeMirror'
 import { WorkflowConditionEntity, ICaseMainEntity } from '../Signum.Workflow'
 import { WorkflowConditionTestResponse, API, showWorkflowTransitionContextCodeHelp } from '../WorkflowClient'
 import TypeHelpComponent from '../../Signum.Eval/TypeHelp/TypeHelpComponent'
-import ValueLineModal from '@framework/ValueLineModal'
+import AutoLineModal from '@framework/AutoLineModal'
 import { useForceUpdate, useAPI, useAPIWithReload } from '@framework/Hooks'
 
 interface WorkflowConditionComponentProps {
@@ -50,13 +50,12 @@ export default function WorkflowConditionComponent(p: WorkflowConditionComponent
     if (!pr)
       return;
 
-    ValueLineModal.show({
+    AutoLineModal.show({
       type: { name: "string" },
       initialValue: TypeHelpComponent.getExpression("e", pr, "CSharp"),
-      valueLineType: "TextArea",
+      customComponent: props => <TextAreaLine {...props} />,
       title: "Property Template",
       message: "Copy to clipboard: Ctrl+C, ESC",
-      initiallyFocused: true,
     });
   }
 
@@ -109,7 +108,7 @@ export default function WorkflowConditionComponent(p: WorkflowConditionComponent
 
   return (
     <div>
-      <ValueLine ctx={ctx.subCtx(wc => wc.name)} />
+      <AutoLine ctx={ctx.subCtx(wc => wc.name)} />
       <EntityLine ctx={ctx.subCtx(wc => wc.mainEntityType)}
         onChange={handleMainEntityTypeChange}
         autocomplete={new LiteAutocompleteConfig((ac, str) => API.findMainEntityType({ subString: str, count: 5 }, ac))}
@@ -118,19 +117,19 @@ export default function WorkflowConditionComponent(p: WorkflowConditionComponent
         <div>
           <br />
           <div className="row">
-            <div className="col-sm-7">
+            <div className="col-sm-8">
               {exampleEntityRef.current && <button className="btn btn-success" onClick={reloadResponse}><FontAwesomeIcon icon="play" /> Evaluate</button>}
               <div className="btn-group" style={{ marginBottom: "3px" }}>
                 <input type="button" className="btn btn-success btn-sm sf-button" value="ctx" onClick={() => showWorkflowTransitionContextCodeHelp()} />
               </div>
               <div className="code-container">
                 <pre style={{ border: "0px", margin: "0px" }}>{"bool Evaluate(" + ctx.value.mainEntityType.cleanName + "Entity e, WorkflowTransitionContext ctx)\n{"}</pre>
-                <CSharpCodeMirror script={ctx.value.eval!.script ?? ""} onChange={handleCodeChange} />
+                <CSharpCodeMirror script={ctx.value.eval!.script ?? ""} onChange={handleCodeChange} onInit={cm => cm.setSize(null, 600)}/>
                 <pre style={{ border: "0px", margin: "0px" }}>{"}"}</pre>
               </div>
               {renderTest()}
             </div>
-            <div className="col-sm-5">
+            <div className="col-sm-4">
               <TypeHelpComponent initialType={ctx.value.mainEntityType.cleanName} mode="CSharp" onMemberClick={handleTypeHelpClick} />
             </div>
           </div>

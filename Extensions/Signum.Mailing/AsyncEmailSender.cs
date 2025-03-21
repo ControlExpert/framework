@@ -151,7 +151,8 @@ public static class AsyncEmailSender
                                     }
                                 }
                                 SetTimer();
-                                if (CacheLogic.WithSqlDependency) {
+                                if (CacheLogic.WithSqlDependency)
+                                {
                                     SetSqlDepndency();
                                 }
                             }
@@ -186,12 +187,13 @@ public static class AsyncEmailSender
     static bool sqlDependencyRegistered = false;
     private static void SetSqlDepndency()
     {
-		if(sqlDependencyRegistered)
-			return;
-		
+        if (sqlDependencyRegistered)
+            return;
+
         var query = Database.Query<EmailMessageEntity>().Where(m => m.State == EmailMessageState.ReadyToSend).Select(m => m.Id);
         sqlDependencyRegistered = true;
-        query.ToListWithInvalidation(typeof(EmailMessageEntity), "EmailAsyncSender ReadyToSend dependency", a => {
+        query.ToListWithInvalidation(typeof(EmailMessageEntity), "EmailAsyncSender ReadyToSend dependency", a =>
+        {
             sqlDependencyRegistered = false;
             WakeUp("EmailAsyncSender ReadyToSend dependency", a);
         });
@@ -204,7 +206,7 @@ public static class AsyncEmailSender
 
         queuedItems = Database.Query<EmailMessageEntity>().Where(m =>
             m.State == EmailMessageState.ReadyToSend &&
-            m.CreationDate  < Clock.Now &&
+            m.CreationDate < Clock.Now &&
             (firstDate == null ? true : m.CreationDate >= firstDate)).UnsafeUpdate()
                 .Set(m => m.ProcessIdentifier, m => processIdentifier)
                 .Set(m => m.State, m => EmailMessageState.RecruitedForSending)

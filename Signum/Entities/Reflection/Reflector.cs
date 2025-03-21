@@ -1,6 +1,7 @@
 using Signum.Utilities.Reflection;
 using System.CodeDom.Compiler;
 using System.Collections.Concurrent;
+using System.Collections.Frozen;
 using System.ComponentModel;
 using System.Globalization;
 
@@ -43,21 +44,20 @@ public static class Reflector
         return !arg.HasAttribute<HiddenPropertyAttribute>() || arg.HasAttribute<DescriptionAttribute>();
     }
 
-    static ResetLazy<HashSet<Type>> EnumsInEntities = new ResetLazy<HashSet<Type>>(() =>
+    static ResetLazy<FrozenSet<Type>> EnumsInEntities = new(() =>
     {
-        return new HashSet<Type>(
-            from a in AppDomain.CurrentDomain.GetAssemblies()
-            where a.GetName().Name != "Signum.Analyzer" && a.HasAttribute<DefaultAssemblyCultureAttribute>()
-            from t in a.GetTypes()
-            where typeof(IEntity).IsAssignableFrom(t) || typeof(ModifiableEntity).IsAssignableFrom(t)
-            let da = t.GetCustomAttribute<DescriptionOptionsAttribute>(true)
-            where da == null || da.Options.IsSet(DescriptionOptions.Members)
-            from p in t.GetProperties(BindingFlags.Instance | BindingFlags.Public)
-            where DescriptionManager.OnShouldLocalizeMember(p)
-            let et = (p.PropertyType.ElementType() ?? p.PropertyType).UnNullify()
-            where et.IsEnum && et.Assembly.HasAttribute<DefaultAssemblyCultureAttribute>()
-            select et
-        );
+        return (from a in AppDomain.CurrentDomain.GetAssemblies()
+                where a.GetName().Name != "Signum.Analyzer" && a.HasAttribute<DefaultAssemblyCultureAttribute>()
+                from t in a.GetTypes()
+                where typeof(IEntity).IsAssignableFrom(t) || typeof(ModifiableEntity).IsAssignableFrom(t)
+                let da = t.GetCustomAttribute<DescriptionOptionsAttribute>(true)
+                where da == null || da.Options.IsSet(DescriptionOptions.Members)
+                from p in t.GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                where DescriptionManager.OnShouldLocalizeMember(p)
+                let et = (p.PropertyType.ElementType() ?? p.PropertyType).UnNullify()
+                where et.IsEnum && et.Assembly.HasAttribute<DefaultAssemblyCultureAttribute>()
+                select et).ToFrozenSet();
+
     });
 
     static DescriptionOptions? DescriptionManager_IsEnumsInEntities(Type t)
@@ -169,9 +169,11 @@ public static class Reflector
     {
         using (HeavyProfiler.LogNoStackTrace("Reflector", () => type.Name))
         {
-            var result = type.For(t => t != typeof(object), t => t.BaseType!)
+            var result = type.Follow(a => a.BaseType)
+                .TakeWhile(t => t != typeof(object))
                 .Reverse()
-                .SelectMany(t => t.GetFields(flags | BindingFlags.DeclaredOnly).OrderBy(f => f.MetadataToken)).ToArray();
+                .SelectMany(t => t.GetFields(flags | BindingFlags.DeclaredOnly).OrderBy(f => f.MetadataToken))
+                .ToArray();
 
             return result;
         }

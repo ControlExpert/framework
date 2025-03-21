@@ -23,10 +23,13 @@ public static class ConcurrentUserServer
         ConcurrentUserHub = app.Services.GetService<IHubContext<ConcurrentUserHub, IConcurrentUserClient>>()!;
 
         var s = Schema.Current;
-        foreach (var type in Schema.Current.Tables.Keys.Where(t => ConcurrentUserLogic.WatchSaveFor(t)))
+        Schema.Current.SchemaCompleted += () =>
         {
-            giAttachSchemaEvents.GetInvoker(type)(s);
-        }
+            foreach (var type in Schema.Current.Tables.Keys.Where(t => ConcurrentUserLogic.WatchSaveFor(t)))
+            {
+                giAttachSchemaEvents.GetInvoker(type)(s);
+            }
+        };
 
         CacheLogic.BroadcastReceivers.Add("ConcurrentUsersChanged", args =>
         {
@@ -94,7 +97,7 @@ More info: https://docs.microsoft.com/en-us/iis/troubleshoot/request-restriction
 
     private static void NotifyEntitySavedOnCommit(Dictionary<Lite<Entity>, long?> newTicks)
     {
-        var hs = (Dictionary<Lite<Entity>, long?>)Transaction.UserData.GetOrCreate("SavedEntities", new Dictionary<Lite<Entity>, long?>());
+        var hs = (Dictionary<Lite<Entity>, long?>)Transaction.UserData.GetOrCreate("SavedEntities", () => new Dictionary<Lite<Entity>, long?>());
         hs.SetRange(newTicks);
 
         Transaction.PostRealCommit -= Transaction_PostRealCommit;

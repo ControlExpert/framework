@@ -38,9 +38,12 @@ import { OnDrilldownOptions } from '@framework/SearchControl/SearchControlLoaded
 import { QueryTokenEmbedded } from '../Signum.UserAssets/Signum.UserAssets.Queries';
 import * as OmniboxClient from '../Signum.Omnibox/OmniboxClient';
 import ChartOmniboxProvider from './ChartOmniboxProvider';
+import { registerChangeLogModule } from '@framework/Basics/ChangeLogClient';
 
 export function start(options: { routes: RouteObject[], googleMapsApiKey?: string, svgMap?: boolean }) {
-  
+
+  registerChangeLogModule("Signum.Chart", () => import("./Changelog"));
+
   options.routes.push({ path: "/chart/:queryName", element: <ImportComponent onImport={() => import("./Templates/ChartRequestPage")} /> });
 
   AppContext.clearSettingsActions.push(ButtonBarChart.clearOnButtonBarElements);
@@ -49,7 +52,7 @@ export function start(options: { routes: RouteObject[], googleMapsApiKey?: strin
 
   Finder.ButtonBarQuery.onButtonBarElements.push(ctx => {
     if (!ctx.searchControl.props.showBarExtension ||
-      !AuthClient.isPermissionAuthorized(ChartPermission.ViewCharting) ||
+      !AppContext.isPermissionAuthorized(ChartPermission.ViewCharting) ||
       !(ctx.searchControl.props.showBarExtensionOption?.showChartButton ?? ctx.searchControl.props.largeToolbarButtons))
       return undefined;
 
@@ -135,7 +138,6 @@ export async function onDrilldownUserChart(cr: ChartRequestModel, row: ChartRow,
   if (uc.entity!.customDrilldowns.length == 0 || hasAggregates(uc.entity!) != hasAggregates(cr))
     return false;
 
-  debugger;
   const fo = extractFindOptions(cr, row);
   const entity = row.entity ?? (hasAggregates(cr) ? undefined : fo.filterOptions?.singleOrNull(f => f?.token == "Entity")?.value);
   const filters = fo.filterOptions?.notNull();
@@ -295,6 +297,7 @@ export interface ChartScriptParameterGroup {
 
 export interface ChartScriptParameter {
   name: string;
+  displayName: string;
   columnIndex?: number;
   type: ChartParameterType;
   valueDefinition: NumberInterval | EnumValueList | StringValue | SpecialParameter | null;
@@ -962,7 +965,7 @@ export module API {
     });
 
     var chartTable: ChartTable = {
-      date: DateTime.local().toISO(),
+      date: DateTime.local().toISO()!,
       columns: cols.filter(c => c != null).toObjectDistinct(c => c!.name) as any,
       rows: rows
     };

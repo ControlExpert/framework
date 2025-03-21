@@ -440,7 +440,7 @@ export default function FramePage() {
       );
 
     const entity = state.pack.entity;
-    const title = getToString(entity);
+    const title = Navigator.renderEntity(entity); 
     const subTitle = Navigator.getTypeSubTitle(entity, undefined);
     const widgets = renderWidgets(wc, settings?.stickyHeader);
 

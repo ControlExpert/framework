@@ -58,22 +58,22 @@ public static class Administrator
     {
         using (OverrideDatabaseInSysViews(tableName.Schema.Database))
         {
+            var table = Database.View<SysTables>().SingleEx(t => t.name == tableName.Name && t.Schema().name == tableName.Schema.Name);
+
             var columns =
-                (from t in Database.View<SysTables>()
-                 where t.name == tableName.Name && t.Schema().name == tableName.Schema.Name
-                 from c in t.Columns()
+                (from c in table.Columns()
                  select new DiffColumn
                  {
                      Name = c.name,
                      DbType = new AbstractDbType(SysTablesSchema.ToSqlDbType(c.Type()!.name)),
                      UserTypeName = null,
-                     PrimaryKey = t.Indices().Any(i => i.is_primary_key && i.IndexColumns().Any(ic => ic.column_id == c.column_id)),
+                     PrimaryKey = table.Indices().Any(i => i.is_primary_key && i.IndexColumns().Any(ic => ic.column_id == c.column_id)),
                      Nullable = c.is_nullable,
                  }).ToList();
 
             StringBuilder sb = new StringBuilder();
             sb.AppendLine($@"[TableName(""{tableName}"")]");
-            sb.AppendLine($"public class {tableName.Name} : IView");
+            sb.AppendLine($"public class {tableName.Name.Replace(" ", "")} : IView");
             sb.AppendLine(@"{");
             foreach (var c in columns)
             {
@@ -122,12 +122,12 @@ public static class Administrator
         CleanAllDatabases();
         Console.WriteLine("Done.");
 
-        Console.Write("Generating new database database...");
+        Console.Write("Generating new database...");
         ExecuteGenerationScript();
         Console.WriteLine("Done.");
     }
 
-    public static Func<bool> AvoidSimpleSynchronize = () => true;
+    public static Func<bool> AvoidSimpleSynchronize = () => false;
 
     public static void Synchronize()
     {
@@ -316,9 +316,7 @@ public static class Administrator
         }
     }
 
-
-
-    public static IDisposable SaveDisableIdentity<T>()
+    public static IDisposable DisableIdentity<T>()
         where T : Entity
     {
         Table table = Schema.Current.Table<T>();
@@ -369,7 +367,7 @@ public static class Administrator
         where T : Entity
     {
         using (var tr = new Transaction())
-        using (Administrator.SaveDisableIdentity<T>())
+        using (Administrator.DisableIdentity(Schema.Current.Table(entity.GetType())))
         {
             Database.Save(entity);
             return tr.Commit(entity);
@@ -379,8 +377,13 @@ public static class Administrator
     public static void SaveListDisableIdentity<T>(IEnumerable<T> entities)
         where T : Entity
     {
+        var list = entities.ToList();
+        var type = list.Select(a => a.GetType()).Distinct().SingleOrDefaultEx();
+        if (type == null)
+            return;
+
         using (var tr = new Transaction())
-        using (Administrator.SaveDisableIdentity<T>())
+        using (Administrator.DisableIdentity(Schema.Current.Table(type)))
         {
             Database.SaveList(entities);
             tr.Commit();
@@ -788,4 +791,5 @@ public static class Administrator
 
         return DeleteWhereScript(table, column, value.Id);
     }
+
 }

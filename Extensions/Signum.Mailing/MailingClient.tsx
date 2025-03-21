@@ -3,12 +3,13 @@ import { RouteObject } from 'react-router'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { ajaxPost, ajaxGet } from '@framework/Services';
 import { EntitySettings } from '@framework/Navigator'
+import * as AppContext from '@framework/AppContext'
 import * as Navigator from '@framework/Navigator'
 import * as Constructor from '@framework/Constructor'
 import * as Finder from '@framework/Finder'
 import { Lite, Entity, newMListElement, registerToString, JavascriptMessage, getToString } from '@framework/Signum.Entities'
 import { EntityOperationSettings } from '@framework/Operations'
-import { PseudoType, Type, getTypeName, isTypeEntity } from '@framework/Reflection'
+import { PseudoType, Type, getTypeName, isTypeEntity, getQueryKey } from '@framework/Reflection'
 import * as Operations from '@framework/Operations'
 import { EmailMessageEntity, EmailMessageOperation, EmailRecipientEmbedded, EmailConfigurationEmbedded, AsyncEmailSenderPermission, EmailModelEntity, EmailFromEmbedded, SmtpEmailServiceEntity } from './Signum.Mailing'
 import { EmailSenderConfigurationEntity, EmailAddressEmbedded } from './Signum.Mailing'
@@ -27,27 +28,28 @@ import MailingMenu from "./MailingMenu";
 import { Dropdown } from 'react-bootstrap';
 import "./Mailing.css";
 import { SearchControlLoaded } from '@framework/Search';
-import { EmailMasterTemplateEntity, EmailMasterTemplateMessageEmbedded, EmailTemplateEntity, EmailTemplateMessageEmbedded, EmailTemplateVisibleOn } from './Signum.Mailing.Templates';
+import { EmailMasterTemplateEntity, EmailMasterTemplateMessageEmbedded, EmailTemplateEntity, EmailTemplateMessageEmbedded, EmailTemplateVisibleOn, FileTokenAttachmentEntity, ImageAttachmentEntity } from './Signum.Mailing.Templates';
 import { CultureInfoEntity } from '@framework/Signum.Basics';
+import { registerChangeLogModule } from '@framework/Basics/ChangeLogClient';
 
 
 export var allTypes: string[] = [];
 
 export function start(options: {
   routes: RouteObject[],
-  pop3Config: boolean,
-  sendEmailTask: boolean,
   contextual: boolean,
   queryButton: boolean,
   quickLinkInDefaultGroup?: boolean
 }) {
+
+  registerChangeLogModule("Signum.Mailing", () => import("./Changelog"));
 
   EvalClient.Options.checkEvalFindOptions.push({ queryName: EmailTemplateEntity });
 
   options.routes.push({ path: "/asyncEmailSender/view", element: <ImportComponent onImport={() => import("./AsyncEmailSenderPage")} /> });
 
   OmniboxSpecialAction.registerSpecialAction({
-    allowed: () => AuthClient.isPermissionAuthorized(AsyncEmailSenderPermission.ViewAsyncEmailSenderPanel),
+    allowed: () => AppContext.isPermissionAuthorized(AsyncEmailSenderPermission.ViewAsyncEmailSenderPanel),
     key: "AsyncEmailSenderPanel",
     onClick: () => Promise.resolve("/asyncEmailSender/view")
   });
@@ -57,6 +59,8 @@ export function start(options: {
 
   Navigator.addSettings(new EntitySettings(EmailMessageEntity, e => import('./Templates/EmailMessage')));
   Navigator.addSettings(new EntitySettings(EmailTemplateEntity, e => import('./Templates/EmailTemplate')));
+  Navigator.addSettings(new EntitySettings(ImageAttachmentEntity, e => import('./Templates/ImageAttachment')));
+  Navigator.addSettings(new EntitySettings(FileTokenAttachmentEntity, e => import('./Templates/FileTokenAttachment')));
   Navigator.addSettings(new EntitySettings(EmailMasterTemplateEntity, e => import('./Templates/EmailMasterTemplate')));
   Navigator.addSettings(new EntitySettings(EmailRecipientEmbedded, e => import('./Templates/EmailRecipient')));
   Navigator.addSettings(new EntitySettings(EmailFromEmbedded, e => import('./Templates/EmailFrom')));
@@ -70,21 +74,30 @@ export function start(options: {
     })));
 
   Operations.addSettings(new EntityOperationSettings(EmailMessageOperation.CreateEmailFromTemplate, {
-    onClick: (ctx) => {
-      var promise: Promise<string | undefined> = ctx.entity.model ? API.getConstructorType(ctx.entity.model) : Promise.resolve(undefined);
-      return promise.then(ct => {
-        if (!ct || isTypeEntity(ct))
-          return Finder.find({ queryName: ctx.entity.query!.key }).then(lite => {
-            if (!lite)
-              return;
-            return Navigator.API.fetch(lite).then(entity => ctx.defaultClick(entity));
-          });
-        else {
-          var s = settings[ct];
-          var promise = (s?.createFromTemplate ? s.createFromTemplate(ctx.entity) : Constructor.constructPack(ct).then(a => a && Navigator.view(a)));
-          return promise.then(model => model && ctx.defaultClick(model));
+    onClick: async (ctx) => {
+      const ct = ctx.entity.model ? await API.getConstructorType(ctx.entity.model) : undefined;
+
+      if (!ct || isTypeEntity(ct)) {
+        if (ctx.entity.query == null)
+          return ctx.defaultClick();
+
+        const lite = await Finder.find({ queryName: ctx.entity.query!.key });
+
+        if (!lite) return;
+
+        const entity = await Navigator.API.fetch(lite);
+        return ctx.defaultClick(entity);
+      } else {
+        const s = settings[ct];
+
+        const model = s?.createFromTemplate
+          ? await s.createFromTemplate(ctx.entity)
+          : await Constructor.constructPack(ct).then(a => a && Navigator.view(a));
+
+        if (model) {
+          return ctx.defaultClick(model);
         }
-      });
+      }
     }
   }));
 
@@ -94,10 +107,6 @@ export function start(options: {
   }));
 
   Navigator.addSettings(new EntitySettings(EmailSenderConfigurationEntity, e => import('./Templates/EmailSenderConfiguration')));
-
-  if (options.pop3Config) {
-
-  }
 
   if (options.contextual)
     ContexualItems.onContextualItems.push(getEmailTemplates);
@@ -112,21 +121,22 @@ export function start(options: {
       return { button: <MailingMenu searchControl={ctx.searchControl} /> };
     });
 
-  API.getAllTypes().then(types => {
-    allTypes = types;
-    QuickLinks.registerGlobalQuickLink(ctx => new QuickLinks.QuickLinkExplore(
-      {
-        queryName: EmailMessageEntity,
-        filterOptions: [{ token: "Target", value: ctx.lite}],
-      },
-      {
-        isVisible: allTypes.contains(ctx.lite.EntityType) && !Navigator.isReadOnly(EmailMessageEntity),
-        icon: "envelope",
-        iconColor: "orange",
-        color: "warning",
-        group: options.quickLinkInDefaultGroup ? undefined : null,
-      }));
-  });
+
+  if (Finder.isFindable(EmailMessageEntity, false)) {
+    var cachedAllTypes: Promise<string[]>;
+    QuickLinks.registerGlobalQuickLink(entityType => (cachedAllTypes ??= API.getAllTypes())
+      .then(types => !types.contains(entityType) ? [] :
+        [new QuickLinks.QuickLinkExplore(EmailMessageEntity, ctx => ({ queryName: EmailMessageEntity, filterOptions: [{ token: "Entity.Target", value: ctx.lite }] }),
+          {
+            key: getQueryKey(EmailMessageEntity),
+            text: () => EmailMessageEntity.nicePluralName(),
+            icon: "envelope",
+            iconColor: "orange",
+            color: "warning",
+            group: options.quickLinkInDefaultGroup ? undefined : null,
+          }
+        )]));
+  }
 
   UserAssetClient.registerExportAssertLink(EmailTemplateEntity);
   UserAssetClient.registerExportAssertLink(EmailMasterTemplateEntity);
@@ -165,7 +175,7 @@ export function getEmailTemplates(ctx: ContextualItemsContext<Entity>): Promise<
         header: EmailTemplateEntity.nicePluralName(),
         menuItems: wts.map(et =>
           <Dropdown.Item data-operation={et.EntityType} onClick={() => handleMenuClick(et, ctx)}>
-            <FontAwesomeIcon icon={["far", "envelope"]} className="icon" />
+            <FontAwesomeIcon icon="envelope" className="icon" />
             {getToString(et)}
           </Dropdown.Item>
         )

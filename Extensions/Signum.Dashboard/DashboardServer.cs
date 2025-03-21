@@ -9,13 +9,14 @@ public static class DashboardServer
     public static void Start(IApplicationBuilder app)
     {
         UserAssetServer.Start(app);
+        UserAssetServer.QueryPermissionSymbols.Add(DashboardPermission.ViewDashboard);
 
         EntityPackTS.AddExtension += ep =>
         {
             if (ep.entity.IsNew || !DashboardPermission.ViewDashboard.IsAuthorized())
                 return;
 
-            var dashboards = DashboardLogic.GetDashboardsEntity(ep.entity.GetType());
+            var dashboards = DashboardLogic.GetDashboards(ep.entity.GetType());
             if (dashboards.Any())
                 ep.extension.Add("dashboards", dashboards);
 

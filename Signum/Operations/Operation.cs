@@ -1,5 +1,6 @@
 namespace Signum.Operations;
 
+[EntityKind(EntityKind.SystemString, EntityData.Master, IsLowPopulation = false), TicksColumn(false)]
 public class OperationSymbol : Symbol
 {
     private OperationSymbol() { }
@@ -203,6 +204,7 @@ public class OperationInfo
 
     public bool? CanBeModified { get; internal set; }
     public bool? CanBeNew { get; internal set; }
+    public bool? ForReadonlyEntity { get; internal set; }
     public bool? HasStates { get; internal set; }
     public bool? HasCanExecute { get; internal set; }
     public bool? HasCanExecuteExpression { get; internal set; }

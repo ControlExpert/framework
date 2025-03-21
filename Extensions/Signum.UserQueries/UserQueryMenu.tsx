@@ -7,17 +7,17 @@ import * as Finder from '@framework/Finder'
 import { parseLite, is, Lite, toLite, newMListElement, liteKey, SearchMessage, MList, MListElement, getToString, Entity, toMList, translated } from '@framework/Signum.Entities'
 import * as AppContext from '@framework/AppContext'
 import * as Navigator from '@framework/Navigator'
-import { UserQueryEntity, UserQueryMessage, UserQueryOperation } from './Signum.UserQueries'
+import { UserQueryEntity, UserQueryLiteModel, UserQueryMessage, UserQueryOperation } from './Signum.UserQueries'
 import * as UserQueryClient from './UserQueryClient'
 import * as UserAssetClient from '../Signum.UserAssets/UserAssetClient'
 import { Dropdown } from 'react-bootstrap';
 import { getQueryKey } from '@framework/Reflection';
 import * as Operations from '@framework/Operations';
 import { FilterOption, FilterOptionParsed } from '@framework/Search'
-import { FindOptionsParsed, isFilterGroupOption, isFilterGroupOptionParsed, PinnedFilter, SubTokensOptions } from '@framework/FindOptions'
+import { FindOptionsParsed, isFilterCondition, isFilterGroup, PinnedFilter, SubTokensOptions } from '@framework/FindOptions'
 import { QueryString } from '@framework/QueryString'
 import { AutoFocus } from '@framework/Components/AutoFocus'
-import { KeyCodes } from '@framework/Components'
+import { KeyNames } from '@framework/Components'
 import type StringDistance from './StringDistance'
 import SearchControlLoaded from '@framework/SearchControl/SearchControlLoaded'
 import { TokenCompleter } from '@framework/Finder'
@@ -26,6 +26,7 @@ import { PinnedQueryFilterEmbedded, QueryColumnEmbedded, QueryFilterEmbedded, Qu
 
 export interface UserQueryMenuProps {
   searchControl: SearchControlLoaded;
+  isHidden: boolean;
 }
 
 function decodeUserQueryFromUrl(location: Location) {
@@ -42,31 +43,38 @@ export default function UserQueryMenu(p: UserQueryMenuProps) {
   const forceUpdate = useForceUpdate();
   const location = useLocation();
 
-  function setCurrentUserQuery(uq: Lite<UserQueryEntity> | undefined) {
+  function setCurrentUserQuery(uq: Lite<UserQueryEntity> | undefined, subTitle: string | undefined) {
     p.searchControl.extraUrlParams.userQuery = uq && liteKey(uq);
 
     p.searchControl.getCurrentUserQuery = () => uq;
     setCurrentUserQueryInternal(uq);
 
-    p.searchControl.pageSubTitle = getToString(uq);
+    p.searchControl.pageSubTitle = subTitle;
     p.searchControl.props.onPageTitleChanged?.();
-    Navigator.API.fillLiteModels(uq).then(() => {
-      if (p.searchControl.getCurrentUserQuery?.() == uq) {
-        p.searchControl.pageSubTitle = getToString(uq);
-        p.searchControl.props.onPageTitleChanged?.();
+    if (uq != null && subTitle == null)
+      UserQueryClient.API.translated(uq).then(model => {
+        uq.model = model;
+        if (p.searchControl.getCurrentUserQuery?.() == uq) {
+          p.searchControl.pageSubTitle = model.displayName;
+          p.searchControl.props.onPageTitleChanged?.();
+        }
         forceUpdate();
-      }
-    });
+      });
   }
   
   React.useEffect(() => {
     const uq = p.searchControl.props.tag == "SearchPage" ? decodeUserQueryFromUrl(location) : p.searchControl.props.extraOptions?.userQuery;
     if (uq && UserQueryEntity.isLite(uq)) {
-      setCurrentUserQuery(uq);
+      if (!is(p.searchControl.getCurrentUserQuery?.(), uq) || !p.searchControl.pageSubTitle)
+        setCurrentUserQuery(uq, undefined);
     }
     else
-      setCurrentUserQuery(undefined);
+      setCurrentUserQuery(undefined, undefined);
   }, [location, p.searchControl.props.extraOptions?.userQuery && liteKey(p.searchControl.props.extraOptions.userQuery)]);
+
+
+  if (p.isHidden)
+    return null;
 
   function handleSelectedToggle(isOpen: boolean) {
     if (isOpen && userQueries == undefined)
@@ -99,9 +107,9 @@ export default function UserQueryMenu(p: UserQueryMenuProps) {
         ofo.pagination = nfo.pagination;
         ofo.systemTime = nfo.systemTime;
         if (nfo.filterOptions.length == 0 || anyPinned(nfo.filterOptions))
-          sc.setState({ showFilters: false });
+          sc.handleChangeFiltermode('Simple');
         sc.setState({ refreshMode: sc.props.defaultRefreshMode });
-        setCurrentUserQuery(undefined);
+        setCurrentUserQuery(undefined, undefined);
         if (ofo.pagination.mode != "All") {
           sc.doSearchPage1();
         }
@@ -117,8 +125,8 @@ export default function UserQueryMenu(p: UserQueryMenuProps) {
         .then(nfo => {
           sc.setState({ refreshMode: userQuery.refreshMode });
           if (nfo.filterOptions.length == 0 || anyPinned(nfo.filterOptions))
-            sc.setState({ showFilters: false, simpleFilterBuilder: undefined });
-          setCurrentUserQuery(uq);
+            sc.handleChangeFiltermode('Simple');
+          setCurrentUserQuery(uq, translated(userQuery, a=>a.displayName));
           if (sc.props.findOptions.pagination.mode != "All") {
             sc.doSearchPage1();
           }
@@ -136,7 +144,7 @@ export default function UserQueryMenu(p: UserQueryMenuProps) {
       .then(() => reloadList())
       .then(list => {
         if (!list.some(a => is(a, currentUserQuery)))
-          setCurrentUserQuery(undefined);
+          setCurrentUserQuery(undefined, undefined);
         else
           applyUserQuery(currentUserQuery!)
       });
@@ -172,8 +180,8 @@ export default function UserQueryMenu(p: UserQueryMenuProps) {
       .then(uqOld => Navigator.view(uqOld))
       .then(() => reloadList())
       .then(list => {
-        if (!list.some(a => is(a, currentUserQuery))) 
-          setCurrentUserQuery(undefined);
+        if (!list.some(a => is(a, currentUserQuery)))
+          setCurrentUserQuery(undefined, undefined);
         else
           applyUserQuery(currentUserQuery!);
       });
@@ -181,7 +189,6 @@ export default function UserQueryMenu(p: UserQueryMenuProps) {
 
   async function createUserQuery(): Promise<UserQueryEntity> {
 
-    debugger;
     const sc = p.searchControl;
 
     const fo = Finder.toFindOptions(sc.props.findOptions, sc.props.queryDescription, sc.props.defaultIncudeDefaultFilters);
@@ -199,7 +206,7 @@ export default function UserQueryMenu(p: UserQueryMenuProps) {
       ...fo.columnOptions?.map(a => a?.token) ?? [],
       ...fo.columnOptions?.map(a => a?.summaryToken) ?? [],
       ...fo.orderOptions?.map(a => a?.token) ?? [],
-    ].notNull().forEach(a => parser.request(a.toString(), SubTokensOptions.CanAggregate | SubTokensOptions.CanElement | SubTokensOptions.CanOperation | SubTokensOptions.CanSnippet | SubTokensOptions.CanToArray));
+    ].notNull().forEach(a => parser.request(a.toString(), SubTokensOptions.CanAggregate | SubTokensOptions.CanElement | SubTokensOptions.CanOperation | SubTokensOptions.CanSnippet | SubTokensOptions.CanToArray | SubTokensOptions.CanManual));
 
     await parser.finished();
 
@@ -247,11 +254,11 @@ export default function UserQueryMenu(p: UserQueryMenuProps) {
 
   const currentUserQueryToStr = currentUserQuery ? getToString(currentUserQuery) : undefined;
 
-  var canSave = Operations.tryGetOperationInfo(UserQueryOperation.Save, UserQueryEntity) != null;
+  var canSave = UserQueryEntity.tryOperationInfo(UserQueryOperation.Save) != null;
 
   const label = (
     <span title={currentUserQueryToStr}>
-      <FontAwesomeIcon icon={["far", "rectangle-list"]} />
+      <FontAwesomeIcon icon={ "rectangle-list"} />
       {p.searchControl.props.largeToolbarButtons == true && <>
         &nbsp;
         <span className="d-none d-sm-inline">
@@ -295,16 +302,16 @@ export default function UserQueryMenu(p: UserQueryMenuProps) {
           })}
         </div>
         {userQueries && userQueries.length > 0 && <Dropdown.Divider />}
-        <Dropdown.Item onClick={handleBackToDefault} ><FontAwesomeIcon icon={["fas", "arrow-rotate-left"]} className="me-2" />{UserQueryMessage.BackToDefault.niceToString()}</Dropdown.Item>
-        {currentUserQuery && canSave && <Dropdown.Item onClick={handleApplyChanges} ><FontAwesomeIcon icon={["fas", "share-from-square"]} className="me-2" />{UserQueryMessage.ApplyChanges.niceToString()}</Dropdown.Item>}
-        {currentUserQuery && canSave && <Dropdown.Item onClick={handleEdit} ><FontAwesomeIcon icon={["fas", "pen-to-square"]} className="me-2" />{UserQueryMessage.Edit.niceToString()}</Dropdown.Item>}
-        {canSave && <Dropdown.Item onClick={handleCreateUserQuery}><FontAwesomeIcon icon={["fas", "plus"]} className="me-2" />{UserQueryMessage.CreateNew.niceToString()}</Dropdown.Item>}</Dropdown.Menu>
+        <Dropdown.Item onClick={handleBackToDefault} ><FontAwesomeIcon icon={"arrow-rotate-left"} className="me-2" />{UserQueryMessage.BackToDefault.niceToString()}</Dropdown.Item>
+        {currentUserQuery && canSave && <Dropdown.Item onClick={handleApplyChanges} ><FontAwesomeIcon icon={"share-from-square"} className="me-2" />{UserQueryMessage.ApplyChanges.niceToString()}</Dropdown.Item>}
+        {currentUserQuery && canSave && <Dropdown.Item onClick={handleEdit} ><FontAwesomeIcon icon={"pen-to-square"} className="me-2" />{UserQueryMessage.Edit.niceToString()}</Dropdown.Item>}
+        {canSave && <Dropdown.Item onClick={handleCreateUserQuery}><FontAwesomeIcon icon={"plus"} className="me-2" />{UserQueryMessage.CreateNew.niceToString()}</Dropdown.Item>}</Dropdown.Menu>
     </Dropdown>
   );
 
   function handleSearchKeyDown(e: React.KeyboardEvent<any>) {
 
-    if (!e.shiftKey && e.keyCode == KeyCodes.down) {
+    if (!e.shiftKey && e.key == KeyNames.arrowDown) {
 
       e.preventDefault();
       const div = document.getElementById("userquery-items-container")!;
@@ -319,7 +326,7 @@ function anyPinned(filterOptions?: FilterOptionParsed[]): boolean {
   if (filterOptions == null)
     return false;
 
-  return filterOptions.some(a => Boolean(a.pinned) || isFilterGroupOptionParsed(a) && anyPinned(a.filters));
+  return filterOptions.some(a => Boolean(a.pinned) || isFilterGroup(a) && anyPinned(a.filters));
 }
 
 
@@ -380,8 +387,8 @@ export namespace UserQueryMerger {
       const merged = mergeFilters(
         ch.removed.elements,
         ch.added.elements,
-        isFilterGroupOption(ch.removed.filter) ? ch.removed.filter.filters.notNull() : [],
-        isFilterGroupOption(ch.added.filter) ? ch.added.filter.filters.notNull() : [], identation + 1, sd);
+        isFilterGroup(ch.removed.filter) ? ch.removed.filter.filters.notNull() : [],
+        isFilterGroup(ch.added.filter) ? ch.added.filter.filters.notNull() : [], identation + 1, sd);
 
 
       const oldF = ch.removed.key.element;
@@ -435,8 +442,8 @@ export namespace UserQueryMerger {
   }
 
   function distanceFilter(fo: FilterOption, fo2: FilterOption): number {
-    if (isFilterGroupOption(fo)) {
-      if (isFilterGroupOption(fo2)) {
+    if (isFilterGroup(fo)) {
+      if (isFilterGroup(fo2)) {
         return (fo.token?.toString() == fo2.token?.toString() ? 0 : 1) +
           (fo.groupOperation == fo2.groupOperation ? 0 : 1) +
           (similarValues(fo.value, fo2.value) ? 0 : 1) +
@@ -446,7 +453,7 @@ export namespace UserQueryMerger {
       else return 10;
     }
     else {
-      if (isFilterGroupOption(fo2))
+      if (isFilterGroup(fo2))
         return 10;
       else
         return (fo.token?.toString() == fo2.token?.toString() ? 0 : 1) +

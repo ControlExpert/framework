@@ -9,6 +9,7 @@ public static class UserQueryServer
     public static void Start(IApplicationBuilder app)
     {
         UserAssetServer.Start(app);
+        UserAssetServer.QueryPermissionSymbols.Add(UserQueryPermission.ViewUserQuery);
 
         SignumServer.WebEntityJsonConverterFactory.AfterDeserilization.Register((UserQueryEntity uq) =>
         {
@@ -24,7 +25,7 @@ public static class UserQueryServer
             if (ep.entity.IsNew || !UserQueryPermission.ViewUserQuery.IsAuthorized())
                 return;
 
-            var userQueries = UserQueryLogic.GetUserQueriesEntity(ep.entity.GetType());
+            var userQueries = UserQueryLogic.GetUserQueries(ep.entity.GetType());
             if (userQueries.Any())
                 ep.extension.Add("userQueries", userQueries);
         };

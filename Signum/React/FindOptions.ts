@@ -1,4 +1,4 @@
-import { TypeReference, PseudoType, QueryKey, getLambdaMembers, QueryTokenString, tryGetTypeInfos, PropertyRoute } from './Reflection';
+import { TypeReference, PseudoType, QueryKey, getLambdaMembers, QueryTokenString, tryGetTypeInfos, PropertyRoute, isTypeEnum } from './Reflection';
 import { Lite, Entity } from './Signum.Entities';
 import { PaginationMode, OrderType, FilterOperation, FilterType, ColumnOptionsMode, UniqueType, SystemTimeMode, FilterGroupOperation, PinnedFilterActive, SystemTimeJoinMode, DashboardBehaviour, CombineRows } from './Signum.DynamicQuery';
 import { SearchControlProps, SearchControlLoaded } from "./Search";
@@ -58,13 +58,25 @@ export interface FindOptionsParsed {
 
 export type FilterOption = FilterConditionOption | FilterGroupOption;
 
-export function isFilterGroupOption(fo: FilterOption): fo is FilterGroupOption {
-  return (fo as FilterGroupOption).groupOperation != undefined;
+export function isFilterGroup(fo: FilterOptionParsed): fo is FilterGroupOptionParsed
+export function isFilterGroup(fo: FilterOption): fo is FilterGroupOption
+export function isFilterGroup(fr: FilterRequest): fr is FilterGroupRequest 
+export function isFilterGroup(fo: FilterOption | FilterOptionParsed | FilterRequest): boolean{
+  return (fo as FilterGroupOptionParsed | FilterGroupOption | FilterGroupRequest).groupOperation != undefined;
 }
+
+export function isFilterCondition(fo: FilterOptionParsed): fo is FilterConditionOptionParsed
+export function isFilterCondition(fo: FilterOption): fo is FilterConditionOption
+export function isFilterCondition(fr: FilterRequest): fr is FilterConditionRequest
+export function isFilterCondition(fo: FilterOptionParsed | FilterOption | FilterRequest): boolean {
+  return (fo as FilterGroupOptionParsed | FilterGroupOption | FilterGroupRequest).groupOperation == undefined;
+}
+
 
 export interface FilterConditionOption {
   token: string | QueryTokenString<any>;
   frozen?: boolean;
+  removeElementWarning?: boolean;
   operation?: FilterOperation;
   value?: any;
   pinned?: PinnedFilter;
@@ -76,23 +88,23 @@ export interface FilterGroupOption {
   groupOperation: FilterGroupOperation;
   filters: (FilterOption | null | undefined)[];
   pinned?: PinnedFilter;
+  frozen?: boolean;
   dashboardBehaviour?: DashboardBehaviour;
   value?: string; /*For search in multiple columns*/
 }
 
 export interface PinnedFilter {
-  label?: string | (() => string);
+  label?: (() => string) | string;
   row?: number;
   column?: number;
+  colSpan?: number;
   active?: PinnedFilterActive;
   splitValue?: boolean;
 }
 
 export type FilterOptionParsed = FilterConditionOptionParsed | FilterGroupOptionParsed;
 
-export function isFilterGroupOptionParsed(fo: FilterOptionParsed): fo is FilterGroupOptionParsed {
-  return (fo as FilterGroupOptionParsed).groupOperation != undefined;
-}
+
 
 export function isActive(fo: FilterOptionParsed) {
   return !(fo.dashboardBehaviour == "UseAsInitialSelection" || fo.pinned && (fo.pinned.active == "Checkbox_Unchecked" || fo.pinned.active == "NotCheckbox_Unchecked" || fo.pinned.active == "WhenHasValue" && fo.value == null));
@@ -108,6 +120,7 @@ export function isCheckBox(active: PinnedFilterActive | undefined) {
 export interface FilterConditionOptionParsed {
   token?: QueryToken;
   frozen: boolean;
+  removeElementWarning?: boolean;
   operation?: FilterOperation;
   value: any;
   pinned?: PinnedFilterParsed;
@@ -118,6 +131,7 @@ export interface PinnedFilterParsed {
   label?: string;
   row?: number;
   column?: number;
+  colSpan?: number;
   active?: PinnedFilterActive;
   splitValue?: boolean;
 }
@@ -125,8 +139,9 @@ export interface PinnedFilterParsed {
 export function toPinnedFilterParsed(pf: PinnedFilter): PinnedFilterParsed {
   return {
     label: typeof pf.label == "function" ? pf.label() : pf.label,
-    row: pf.row,
     column: pf.column,
+    colSpan: pf.colSpan,
+    row: pf.row,
     active: pf.active,
     splitValue: pf.splitValue
   };
@@ -135,7 +150,6 @@ export function toPinnedFilterParsed(pf: PinnedFilter): PinnedFilterParsed {
 export interface FilterGroupOptionParsed {
   groupOperation: FilterGroupOperation;
   frozen: boolean;
-  expanded: boolean;
   token?: QueryToken;
   filters: FilterOptionParsed[];
   pinned?: PinnedFilterParsed;
@@ -185,6 +199,7 @@ export enum SubTokensOptions {
   CanOperation = 8,
   CanToArray = 16,
   CanSnippet= 32,
+  CanManual = 64,
 }
 
 export interface QueryToken {
@@ -206,6 +221,20 @@ export interface QueryToken {
   propertyRoute?: string;
 }
 
+export interface ManualToken { 
+  toStr: string;
+  niceName: string;
+  key: string;
+  typeColor?: string;
+  niceTypeName: string;
+  subToken?: Promise<ManualToken[]>;
+}
+export interface ManualCellDto {
+  lite: Lite<Entity>;
+  manualContainerTokenKey: string;
+  manualTokenKey: string;
+}
+
 function getFullKey(token: QueryToken | QueryTokenString<any> | string) : string {
   if (token instanceof QueryTokenString)
     return token.token;
@@ -224,7 +253,7 @@ export function tokenStartsWith(token: QueryToken | QueryTokenString<any> | stri
   return token == tokenStart || token.startsWith(tokenStart + ".");
 }
 
-export type QueryTokenType = "Aggregate" | "Element" | "AnyOrAll" | "Operation"  | "ToArray";
+export type QueryTokenType = "Aggregate" | "Element" | "AnyOrAll" | "Operation"  | "ToArray" | "Manual";
 
 export function hasAnyOrAll(token: QueryToken | undefined): boolean {
   if (token == undefined)
@@ -280,6 +309,16 @@ export function hasOperation(token: QueryToken | undefined): boolean {
   return hasOperation(token.parent);
 }
 
+export function hasManual(token: QueryToken | undefined): boolean {
+  if (token == undefined)
+    return false;
+
+  if (token.queryTokenType == "Manual")
+    return true;
+
+  return hasManual(token.parent);
+}
+
 export function hasToArray(token: QueryToken | undefined): QueryToken | undefined {
   if (token == undefined)
     return undefined;
@@ -295,7 +334,7 @@ export function withoutAggregate(fop: FilterOptionParsed): FilterOptionParsed | 
   if (hasAggregate(fop.token))
     return undefined;
 
-  if (isFilterGroupOptionParsed(fop)) {
+  if (isFilterGroup(fop)) {
     var newFilters = fop.filters.map(f => withoutAggregate(f)).filter(Boolean);
     if (newFilters.length == 0)
       return undefined;
@@ -316,7 +355,7 @@ export function withoutPinned(fop: FilterOptionParsed): FilterOptionParsed | und
     return undefined;
   }
 
-  if (isFilterGroupOptionParsed(fop)) {
+  if (isFilterGroup(fop)) {
     var newFilters = fop.filters.map(f => withoutPinned(f)).filter(Boolean);
     if (newFilters.length == 0)
       return undefined;
@@ -335,7 +374,7 @@ export function withoutPinned(fop: FilterOptionParsed): FilterOptionParsed | und
 }
 
 export function canSplitValue(fo: FilterOptionParsed) {
-  if (isFilterGroupOptionParsed(fo))
+  if (isFilterGroup(fo))
     return fo.pinned != null;
 
   else {
@@ -346,7 +385,7 @@ export function canSplitValue(fo: FilterOptionParsed) {
 
 export function mapFilterTokens(fo: FilterOption, mapToken : (token: string) => string): FilterOption {
   
-  if (isFilterGroupOption(fo)) {
+  if (isFilterGroup(fo)) {
     return {
       ...fo,
       groupOperation: fo.groupOperation,
@@ -392,9 +431,6 @@ export function toQueryToken(cd: ColumnDescription): QueryToken {
 
 export type FilterRequest = FilterConditionRequest | FilterGroupRequest;
 
-export function isFilterGroupRequest(fr: FilterRequest): fr is FilterGroupRequest {
-  return (fr as FilterGroupRequest).groupOperation != null;
-}
 
 export interface FilterGroupRequest {
   groupOperation: FilterGroupOperation;
@@ -454,7 +490,7 @@ export interface ResultTable {
 }
 
 export interface ResultRow {
-  entity?: Lite<Entity>;
+  entity: Lite<Entity> | undefined;
   columns: any[];
 }
 
@@ -532,7 +568,7 @@ export function getFilterType(tr: TypeReference): FilterType | null {
   if (tr.name == "string")
     return "String";
 
-  if (tr.name == "dateTime")
+  if (tr.name == "DateTime")
     return "DateTime";
 
   if (tr.name == "Guid")
@@ -540,6 +576,9 @@ export function getFilterType(tr: TypeReference): FilterType | null {
 
   if (tr.isEmbedded)
     return "Embedded";
+
+  if (isTypeEnum(tr.name))
+    return "Enum";
 
   if (tr.isLite || tryGetTypeInfos(tr)[0]?.name)
     return "Lite";
@@ -561,6 +600,25 @@ export function getFilterOperations(qt: QueryToken): FilterOperation[] {
       return ["ComplexCondition", "FreeText", ...fops];
   }
   return fops;
+}
+
+export function getFilterGroupUnifiedFilterType(tr: TypeReference): FilterType | null {
+  if (tr.name == "number" || tr.name == "decmial" || tr.name == "boolean" || tr.name == "string" || tr.name == "Guid")
+    return "String";
+
+  if (tr.name == "DateTime")
+    return "DateTime";
+
+  if (tr.isEmbedded)
+    return "Embedded";
+
+  if (isTypeEnum(tr.name))
+    return "Enum";
+
+  if (tr.isLite || tryGetTypeInfos(tr)[0]?.name)
+    return "Lite";
+
+  return null;
 }
 
 export const filterOperations: { [a: string /*FilterType*/]: FilterOperation[] } = {};
@@ -649,6 +707,11 @@ filterOperations["Lite"] = [
 ];
 
 filterOperations["Embedded"] = [
+  "EqualTo",
+  "DistinctTo",
+];
+
+filterOperations["Model"] = [
   "EqualTo",
   "DistinctTo",
 ];

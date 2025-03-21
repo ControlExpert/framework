@@ -80,6 +80,9 @@ public static class QueryUtils
                 if (type.IsEmbeddedEntity())
                     return FilterType.Embedded;
 
+                if (type.IsModelEntity())
+                    return FilterType.Model;
+
                 goto default;
             default:
                 return null;
@@ -93,7 +96,7 @@ public static class QueryUtils
 
         var result = FilterOperations[filtertype];
 
-        if (token is EntityPropertyToken ept && ept.HasFullTextIndex)
+        if (token is EntityPropertyToken ept && EntityPropertyToken.HasFullTextIndex(ept.PropertyRoute))
         {
             return result.PreAnd(FilterOperation.FreeText).PreAnd(FilterOperation.ComplexCondition).ToList();
         }
@@ -205,6 +208,13 @@ public static class QueryUtils
         },
         {
             FilterType.Embedded, new List<FilterOperation>
+            {
+                FilterOperation.EqualTo,
+                FilterOperation.DistinctTo,
+            }.ToReadOnly()
+        },
+        {
+            FilterType.Model, new List<FilterOperation>
             {
                 FilterOperation.EqualTo,
                 FilterOperation.DistinctTo,
@@ -380,7 +390,7 @@ public static class QueryUtils
         if (token.Type != typeof(string) && token.Type.ElementType() != null)
             return "You can not filter by collections, continue the sequence";
 
-        if (token is OperationsToken or OperationToken)
+        if (token is OperationsToken or OperationToken or ManualContainerToken or ManualToken)
             return $"{token} is not a valid filter";
 
         return null;
@@ -398,10 +408,10 @@ public static class QueryUtils
             return "Columns can not contain '{0}', '{1}', {2} or {3}".FormatWith(
                 CollectionAnyAllType.All.NiceToString(),
                 CollectionAnyAllType.Any.NiceToString(),
-                CollectionAnyAllType.NoOne.NiceToString(),
-                CollectionAnyAllType.AnyNo.NiceToString());
+                CollectionAnyAllType.NotAny.NiceToString(),
+                CollectionAnyAllType.NotAll.NiceToString());
 
-        if (token is OperationsToken)
+        if (token is OperationsToken or ManualContainerToken)
             return $"{token} is not a valid column";
 
         return null;
@@ -444,10 +454,10 @@ public static class QueryUtils
             return "'{0}', '{1}', '{2}' or '{3}' can not be ordered".FormatWith(
                 CollectionAnyAllType.All.NiceToString(),
                 CollectionAnyAllType.Any.NiceToString(),
-                CollectionAnyAllType.NoOne.NiceToString(),
-                CollectionAnyAllType.AnyNo.NiceToString());
+                CollectionAnyAllType.NotAny.NiceToString(),
+                CollectionAnyAllType.NotAll.NiceToString());
 
-        if (token is OperationsToken or OperationToken)
+        if (token is OperationsToken or OperationToken or ManualContainerToken or ManualToken)
             return $"{token} is not a valid order";
 
         return null;
@@ -614,4 +624,5 @@ public enum SubTokensOptions
     CanOperation = 8,
     CanToArray = 16,
     CanSnippet= 32,
+    CanManual = 64,
 }

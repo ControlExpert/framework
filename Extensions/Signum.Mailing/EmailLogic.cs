@@ -45,6 +45,12 @@ public static class EmailLogic
             CultureInfoLogic.AssertStarted(sb);
             EmailLogic.getConfiguration = getConfiguration;
             EmailTemplateLogic.Start(sb, getEmailSenderConfiguration);
+            if (sb.Settings.ImplementedBy((EmailTemplateEntity e) => e.Attachments.First(), typeof(ImageAttachmentEntity)))
+                ImageAttachmentLogic.Start(sb);
+
+            if (sb.Settings.ImplementedBy((EmailTemplateEntity e) => e.Attachments.First(), typeof(FileTokenAttachmentEntity)))
+                FileTokenAttachmentLogic.Start(sb);
+
             TemplatingLogic.Start(sb);
             EmailSenderConfigurationLogic.Start(sb);
             if (attachment != null)
@@ -76,6 +82,20 @@ public static class EmailLogic
 
             if (sb.WebServerBuilder != null)
                 MailingServer.Start(sb.WebServerBuilder.WebApplication);
+
+            sb.Schema.SchemaCompleted += () =>
+            {
+                var pr = PropertyRoute.Construct((EmailSenderConfigurationEntity s) => s.Service);
+
+                var implementations = sb.Schema.FindImplementations(PropertyRoute.Construct((EmailSenderConfigurationEntity s) => s.Service));
+
+                var notOverriden = implementations.Types.Except(EmailSenders.OverridenTypes);
+
+                if (notOverriden.Any())
+                {
+                    throw new InvalidOperationException($"The property {pr} is implemented by {notOverriden.CommaAnd(a => a.TypeName())} but has not been registered in EmailLogic.EmailSenders. Maybe you forgot to call something like {notOverriden.CommaAnd(a => a.TypeName().Replace("Entity", "Logic.Start(sb)"))}?");
+                }
+            };
         }
     }
 
@@ -233,7 +253,7 @@ public static class EmailLogic
                 },
                 Construct = (et, args) =>
                 {
-                    var entity = args.TryGetArgC<ModifiableEntity>() ?? args.GetArg<Lite<Entity>>().RetrieveAndRemember();
+                    var entity = args.TryGetArgC<ModifiableEntity>() ?? args.TryGetArgC<Lite<Entity>>()?.RetrieveAndRemember();
 
                     var emailMessageEntity = et.ToLite().CreateEmailMessage(entity).FirstOrDefault();
                     if (emailMessageEntity == null)

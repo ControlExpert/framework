@@ -7,11 +7,12 @@ import { StyleContext } from "../Lines";
 
 export interface EntityLinkProps extends React.HTMLAttributes<HTMLAnchorElement> {
   lite: Lite<Entity>;
-  inSearch?: boolean;
+  inSearch?: "main" | "related";
   inPlaceNavigation?: boolean;
   onNavigated?: (lite: Lite<Entity>) => void;
   getViewPromise?: (e: ModifiableEntity | null) => undefined | string | Navigator.ViewPromise<ModifiableEntity>;
   innerRef?: React.Ref<HTMLAnchorElement>;
+  stopPropagation?: boolean;
   extraProps?: any;
 }
 
@@ -21,7 +22,7 @@ export default function EntityLink(p: EntityLinkProps) {
 
   const settings = Navigator.getSettings(p.lite.EntityType);
 
-  if (!Navigator.isViewable(lite.EntityType, { isSearch: p.inSearch || false }))
+  if (!Navigator.isViewable(lite.EntityType, { isSearch: p.inSearch }))
     return <span data-entity={liteKey(lite)} className={settings?.allowWrapEntityLink ? undefined : "try-no-wrap"}>{p.children ?? Navigator.renderLite(lite)}</span>;
 
 
@@ -40,7 +41,8 @@ export default function EntityLink(p: EntityLinkProps) {
   );
 
   function handleClick(event: React.MouseEvent<any>) {
-
+    if (p.stopPropagation)
+      event.stopPropagation();
     event.preventDefault();
     p.onClick?.call(event.currentTarget, event);
 

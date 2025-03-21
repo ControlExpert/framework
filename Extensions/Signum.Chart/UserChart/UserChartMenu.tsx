@@ -12,9 +12,8 @@ import * as UserChartClient from './UserChartClient'
 import { ChartRequestViewHandle } from '../Templates/ChartRequestView'
 import * as UserAssetClient from '../../Signum.UserAssets/UserAssetClient'
 import { useForceUpdate } from '@framework/Hooks'
-import { tryGetOperationInfo } from '@framework/Operations'
 import { AutoFocus } from '@framework/Components/AutoFocus'
-import { KeyCodes } from '@framework/Components'
+import { KeyNames } from '@framework/Components'
 import { UserQueryMerger } from '../../Signum.UserQueries/UserQueryMenu'
 import { UserChartEntity, UserChartOperation } from '../UserChart/Signum.Chart.UserChart'
 
@@ -161,7 +160,7 @@ export default function UserChartMenu(p: UserChartMenuProps) {
   const crView = p.chartRequestView;
   const label = !crView.userChart ? UserChartEntity.nicePluralName() : getToString(crView.userChart)
 
-  var canSave = tryGetOperationInfo(UserChartOperation.Save, UserChartEntity) != null;
+  var canSave = UserChartEntity.tryOperationInfo(UserChartOperation.Save) != null;
 
   return (
     <Dropdown onToggle={() => setIsOpen(!isOpen)} show={isOpen}>
@@ -194,16 +193,16 @@ export default function UserChartMenu(p: UserChartMenuProps) {
           })}
         </div>
         {Boolean(userCharts?.length) && <Dropdown.Divider />}
-        {crView.userChart && canSave && <Dropdown.Item onClick={handleApplyChanges} ><FontAwesomeIcon icon={["fas", "share-from-square"]} className="me-2" />{ChartMessage.ApplyChanges.niceToString()}</Dropdown.Item>}
-        {crView.userChart && canSave && <Dropdown.Item onClick={handleEdit}><FontAwesomeIcon icon={["fas", "pen-to-square"]} className="me-2" />{ChartMessage.Edit.niceToString()}</Dropdown.Item>}
-        {canSave && <Dropdown.Item onClick={handleCreate}><FontAwesomeIcon icon={["fas", "plus"]} className="me-2" />{ChartMessage.CreateNew.niceToString()}</Dropdown.Item>}
+        {crView.userChart && canSave && <Dropdown.Item onClick={handleApplyChanges} ><FontAwesomeIcon icon={"share-from-square"} className="me-2" />{ChartMessage.ApplyChanges.niceToString()}</Dropdown.Item>}
+        {crView.userChart && canSave && <Dropdown.Item onClick={handleEdit}><FontAwesomeIcon icon={"pen-to-square"} className="me-2" />{ChartMessage.Edit.niceToString()}</Dropdown.Item>}
+        {canSave && <Dropdown.Item onClick={handleCreate}><FontAwesomeIcon icon={"plus"} className="me-2" />{ChartMessage.CreateNew.niceToString()}</Dropdown.Item>}
       </Dropdown.Menu>
     </Dropdown>
   );
 
   function handleSearchKeyDown(e: React.KeyboardEvent<any>) {
 
-    if (!e.shiftKey && e.keyCode == KeyCodes.down) {
+    if (!e.shiftKey && e.key == KeyNames.arrowDown) {
 
       e.preventDefault();
       const div = document.getElementById("userchart-items-container")!;

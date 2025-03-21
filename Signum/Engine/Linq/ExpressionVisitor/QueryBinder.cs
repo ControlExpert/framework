@@ -323,16 +323,40 @@ internal class QueryBinder : ExpressionVisitor
             {
                 ee = Completed(ee);
 
+                if (m is MethodInfo mi && mi.Name == nameof(Entity.Mixin))
+                {
+                    var type = mi.GetGenericArguments()[0];
 
+                    var newMixin = (MixinEntityExpression)ChangeProjector(index + 1, members, ee.Mixins!.SingleEx(a=>a.Type == type), changeExpression);
+
+                    var mixins = ee.Mixins!.Select(mixin => mixin.Type == type ? newMixin : mixin);
+
+                    return new EntityExpression(ee.Type, ee.ExternalId, ee.ExternalPeriod, ee.TableAlias, ee.Bindings, mixins, ee.TablePeriod, ee.AvoidExpandOnRetrieving);
+                }
+                else
+                {
+                    var fi = m as FieldInfo ?? Reflector.FindFieldInfo(m.DeclaringType!, (PropertyInfo)m);
+
+                    var newBinding = ChangeProjector(index + 1, members, ee.GetBinding(fi), changeExpression);
+
+                    var binding = ee.Bindings!.Select(fb =>
+                    !ReflectionTools.FieldEquals(fb.FieldInfo, fi) ? fb :
+                    new FieldBinding(fi, newBinding));
+
+                    return new EntityExpression(ee.Type, ee.ExternalId, ee.ExternalPeriod, ee.TableAlias, binding, ee.Mixins, ee.TablePeriod, ee.AvoidExpandOnRetrieving);
+                }
+            }
+            if (projector is MixinEntityExpression mee)
+            {
                 var fi = m as FieldInfo ?? Reflector.FindFieldInfo(m.DeclaringType!, (PropertyInfo)m);
 
-                var newBinding = ChangeProjector(index + 1, members, ee.GetBinding(fi), changeExpression);
+                var newBinding = ChangeProjector(index + 1, members, mee.GetBinding(fi), changeExpression);
 
-                var binding = ee.Bindings!.Select(fb =>
+                var binding = mee.Bindings!.Select(fb =>
                 !ReflectionTools.FieldEquals(fb.FieldInfo, fi) ? fb :
                 new FieldBinding(fi, newBinding));
 
-                return new EntityExpression(ee.Type, ee.ExternalId, ee.ExternalPeriod, ee.TableAlias, binding, ee.Mixins, ee.TablePeriod, ee.AvoidExpandOnRetrieving);
+                return new MixinEntityExpression(mee.Type, binding, mee.MainEntityAlias, mee.FieldMixin, mee.EntityContext);
             }
             else if (projector is NewExpression ne)
             {
@@ -1406,7 +1430,7 @@ internal class QueryBinder : ExpressionVisitor
             throw new UnexpectedValueException(table);
 
         Type resultType = typeof(IQueryable<>).MakeGenericType(query.ElementType);
-        TableExpression tableExpression = new TableExpression(tableAlias, table, table.SystemVersioned != null ? this.systemTime : null, currentTableHint);
+        TableExpression tableExpression = new TableExpression(tableAlias, table, st.SystemTime ?? (table.SystemVersioned != null ? this.systemTime : null), currentTableHint);
         currentTableHint = null;
 
         if (this.systemTime is SystemTime.Interval inter && inter.JoinBehaviour == JoinBehaviour.Current)
@@ -1715,7 +1739,7 @@ internal class QueryBinder : ExpressionVisitor
             return tablePeriod;
         }
 
-        if (m.Method.DeclaringType == typeof(TypeEntityExtensions) && m.Method.Name == nameof(TypeEntityExtensions.ToTypeEntity))
+        if (m.Method.DeclaringType == typeof(TypeLogic) && m.Method.Name == nameof(TypeLogic.ToTypeEntity))
         {
             var arg = m.Arguments[0];
 
@@ -2050,7 +2074,7 @@ internal class QueryBinder : ExpressionVisitor
                                     {
                                         "RowId" => mle.RowId.UnNullify(),
                                         "Parent" => mle.Parent,
-                                        "RowOrder" => mle.Order.ThrowIfNull(() => "{0} has no {1}".FormatWith(mle.Table.Name, m.Member.Name)),
+                                        "RowOrder" => mle.Order ?? throw new InvalidOperationException("{0} has no {1}".FormatWith(mle.Table.Name, m.Member.Name)),
                                         "Element" => mle.Element,
                                         _ => throw new InvalidOperationException("The member {0} of MListElement is not accesible on queries".FormatWith(m.Member)),
                                     };
@@ -2582,7 +2606,7 @@ internal class QueryBinder : ExpressionVisitor
         {
             var vn = eee.ViewTable!;
 
-            Expression id = vn.GetIdExpression(aliasGenerator.Table(vn.Name)).ThrowIfNull(() => $"{vn.Name} has no primary name");
+            Expression id = vn.GetIdExpression(aliasGenerator.Table(vn.Name)) ?? throw new InvalidOperationException($"{vn.Name} has no primary name");
 
             commands.Add(new DeleteExpression(vn, false, pr.Select, SmartEqualizer.EqualNullable(id, eee.GetViewId()), returnRowCount: true, alias: null));
         }
@@ -2666,7 +2690,7 @@ internal class QueryBinder : ExpressionVisitor
         }
         else if (entity is EmbeddedEntityExpression eee)
         {
-            Expression id = eee.ViewTable!.GetIdExpression(aliasGenerator.Table(eee.ViewTable!.GetName(isHistory))).ThrowIfNull(() => $"{eee.ViewTable} has not primary key");
+            Expression id = eee.ViewTable!.GetIdExpression(aliasGenerator.Table(eee.ViewTable!.GetName(isHistory))) ?? throw new InvalidOperationException($"{eee.ViewTable} has not primary key");
 
             condition = SmartEqualizer.EqualNullable(id, eee.GetViewId());
             table = eee.ViewTable!;
@@ -2940,6 +2964,9 @@ internal class QueryBinder : ExpressionVisitor
 
         var result = currentSource.FirstOrDefault(s => //could be more than one on GroupBy aggregates
         {
+            if (s == null)
+                return false;
+
             if (external.IsEmpty())
                 return true;
 
@@ -4160,8 +4187,4 @@ public class CurrentSourceNotFoundException : Exception
     public CurrentSourceNotFoundException() { }
     public CurrentSourceNotFoundException(string message) : base(message) { }
     public CurrentSourceNotFoundException(string message, Exception inner) : base(message, inner) { }
-    protected CurrentSourceNotFoundException(
-      System.Runtime.Serialization.SerializationInfo info,
-      System.Runtime.Serialization.StreamingContext context)
-        : base(info, context) { }
 }

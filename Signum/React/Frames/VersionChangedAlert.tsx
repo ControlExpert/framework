@@ -57,7 +57,7 @@ export function VersionInfo(p: { extraInformation?: string }) {
   );
 }
 
-function VersionInfoTooltip(p: { extraInformation?: string}) {
+export function VersionInfoTooltip(p: { extraInformation?: string}) {
 
   var bt = DateTime.fromISO(VersionFilter.initialBuildTime!);
 
@@ -69,7 +69,7 @@ function VersionInfoTooltip(p: { extraInformation?: string}) {
       <br />
       {bt.toFormat("tt")} ({bt.toRelative()})
       {p.extraInformation && <br/>}
-      {p.extraInformation}
+      {p.extraInformation?.split("\n").joinHtml(<br/>)}
     </div>
   );
 }

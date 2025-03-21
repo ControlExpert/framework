@@ -9,7 +9,7 @@ import ContextMenu from '@framework/SearchControl/ContextMenu'
 import { ContextMenuPosition } from '@framework/SearchControl/ContextMenu'
 import * as Operations from '@framework/Operations'
 import { SearchMessage, JavascriptMessage, EntityControlMessage, toLite, liteKey, getToString } from '@framework/Signum.Entities'
-import { TreeViewerMessage, TreeEntity, TreeOperation, MoveTreeModel } from './Signum.Tree'
+import { TreeViewerMessage, TreeEntity, TreeOperation, MoveTreeModel, TreeMessage } from './Signum.Tree'
 import * as TreeClient from './TreeClient'
 import { FilterOptionParsed, QueryDescription, SubTokensOptions, FilterOption } from "@framework/FindOptions";
 import FilterBuilder from "@framework/SearchControl/FilterBuilder";
@@ -21,7 +21,7 @@ import { tryGetMixin } from "@framework/Signum.Entities";
 import { Dropdown, DropdownButton } from 'react-bootstrap';
 import { toFilterRequests } from '@framework/Finder';
 import "./TreeViewer.css"
-import { QueryTokenString } from '@framework/Reflection';
+import { QueryTokenString, tryGetOperationInfo } from '@framework/Reflection';
 import * as Hooks from '@framework/Hooks'
 import SearchPage from '@framework/SearchControl/SearchPage'
 import { DisabledMixin } from '@framework/Signum.Basics'
@@ -257,9 +257,9 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
     let type = this.props.typeName;
 
     var menuItems = [
-      Navigator.isViewable(type, { isSearch: true }) && <Dropdown.Item onClick={this.handleView} className="btn-danger"><FontAwesomeIcon icon="arrow-right" />&nbsp;{EntityControlMessage.View.niceToString()}</Dropdown.Item >,
-      Operations.tryGetOperationInfo(TreeOperation.CreateChild, type) && <Dropdown.Item onClick={this.handleAddChildren}><FontAwesomeIcon icon="square-caret-right" />&nbsp;{TreeViewerMessage.AddChild.niceToString()}</Dropdown.Item>,
-      Operations.tryGetOperationInfo(TreeOperation.CreateNextSibling, type) && <Dropdown.Item onClick={this.handleAddSibling}><FontAwesomeIcon icon="square-caret-down" />&nbsp;{TreeViewerMessage.AddSibling.niceToString()}</Dropdown.Item>,
+      Navigator.isViewable(type, { isSearch: "main" }) && <Dropdown.Item onClick={this.handleView} className="btn-danger"><FontAwesomeIcon icon="arrow-right" />&nbsp;{EntityControlMessage.View.niceToString()}</Dropdown.Item >,
+      tryGetOperationInfo(TreeOperation.CreateChild, type) && <Dropdown.Item onClick={this.handleAddChildren}><FontAwesomeIcon icon="square-caret-right" />&nbsp;{TreeViewerMessage.AddChild.niceToString()}</Dropdown.Item>,
+      tryGetOperationInfo(TreeOperation.CreateNextSibling, type) && <Dropdown.Item onClick={this.handleAddSibling}><FontAwesomeIcon icon="square-caret-down" />&nbsp;{TreeViewerMessage.AddSibling.niceToString()}</Dropdown.Item>,
       <Dropdown.Item onClick={this.handleCopyClick}><FontAwesomeIcon icon="copy" />&nbsp;{SearchMessage.Copy.niceToString()}</Dropdown.Item>,
     ].filter(a => a != false) as React.ReactElement<any>[];
 
@@ -413,7 +413,7 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
           onClick={this.handleToggleFilters}
           title={s.showFilters ? JavascriptMessage.hideFilters.niceToString() : JavascriptMessage.showFilters.niceToString()}><FontAwesomeIcon icon="filter" /></a>
         <button className="btn btn-primary" onClick={this.handleSearchSubmit}>{JavascriptMessage.search.niceToString()}</button>
-        {Operations.tryGetOperationInfo(TreeOperation.CreateRoot, this.props.typeName) && <button className="btn btn-light" onClick={this.handleAddRoot} disabled={s.treeNodes == null} > <FontAwesomeIcon icon="star" />&nbsp;{TreeViewerMessage.AddRoot.niceToString()}</button>}
+        {tryGetOperationInfo(TreeOperation.CreateRoot, this.props.typeName) && <button className="btn btn-light" onClick={this.handleAddRoot} disabled={s.treeNodes == null} > <FontAwesomeIcon icon="star" />&nbsp;{TreeViewerMessage.AddRoot.niceToString()}</button>}
         <Dropdown
           onToggle={this.handleSelectedToggle}
           show={s.isSelectOpen}>
@@ -428,7 +428,7 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
                 menuItems.map((e, i) => React.cloneElement(e, { key: i }))}
           </Dropdown.Menu>
         </Dropdown>
-        <button className="btn btn-light" onClick={this.handleExplore} ><FontAwesomeIcon icon="magnifying-glass" /> &nbsp; {SearchMessage.Explore.niceToString()}</button>
+        <button className="btn btn-light" onClick={this.handleExplore} ><FontAwesomeIcon icon="magnifying-glass" /> &nbsp; {TreeMessage.ListView.niceToString()}</button>
       </div>
     );
   }

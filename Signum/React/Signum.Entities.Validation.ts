@@ -63,6 +63,7 @@ export module ValidationMessage {
   export const TheLengthOf0HasToBeLesserOrEqualTo1 = new MessageKey("ValidationMessage", "TheLengthOf0HasToBeLesserOrEqualTo1");
   export const TheNumberOf0IsBeingMultipliedBy1 = new MessageKey("ValidationMessage", "TheNumberOf0IsBeingMultipliedBy1");
   export const TheRowsAreBeingGroupedBy0 = new MessageKey("ValidationMessage", "TheRowsAreBeingGroupedBy0");
+  export const EachRowRepresentsAGroupOf0WithSame1 = new MessageKey("ValidationMessage", "EachRowRepresentsAGroupOf0WithSame1");
   export const TheNumberOfElementsOf0HasToBe12 = new MessageKey("ValidationMessage", "TheNumberOfElementsOf0HasToBe12");
   export const Type0NotAllowed = new MessageKey("ValidationMessage", "Type0NotAllowed");
   export const _0IsMandatoryWhen1IsNotSet = new MessageKey("ValidationMessage", "_0IsMandatoryWhen1IsNotSet");
@@ -75,6 +76,7 @@ export module ValidationMessage {
   export const _0ShouldBeNullWhen1IsSetTo2 = new MessageKey("ValidationMessage", "_0ShouldBeNullWhen1IsSetTo2");
   export const _0ShouldBeNull = new MessageKey("ValidationMessage", "_0ShouldBeNull");
   export const _0ShouldBeADateInThePast = new MessageKey("ValidationMessage", "_0ShouldBeADateInThePast");
+  export const _0ShouldBeADateInTheFuture = new MessageKey("ValidationMessage", "_0ShouldBeADateInTheFuture");
   export const BeInThePast = new MessageKey("ValidationMessage", "BeInThePast");
   export const _0ShouldBeGreaterThan1 = new MessageKey("ValidationMessage", "_0ShouldBeGreaterThan1");
   export const _0ShouldBeGreaterThanOrEqual1 = new MessageKey("ValidationMessage", "_0ShouldBeGreaterThanOrEqual1");

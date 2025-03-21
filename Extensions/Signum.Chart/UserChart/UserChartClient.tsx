@@ -16,7 +16,7 @@ import UserChartMenu from './UserChartMenu'
 import * as ChartClient from '../ChartClient'
 import * as UserAssetsClient from '../../Signum.UserAssets/UserAssetClient'
 import { ImportComponent } from '@framework/ImportComponent'
-import { CombinedUserChartPartEntity, UserChartEntity, UserChartPartEntity } from './Signum.Chart.UserChart';
+import { CombinedUserChartPartEntity, UserChartEntity, UserChartLiteModel, UserChartPartEntity } from './Signum.Chart.UserChart';
 import { QueryTokenEmbedded } from '../../Signum.UserAssets/Signum.UserAssets.Queries';
 import SelectorModal from '@framework/SelectorModal';
 import { UserChartPartHandler } from '../Dashboard/View/UserChartPart';
@@ -37,28 +37,26 @@ export function start(options: { routes: RouteObject[] }) {
 
 
   ChartClient.ButtonBarChart.onButtonBarElements.push(ctx => {
-    if (!AuthClient.isPermissionAuthorized(ChartPermission.ViewCharting) || !Navigator.isViewable(UserChartEntity))
+    if (!AppContext.isPermissionAuthorized(ChartPermission.ViewCharting) || !Navigator.isViewable(UserChartEntity))
       return undefined;
 
     return <UserChartMenu chartRequestView={ctx.chartRequestView} />;
   });
 
-  QuickLinks.registerGlobalQuickLink(ctx => {
-    if (!AuthClient.isPermissionAuthorized(ChartPermission.ViewCharting) || !Navigator.isViewable(UserChartEntity))
-      return undefined;
+  if (AppContext.isPermissionAuthorized(ChartPermission.ViewCharting) && Navigator.isViewable(UserChartEntity))
+    QuickLinks.registerGlobalQuickLink(entityType =>
+      API.forEntityType(entityType)
+        .then(ucs => ucs.map(uc =>
+          new QuickLinks.QuickLinkAction(liteKey(uc), () => getToString(uc), (ctx, e) => window.open(AppContext.toAbsoluteUrl(`/userChart/${uc.id}/${liteKey(ctx.lite)}`)),
+            {
+              onlyForToken: (uc.model as UserChartLiteModel).hideQuickLink,
+              icon: "chart-bar", iconColor: "darkviolet"
+            }
+          ))
+        ));
 
-    var promise = ctx.widgetContext ?
-      Promise.resolve(ctx.widgetContext.frame.pack.userCharts ?? []) :
-      API.forEntityType(ctx.lite.EntityType);
-
-    return promise.then(uqs =>
-      uqs.map(uc => new QuickLinks.QuickLinkAction(liteKey(uc), () => getToString(uc) ?? "", e => {
-        window.open(AppContext.toAbsoluteUrl(`/userChart/${uc.id}/${liteKey(ctx.lite)}`));
-      }, { icon: "chart-bar", iconColor: "darkviolet" })));
-  });
-
-  QuickLinks.registerQuickLink(UserChartEntity, ctx => new QuickLinks.QuickLinkAction("preview", () => ChartMessage.Preview.niceToString(),
-    e => {
+  QuickLinks.registerQuickLink(UserChartEntity, new QuickLinks.QuickLinkAction("preview", () => ChartMessage.Preview.niceToString(),
+    ctx => {
       Navigator.API.fetchAndRemember(ctx.lite).then(uc => {
         if (uc.entityType == undefined)
           window.open(AppContext.toAbsoluteUrl(`/userChart/${uc.id}`));
@@ -71,8 +69,12 @@ export function start(options: { routes: RouteObject[] }) {
 
               window.open(AppContext.toAbsoluteUrl(`/userChart/${uc.id}/${liteKey(lite)}`));
             });
-      });
-    }, { isVisible: AuthClient.isPermissionAuthorized(ChartPermission.ViewCharting), group: null, icon: "eye", iconColor: "blue", color: "info" }));
+      })
+    },
+    {
+      isVisible: AppContext.isPermissionAuthorized(ChartPermission.ViewCharting), group: null, icon: "eye", iconColor: "blue", color: "info"
+    }
+  ));
 
 
   Navigator.addSettings(new EntitySettings(UserChartEntity, e => import('./UserChart'), { isCreable: "Never" }));
@@ -91,7 +93,7 @@ export function start(options: { routes: RouteObject[] }) {
         ev.preventDefault();
         return Navigator.view(c.userChart!).then(e => Boolean(e));
       },
-    handleTitleClick: !AuthClient.isPermissionAuthorized(ChartPermission.ViewCharting) ? undefined :
+    handleTitleClick: !AppContext.isPermissionAuthorized(ChartPermission.ViewCharting) ? undefined :
       (p, e, cdRef, ev) => {
         ev.preventDefault();
         ev.persist();
@@ -130,7 +132,7 @@ export function start(options: { routes: RouteObject[] }) {
           .then(lite => lite && Navigator.view(lite!))
           .then(entity => Boolean(entity));
       },
-    handleTitleClick: !AuthClient.isPermissionAuthorized(ChartPermission.ViewCharting) ? undefined :
+    handleTitleClick: !AppContext.isPermissionAuthorized(ChartPermission.ViewCharting) ? undefined :
       (c, e, cdRef, ev) => {
         ev.preventDefault();
         ev.persist();

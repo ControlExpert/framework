@@ -8,14 +8,15 @@ using Signum.UserAssets.Queries;
 using Signum.UserAssets.QueryTokens;
 using Signum.UserQueries;
 using Signum.ViewLog;
+using System.Collections.Frozen;
 
 namespace Signum.Chart.UserChart;
 
 public static class UserChartLogic
 {
-    public static ResetLazy<Dictionary<Lite<UserChartEntity>, UserChartEntity>> UserCharts = null!;
-    public static ResetLazy<Dictionary<Type, List<Lite<UserChartEntity>>>> UserChartsByTypeForQuickLinks = null!;
-    public static ResetLazy<Dictionary<object, List<Lite<UserChartEntity>>>> UserChartsByQuery = null!;
+    public static ResetLazy<FrozenDictionary<Lite<UserChartEntity>, UserChartEntity>> UserCharts = null!;
+    public static ResetLazy<FrozenDictionary<Type, List<Lite<UserChartEntity>>>> UserChartsByType = null!;
+    public static ResetLazy<FrozenDictionary<object, List<Lite<UserChartEntity>>>> UserChartsByQuery = null!;
 
     [AutoExpressionField]
     public static IQueryable<CachedQueryEntity> CachedQueries(this UserChartEntity uc) =>
@@ -31,6 +32,7 @@ public static class UserChartLogic
 
             sb.Include<UserChartEntity>()
                 .WithExpressionTo((UserChartEntity d) => d.CachedQueries())
+                .WithLiteModel(uq => new UserChartLiteModel { DisplayName = uq.DisplayName, Query = uq.Query, HideQuickLink = uq.HideQuickLink })
                 .WithSave(UserChartOperation.Save)
                 .WithDelete(UserChartOperation.Delete)
                 .WithQuery(() => uq => new
@@ -146,15 +148,15 @@ public static class UserChartLogic
               Administrator.UnsafeDeletePreCommand(Database.Query<UserChartEntity>().Where(a => a.Query.Is(e)));
 
 
-            UserCharts = sb.GlobalLazy(() => Database.Query<UserChartEntity>().ToDictionary(a => a.ToLite()),
+            UserCharts = sb.GlobalLazy(() => Database.Query<UserChartEntity>().ToFrozenDictionaryEx(a => a.ToLite()),
                 new InvalidateWith(typeof(UserChartEntity)));
 
-            UserChartsByQuery = sb.GlobalLazy(() => UserCharts.Value.Values.Where(a => a.EntityType == null).SelectCatch(uc => KeyValuePair.Create(uc.Query.ToQueryName(), uc.ToLite())).GroupToDictionary(),
+            UserChartsByQuery = sb.GlobalLazy(() => UserCharts.Value.Values.Where(a => a.EntityType == null).SelectCatch(uc => KeyValuePair.Create(uc.Query.ToQueryName(), uc.ToLite())).GroupToDictionary().ToFrozenDictionary(),
                 new InvalidateWith(typeof(UserChartEntity)));
 
-            UserChartsByTypeForQuickLinks = sb.GlobalLazy(() => UserCharts.Value.Values.Where(a => a.EntityType != null && !a.HideQuickLink)
+            UserChartsByType = sb.GlobalLazy(() => UserCharts.Value.Values.Where(a => a.EntityType != null)
             .SelectCatch(a => KeyValuePair.Create(TypeLogic.IdToType.GetOrThrow(a.EntityType!.Id), a.ToLite()))
-            .GroupToDictionary(),
+            .GroupToDictionary().ToFrozenDictionary(),
                 new InvalidateWith(typeof(UserChartEntity)));
         }
     }
@@ -196,19 +198,31 @@ public static class UserChartLogic
         return UserChartsByQuery.Value.TryGetC(queryName).EmptyIfNull()
             .Select(lite => UserCharts.Value.GetOrThrow(lite))
             .Where(uc => isAllowed(uc))
-            .Select(uc => uc.ToLite(PropertyRouteTranslationLogic.TranslatedField(uc, d => d.DisplayName)))
+            .Select(uc => uc.ToLite(UserChartLiteModel.Translated(uc)))
             .ToList();
     }
 
-    public static List<Lite<UserChartEntity>> GetUserChartsEntity(Type entityType)
+    public static IEnumerable<UserChartEntity> GetUserChartsEntity(Type entityType)
     {
         var isAllowed = Schema.Current.GetInMemoryFilter<UserChartEntity>(userInterface: false);
 
-        return UserChartsByTypeForQuickLinks.Value.TryGetC(entityType).EmptyIfNull()
+        return UserChartsByType.Value.TryGetC(entityType).EmptyIfNull()
             .Select(lite => UserCharts.Value.GetOrThrow(lite))
-            .Where(uc => isAllowed(uc))
-            .Select(uc => uc.ToLite(PropertyRouteTranslationLogic.TranslatedField(uc, d => d.DisplayName)))
-            .ToList();
+            .Where(uc => isAllowed(uc));
+    }
+
+    public static List<Lite<UserChartEntity>> GetUserCharts(Type entityType)
+    {
+        return GetUserChartsEntity(entityType)
+              .Select(uc => uc.ToLite(UserChartLiteModel.Translated(uc)))
+              .ToList();
+    }
+
+    public static List<Lite<UserChartEntity>> GetUserChartsModel(Type entityType)
+    {
+        return GetUserChartsEntity(entityType)
+             .Select(uc => uc.ToLite(UserChartLiteModel.Translated(uc)))
+             .ToList();
     }
 
     public static List<Lite<UserChartEntity>> Autocomplete(string subString, int limit)
@@ -260,13 +274,7 @@ public static class UserChartLogic
     {
         sb.Schema.Settings.AssertImplementedBy((UserChartEntity uq) => uq.Owner, typeof(UserEntity));
 
-        TypeConditionLogic.RegisterCompile<UserChartEntity>(typeCondition, uq => uq.Owner.Is(UserEntity.Current));
-
-        TypeConditionLogic.Register<UserChartPartEntity>(typeCondition,
-             ucp => Database.Query<DashboardEntity>().WhereCondition(typeCondition).Any(d => d.ContainsContent(ucp)));
-
-        TypeConditionLogic.Register<CombinedUserChartPartEntity>(typeCondition,
-            ucp => Database.Query<DashboardEntity>().WhereCondition(typeCondition).Any(d => d.ContainsContent(ucp)));
+        RegisterTypeCondition(typeCondition, uq => uq.Owner.Is(UserEntity.Current));
     }
 
 
@@ -274,8 +282,12 @@ public static class UserChartLogic
     {
         sb.Schema.Settings.AssertImplementedBy((UserChartEntity uq) => uq.Owner, typeof(RoleEntity));
 
-        TypeConditionLogic.RegisterCompile<UserChartEntity>(typeCondition,
-            uq => AuthLogic.CurrentRoles().Contains(uq.Owner) || uq.Owner == null);
+        RegisterTypeCondition(typeCondition, uq => AuthLogic.CurrentRoles().Contains(uq.Owner) || uq.Owner == null);
+    }
+
+    public static void RegisterTypeCondition(TypeConditionSymbol typeCondition, Expression<Func<UserChartEntity, bool>> conditionExpression)
+    {
+        TypeConditionLogic.RegisterCompile<UserChartEntity>(typeCondition, conditionExpression);
 
         TypeConditionLogic.Register<UserChartPartEntity>(typeCondition,
              ucp => Database.Query<DashboardEntity>().WhereCondition(typeCondition).Any(d => d.ContainsContent(ucp)));
@@ -286,9 +298,9 @@ public static class UserChartLogic
 
     public static void RegisterTranslatableRoutes()
     {
-        PropertyRouteTranslationLogic.AddRoute((UserChartEntity uc) => uc.DisplayName);
-        PropertyRouteTranslationLogic.AddRoute((UserChartEntity uq) => uq.Columns[0].DisplayName);
-        PropertyRouteTranslationLogic.AddRoute((UserChartEntity uq) => uq.Filters[0].Pinned!.Label);
+        PropertyRouteTranslationLogic.RegisterRoute((UserChartEntity uc) => uc.DisplayName);
+        PropertyRouteTranslationLogic.RegisterRoute((UserChartEntity uq) => uq.Columns[0].DisplayName);
+        PropertyRouteTranslationLogic.RegisterRoute((UserChartEntity uq) => uq.Filters[0].Pinned!.Label);
     }
 
     static SqlPreCommand? Schema_Synchronizing(Replacements replacements)
@@ -355,7 +367,7 @@ public static class UserChartLogic
                                     continue;
 
                                 QueryTokenEmbedded token = item.Token;
-                                switch (QueryTokenSynchronizer.FixToken(replacements, ref token, qd, SubTokensOptions.CanElement | SubTokensOptions.CanAggregate, " " + item.ScriptColumn.DisplayName, allowRemoveToken: item.ScriptColumn.IsOptional, allowReCreate: false))
+                                switch (QueryTokenSynchronizer.FixToken(replacements, ref token, qd, SubTokensOptions.CanElement | SubTokensOptions.CanAggregate, " " + item.ScriptColumn.GetDisplayName, allowRemoveToken: item.ScriptColumn.IsOptional, allowReCreate: false))
                                 {
                                     case FixTokenResult.Nothing: break;
                                     case FixTokenResult.DeleteEntity: return table.DeleteSqlSync(uc, u => u.Guid == uc.Guid);
@@ -407,7 +419,7 @@ public static class UserChartLogic
 
                 try
                 {
-                    return table.UpdateSqlSync(uc, u => u.Guid == uc.Guid, includeCollections: true);
+                    return table.UpdateSqlSync(uc, u => u.Guid == uc.Guid && u.Ticks == uc.Ticks, includeCollections: true)?.TransactionBlock($"UserChart Guid = {uc.Guid} Ticks = {uc.Ticks} ({uc})"); ;
                 }
                 catch (Exception e)
                 {

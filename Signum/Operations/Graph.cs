@@ -1,3 +1,4 @@
+using Signum.Entities;
 using Signum.Security;
 using System.Collections;
 
@@ -106,8 +107,16 @@ public class Graph<T>
                         {
                             using (var tr2 = Transaction.ForceNew())
                             {
-                                log.Exception = exLog.ToLite();
-                                log.End = Clock.Now;
+                                OperationLogEntity newLog = new OperationLogEntity //Transaction has been rollbacked
+                                {
+                                    Operation = log.Operation,
+                                    Start = log.Start,
+                                    User = log.User,
+                                    End = Clock.Now,
+                                    Target = null,
+                                    Exception = exLog.ToLite(),
+                                };
+
                                 log.SaveLog();
 
                                 tr2.Commit();
@@ -285,8 +294,16 @@ public class Graph<T>
                         {
                             using (var tr2 = Transaction.ForceNew())
                             {
-                                log.Exception = exLog.ToLite();
-                                log.End = Clock.Now;
+                                OperationLogEntity newLog = new OperationLogEntity //Transaction has been rollbacked
+                                {
+                                    Operation = log.Operation,
+                                    Start = log.Start,
+                                    User = log.User,
+                                    End = Clock.Now,
+                                    Origin = log.Origin,
+                                    Target = null,
+                                    Exception = exLog.ToLite(),
+                                };
                                 log.SaveLog();
 
                                 tr2.Commit();
@@ -431,8 +448,15 @@ public class Graph<T>
                         {
                             using (var tr2 = Transaction.ForceNew())
                             {
-                                log.Exception = exLog.ToLite();
-                                log.End = Clock.Now;
+                                OperationLogEntity newLog = new OperationLogEntity //Transaction has been rollbacked
+                                {
+                                    Operation = log.Operation,
+                                    Start = log.Start,
+                                    User = log.User,
+                                    End = Clock.Now,
+                                    Target = null,
+                                    Exception = exLog.ToLite(),
+                                };
                                 log.SaveLog();
 
                                 tr2.Commit();
@@ -478,6 +502,7 @@ public class Graph<T>
         Type? IOperation.StateType => null;
         LambdaExpression? IOperation.GetStateExpression() => null;
         public bool AvoidImplicitSave { get; set; }
+        public bool ForReadonlyEntity { get; set; }
 
         Type IEntityOperation.BaseType => Symbol.BaseType;
         bool IEntityOperation.HasCanExecute => CanExecute != null;
@@ -534,7 +559,6 @@ public class Graph<T>
             {
                 OperationLogic.AssertOperationAllowed(Symbol.Symbol, entity.GetType(), inUserInterface: false);
 
-
                 OperationLogEntity log = new OperationLogEntity
                 {
                     Operation = Symbol.Symbol,
@@ -564,6 +588,9 @@ public class Graph<T>
 
                                 if (!AvoidImplicitSave)
                                     entity.Save(); //Nothing happens if already saved
+                                else if (ForReadonlyEntity && GraphExplorer.IsGraphModified((Entity)entity))
+                                    throw new InvalidOperationException("Entity is modified but ForReadonlyEntity is true");
+                                    
 
                                 log.SetTarget(entity);
                                 log.End = Clock.Now;
@@ -619,6 +646,17 @@ public class Graph<T>
 
             if (Execute == null)
                 throw new InvalidOperationException("Operation {0} does not have Execute initialized".FormatWith(Symbol));
+
+            if (ForReadonlyEntity)
+            {
+                AvoidImplicitSave = true;
+
+                if(CanBeModified)
+                    throw new InvalidOperationException("Operation {0}: CanBeModified is not compatible with OnlyReadyEntity".FormatWith(Symbol));
+
+                if (CanBeNew)
+                    throw new InvalidOperationException("Operation {0}: CanBeNew is not compatible with OnlyReadyEntity".FormatWith(Symbol));
+            }
         }
 
         public override string ToString()
@@ -734,9 +772,15 @@ public class Graph<T>
 
                             using (var tr2 = Transaction.ForceNew())
                             {
-                                log.Target = entity.ToLite();
-                                log.Exception = exLog.ToLite();
-                                log.End = Clock.Now;
+                                OperationLogEntity newLog = new OperationLogEntity //Transaction has been rollbacked
+                                {
+                                    Operation = log.Operation,
+                                    Start = log.Start,
+                                    User = log.User,
+                                    End = Clock.Now,
+                                    Target = log.Target,
+                                    Exception = exLog.ToLite(),
+                                };
                                 log.SaveLog();
 
                                 tr2.Commit();

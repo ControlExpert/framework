@@ -63,8 +63,6 @@ public enum UserAssetMessage
     SelectTheXmlFileWithTheUserAssetsThatYouWantToImport,
     SelectTheEntitiesToOverride,
     SucessfullyImported,
-    SwitchToValue,
-    SwitchToExpression,
     [Description("Looks like some entities in {0} do not exist or have a different meanign in this database...")]
     LooksLikeSomeEntitiesIn0DoNotExistsOrHaveADifferentMeaningInThisDatabase,
     [Description("Same selection for all conflicts of {0}")]
@@ -127,6 +125,13 @@ public interface IUserAssetEntity : IEntity
     Guid Guid { get; set; }
 
     XElement ToXml(IToXmlContext ctx);
+
+    void FromXml(XElement element, IFromXmlContext ctx);
+}
+
+public interface IUserAssetMixin 
+{
+    void ToXml(XElement elementToExpand, IToXmlContext ctx);
 
     void FromXml(XElement element, IFromXmlContext ctx);
 }

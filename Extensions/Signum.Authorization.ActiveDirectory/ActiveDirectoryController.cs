@@ -7,38 +7,15 @@ using Signum.API.Filters;
 using Signum.Authorization;
 using Signum.Authorization.AuthToken;
 using Signum.Authorization.Rules;
+using Signum.Authorization.ActiveDirectory.Azure;
+using Signum.Authorization.ActiveDirectory.Windows;
 
 namespace Signum.Authorization.ActiveDirectory;
 
 [ValidateModelFilter]
 public class ActiveDirectoryController : ControllerBase
 {
-    [HttpPost("api/auth/loginWindowsAuthentication"), Authorize, SignumAllowAnonymous]
-    public LoginResponse? LoginWindowsAuthentication(bool throwError)
-    {
-        if (!WindowsAuthenticationServer.LoginWindowsAuthentication(ControllerContext, throwError))
-            return null;
-
-        var user = UserEntity.Current.Retrieve();
-
-        var token = AuthTokenServer.CreateToken(user);
-
-        return new LoginResponse { userEntity = user, token = token, authenticationType = "windows" };
-    }
-
-    [HttpPost("api/auth/loginWithAzureAD"), SignumAllowAnonymous]
-    public LoginResponse? LoginWithAzureAD([FromBody, Required] string jwt, [FromQuery] bool throwErrors = true)
-    {
-        if (!AzureADAuthenticationServer.LoginAzureADAuthentication(ControllerContext, jwt, throwErrors))
-            return null;
-
-        var user = UserEntity.Current.Retrieve();
-
-        var token = AuthTokenServer.CreateToken(user);
-
-        return new LoginResponse { userEntity = user, token = token, authenticationType = "azureAD" };
-    }
-
+   
     [HttpGet("api/findADUsers")]
     public Task<List<ActiveDirectoryUser>> FindADUsers(string subString, int count, CancellationToken token)
     {
@@ -49,7 +26,7 @@ public class ActiveDirectoryController : ControllerBase
             return AzureADLogic.FindActiveDirectoryUsers(subString, count, token);
 
         if (config.DomainName.HasText())
-            return ActiveDirectoryLogic.SearchUser(subString);
+            return WindowsActiveDirectoryLogic.SearchUser(subString);
 
         throw new InvalidOperationException($"Neither {nameof(config.Azure_ApplicationID)} or {nameof(config.DomainName)} are set in {config.GetType().Name}");
     }
@@ -66,7 +43,7 @@ public class ActiveDirectoryController : ControllerBase
             return AzureADLogic.CreateUserFromAD(user).ToLite();
 
         if (config.DomainName.HasText())
-            return ActiveDirectoryLogic.CreateUserFromAD(user).ToLite();
+            return WindowsActiveDirectoryLogic.CreateUserFromAD(user).ToLite();
 
         throw new InvalidOperationException($"Neither {nameof(config.Azure_ApplicationID)} or {nameof(config.DomainName)} are set in {config.GetType().Name}");
     }
@@ -103,7 +80,7 @@ public class ActiveDirectoryController : ControllerBase
 
         using (AuthLogic.Disable())
         {
-            var byteArray = ActiveDirectoryLogic.GetProfilePicture(username);
+            var byteArray = WindowsActiveDirectoryLogic.GetProfilePicture(username);
 
             if (byteArray != null)
             {
@@ -121,6 +98,18 @@ public class ActiveDirectoryController : ControllerBase
         }
     }
 
+    [HttpGet("api/cachedAzureUserPhoto/{size}/{oID}")]
+    public async Task<string?> GetCachedUserPhotoUrl(string oId, int size)
+    {
+        this.Response.GetTypedHeaders().CacheControl = new Microsoft.Net.Http.Headers.CacheControlHeaderValue
+        {
+            MaxAge = PictureMaxAge,
+        };
+
+        var cpp = await CachedProfilePhotoLogic.GetOrCreateCachedPicture(new Guid(oId), size);
+
+        return cpp.Photo?.FullWebPath();
+    }
 
     [HttpGet("api/azureUserPhoto/{size}/{oID}"), SignumAllowAnonymous]
     public Task<ActionResult> GetUserPhoto(string oId, int size)
@@ -130,13 +119,12 @@ public class ActiveDirectoryController : ControllerBase
             MaxAge = PictureMaxAge,
         };
 
-        return AzureADLogic.GetUserPhoto(new Guid(oId), size).ContinueWith(ms =>
+        return AzureADLogic.GetUserPhoto(new Guid(oId), size).ContinueWith(task =>
         {
-            if (ms.IsFaulted || ms.IsCanceled)
+            if (task.IsFaulted || task.IsCanceled)
                 return (ActionResult)new NotFoundResult();
 
-            var photo = ms.Result;
-            photo.Position = 0;
+            var photo = task.Result;
             return new FileStreamResult(photo, "image/jpeg");
         });
     }

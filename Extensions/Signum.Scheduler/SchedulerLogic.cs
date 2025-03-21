@@ -5,6 +5,7 @@ using Signum.UserAssets;
 using Signum.Authorization;
 using Signum.Authorization.Rules;
 using Signum.API;
+using System.Collections.ObjectModel;
 
 namespace Signum.Scheduler;
 
@@ -32,7 +33,7 @@ public static class SchedulerLogic
 
     public static Action<ScheduledTaskLogEntity>? OnFinally;
 
-    public static ResetLazy<List<ScheduledTaskEntity>> ScheduledTasksLazy = null!;
+    public static ResetLazy<ReadOnlyCollection<ScheduledTaskEntity>> ScheduledTasksLazy = null!;
 
     public static void Start(SchemaBuilder sb)
     {
@@ -149,14 +150,9 @@ public static class SchedulerLogic
                 Construct = (task, _) => ScheduleTaskRunner.ExecuteSync(task, null, UserHolder.Current.User.Retrieve())
             }.Register();
 
-            new Graph<ITaskEntity>.Execute(ITaskOperation.ExecuteAsync)
-            {
-                Execute = (task, _) => ScheduleTaskRunner.ExecuteAsync(task, null, UserHolder.Current.User.Retrieve())
-            }.Register();
-
             ScheduledTasksLazy = sb.GlobalLazy(() =>
                 Database.Query<ScheduledTaskEntity>().Where(a => !a.Suspended &&
-                    (a.MachineName == ScheduledTaskEntity.None || a.MachineName == Schema.Current.MachineName && a.ApplicationName == Schema.Current.ApplicationName)).ToList(),
+                    (a.MachineName == ScheduledTaskEntity.None || a.MachineName == Schema.Current.MachineName && a.ApplicationName == Schema.Current.ApplicationName)).ToReadOnly(),
                 new InvalidateWith(typeof(ScheduledTaskEntity)));
 
             ScheduledTasksLazy.OnReset += ScheduleTaskRunner.ScheduledTasksLazy_OnReset;

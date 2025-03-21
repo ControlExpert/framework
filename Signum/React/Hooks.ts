@@ -10,6 +10,15 @@ export function useForceUpdate(): () => void {
   return forceUpdate
 }
 
+export function useRefreshKey(): [number, () => void] {
+  const [count, setCount] = React.useState(0);
+  const refreshKey = React.useCallback(() => {
+    setCount(c => c + 1);
+  }, []);
+
+  return [count, refreshKey]
+}
+
 export function useUpdatedRef<T>(newValue: T): React.MutableRefObject<T> {
   const ref = React.useRef(newValue);
   ref.current = newValue;
@@ -186,21 +195,29 @@ export interface APIHookOptions {
   avoidReset?: boolean;
 }
 
-export function useAPIWithReload<T>(makeCall: (signal: AbortSignal, oldData: T | undefined) => Promise<T>, deps: ReadonlyArray<any>, options?: APIHookOptions): [T | undefined, () => void] {
+export function useAPIWithReload<T>(makeCall: (signal: AbortSignal, oldData: T | undefined) => Promise<T> | T, deps: ReadonlyArray<any>, options?: APIHookOptions): [T | undefined, () => void] {
   const [count, setCount] = React.useState(0);
   const value = useAPI<T>(makeCall, [...(deps || []), count], options);
   return [value, () => setCount(c => c + 1)];
 }
 
-export function useAPI<T>(makeCall: (signal: AbortSignal, oldData: T | undefined) => Promise<T>, deps: ReadonlyArray<any>, options?: APIHookOptions): T | undefined {
+export function useAPI<T>(makeCall: (signal: AbortSignal, oldData: T | undefined) => Promise<T> | T, deps: ReadonlyArray<any>, options?: APIHookOptions): T | undefined {
 
   const [data, setData] = React.useState<{ deps: ReadonlyArray<any>; result: T } | undefined>(undefined);
 
   React.useEffect(() => {
     var abortController = new AbortController();
 
-    makeCall(abortController.signal, data && data.result)
-      .then(result => !abortController.signal.aborted && setData({ result, deps }));
+    var promiseOrValue = makeCall(abortController.signal, data && data.result);
+
+    (promiseOrValue instanceof Promise ? promiseOrValue : Promise.resolve(promiseOrValue))
+      .then(result => !abortController.signal.aborted && setData({ result, deps }),
+        error => {
+          if (error instanceof Error && error.name == "AbortError")
+            return;
+
+          throw error;
+        });
 
     return () => {
       abortController.abort();

@@ -9,7 +9,7 @@ import {
   EntityPack, Lite, toLite, newMListElement, Entity, isEntityPack, isEntity, getToString
 } from '@framework/Signum.Entities'
 import { TypeEntity } from '@framework/Signum.Basics'
-import { Type, PropertyRoute, OperationInfo, toNumberFormat } from '@framework/Reflection'
+import { Type, PropertyRoute, OperationInfo, toNumberFormat, getQueryKey, getQueryNiceName, getOperationInfo } from '@framework/Reflection'
 import { TypeContext } from '@framework/TypeContext'
 import * as OmniboxSpecialAction from '@framework/OmniboxSpecialAction'
 import * as Navigator from '@framework/Navigator'
@@ -17,8 +17,6 @@ import * as Finder from '@framework/Finder'
 import { EntityOperationSettings, EntityOperationContext } from '@framework/Operations'
 import * as Operations from '@framework/Operations'
 import { confirmInNecessary, OperationButton } from '@framework/Operations/EntityOperations'
-import * as DynamicViewClient from '../Signum.Dynamic/DynamicViewClient'
-import { CodeContext } from '../Signum.Dynamic/View/NodeUtils'
 import TypeHelpButtonBarComponent from '../Signum.Eval/TypeHelp/TypeHelpButtonBarComponent'
 import {
   WorkflowConditionEval, WorkflowTimerConditionEval, WorkflowActionEval, WorkflowMessage, WorkflowActivityMonitorMessage,
@@ -29,7 +27,7 @@ import ActivityWithRemarks from './Case/ActivityWithRemarks'
 import * as QuickLinks from '@framework/QuickLinks'
 import * as Constructor from '@framework/Constructor'
 import SelectorModal from '@framework/SelectorModal'
-import ValueLineModal from '@framework/ValueLineModal'
+import AutoLineModal from '@framework/AutoLineModal'
 import {
   WorkflowEntity, WorkflowLaneEntity, WorkflowActivityEntity, WorkflowConnectionEntity, WorkflowConditionEntity, WorkflowActionEntity, CaseActivityQuery, CaseActivityEntity,
   CaseActivityOperation, CaseEntity, CaseNotificationState, WorkflowOperation, WorkflowPoolEntity, WorkflowScriptEntity, WorkflowScriptEval,
@@ -47,7 +45,7 @@ import { FilterRequest, ColumnRequest } from '@framework/FindOptions';
 import { BsColor } from '@framework/Components/Basic';
 import { GraphExplorer } from '@framework/Reflection';
 import WorkflowHelpComponent from './Workflow/WorkflowHelpComponent';
-import { EntityLine } from '@framework/Lines';
+import { EntityLine, TextAreaLine } from '@framework/Lines';
 import { SMSMessageEntity } from '../Signum.SMS/Signum.SMS';
 import { EmailMessageEntity } from '../Signum.Mailing/Signum.Mailing';
 import { FunctionalAdapter } from '@framework/Modals';
@@ -61,6 +59,7 @@ import { IUserEntity } from '@framework/Signum.Security';
 import * as ToolbarClient from '../Signum.Toolbar/ToolbarClient';
 import WorkflowToolbarConfig from './WorkflowToolbarConfig';
 import WorkflowToolbarMenuConfig from './WorkflowToolbarMenuConfig';
+import { isPermissionAuthorized } from '@framework/AppContext';
 
 export function start(options: { routes: RouteObject[], overrideCaseActivityMixin?: boolean }) {
 
@@ -121,19 +120,18 @@ export function start(options: { routes: RouteObject[], overrideCaseActivityMixi
     { token: t.append(p => p.entity.eval.script), type: "Code" },
   ]);
 
-  QuickLinks.registerQuickLink(CaseActivityEntity, ctx => [
-    new QuickLinks.QuickLinkAction("caseFlow", () => WorkflowActivityMessage.CaseFlow.niceToString(), e => {
-      API.fetchCaseFlowPack(ctx.lite)
-        .then(result => Navigator.view(result.pack, { extraProps: { workflowActivity: result.workflowActivity } }))
-        .then(() => ctx.contextualContext && ctx.contextualContext.markRows({}));
-    },
-      {
-        isVisible: AuthClient.isPermissionAuthorized(WorkflowPermission.ViewCaseFlow),
-        icon: "shuffle",
-        iconColor: "green"
-      })
-  ]);
 
+  QuickLinks.registerQuickLink(CaseActivityEntity, new QuickLinks.QuickLinkAction("caseFlow", () => WorkflowActivityMessage.CaseFlow.niceToString(), ctx => {
+    API.fetchCaseFlowPack(ctx.lite)
+      .then(result => Navigator.view(result.pack, { extraProps: { workflowActivity: result.workflowActivity } }))
+      .then(() => ctx.contextualContext && ctx.contextualContext.markRows({}))
+  },
+    {
+      isVisible: isPermissionAuthorized(WorkflowPermission.ViewCaseFlow),
+      icon: "shuffle",
+      iconColor: "green"
+    }
+  ));
 
   Finder.addSettings({
     queryName: CaseActivityEntity,
@@ -145,13 +143,23 @@ export function start(options: { routes: RouteObject[], overrideCaseActivityMixi
     ]
   })
 
-  QuickLinks.registerQuickLink(WorkflowEntity, ctx => [
-    new QuickLinks.QuickLinkExplore({ queryName: CaseEntity, filterOptions: [{ token: CaseEntity.token(e => e.workflow), value: ctx.lite }] },
-      { icon: "list-check", iconColor: "blue" })
-  ]);
+/*  QuickLinks.registerQuickLink({
+    type: WorkflowEntity,
+    key: getQueryKey(CaseEntity),
+    generator: {
+      factory: ctx => new QuickLinks.QuickLinkExplore({ queryName: CaseEntity, filterOptions: [{ token: CaseEntity.token(e => e.workflow), value: ctx.lite }] }),
+      options: {
+        text: () => getQueryNiceName(CaseEntity),
+        icon: "list-check", iconColor: "blue"
+      }
+    }
+  });*/
+
+/*  QuickLinks.registerQuickLink_New(WorkflowEntity,
+    new QuickLinks.QuickLinkExplore(CaseEntity, ctx => ({ queryName: CaseEntity, filterOptions: [{ token: CaseEntity.token(e => e.workflow), value: ctx.lite }] })));*/
 
   OmniboxSpecialAction.registerSpecialAction({
-    allowed: () => AuthClient.isPermissionAuthorized(WorkflowPermission.ViewWorkflowPanel),
+    allowed: () => isPermissionAuthorized(WorkflowPermission.ViewWorkflowPanel),
     key: "WorkflowPanel",
     onClick: () => Promise.resolve("/workflow/panel")
   });
@@ -324,7 +332,21 @@ export function start(options: { routes: RouteObject[], overrideCaseActivityMixi
         return wa.decisionOptions.map(mle => ({
           order: s?.order ?? 0,
           shortcut: undefined,
-          button: <OperationButton eoc={eoc} group={group} onOperationClick={() => eoc.defaultClick(mle.element.name)} color={mle.element.style.toLowerCase() as BsColor}>{mle.element.name}</OperationButton>,
+          button: <OperationButton eoc={eoc} group={group}
+            onOperationClick={() => mle.element.withConfirmation ?
+              MessageModal.show({
+                title: WorkflowActivityMessage.Conformation.niceToString(),
+                message: WorkflowActivityMessage.Conformation0.niceToString(mle.element.name),
+                buttons: "yes_no",
+                style: "warning",
+              }).then(result => {
+                if (result == "yes") {
+                  eoc.defaultClick(mle.element.name)
+                }
+              })
+              : eoc.defaultClick(mle.element.name)
+              } color = { mle.element.style.toLowerCase() as BsColor } > { mle.element.name }
+          </OperationButton>,
         }));
       }
       else
@@ -366,10 +388,10 @@ export function start(options: { routes: RouteObject[], overrideCaseActivityMixi
     },
   }));
 
-  QuickLinks.registerQuickLink(WorkflowEntity, ctx => new QuickLinks.QuickLinkLink("bam",
-    () => WorkflowActivityMonitorMessage.WorkflowActivityMonitor.niceToString(),
-    workflowActivityMonitorUrl(ctx.lite),
-    { icon: "gauge", iconColor: "green" }));
+  QuickLinks.registerQuickLink(WorkflowEntity, new QuickLinks.QuickLinkLink("bam", () => WorkflowActivityMonitorMessage.WorkflowActivityMonitor.niceToString(), ctx => workflowActivityMonitorUrl(ctx.lite), {
+    icon: "gauge", 
+    iconColor: "green"
+  }));
 
   Operations.addSettings(new EntityOperationSettings(WorkflowOperation.Save, { color: "primary", onClick: executeWorkflowSave, alternatives: eoc => [] }));
   Operations.addSettings(new EntityOperationSettings(WorkflowOperation.Delete, { contextualFromMany: { isVisible: ctx => false } }));
@@ -392,9 +414,8 @@ export function start(options: { routes: RouteObject[], overrideCaseActivityMixi
   }));
 
   function chooseWorkflowExpirationDate(workflows: Lite<WorkflowEntity>[]): Promise<string | undefined> {
-    return ValueLineModal.show({
-      type: { name: "string" },
-      valueLineType: "DateTime",
+    return AutoLineModal.show({
+      type: { name: "DateTime" },
       modalSize: "md",
       title: WorkflowMessage.DeactivateWorkflow.niceToString(),
       message:
@@ -417,11 +438,11 @@ export function start(options: { routes: RouteObject[], overrideCaseActivityMixi
   Navigator.addSettings(new EntitySettings(WorkflowActivityModel, w => import('./Workflow/WorkflowActivityModel')));
   Navigator.addSettings(new EntitySettings(WorkflowConnectionModel, w => import('./Workflow/WorkflowConnectionModel')));
   Navigator.addSettings(new EntitySettings(WorkflowReplacementModel, w => import('./Workflow/WorkflowReplacementComponent')));
-  Navigator.addSettings(new EntitySettings(WorkflowConditionEntity, w => import('./Workflow/WorkflowCondition')));
+  Navigator.addSettings(new EntitySettings(WorkflowConditionEntity, w => import('./Workflow/WorkflowCondition'), {modalSize : "xl"}));
   Navigator.addSettings(new EntitySettings(WorkflowTimerConditionEntity, w => import('./Workflow/WorkflowTimerCondition')));
-  Navigator.addSettings(new EntitySettings(WorkflowActionEntity, w => import('./Workflow/WorkflowAction')));
+  Navigator.addSettings(new EntitySettings(WorkflowActionEntity, w => import('./Workflow/WorkflowAction'), { modalSize: "xl" }));
   Navigator.addSettings(new EntitySettings(WorkflowScriptEntity, w => import('./Workflow/WorkflowScript')));
-  Navigator.addSettings(new EntitySettings(WorkflowLaneModel, w => import('./Workflow/WorkflowLaneModel')));
+  Navigator.addSettings(new EntitySettings(WorkflowLaneModel, w => import('./Workflow/WorkflowLaneModel'), { modalSize: "xl" }));
   Navigator.addSettings(new EntitySettings(WorkflowEventModel, w => import('./Workflow/WorkflowEventModel')));
   Navigator.addSettings(new EntitySettings(WorkflowEventTaskEntity, w => import('./Workflow/WorkflowEventTask')));
   Navigator.addSettings(new EntitySettings(WorkflowScriptRetryStrategyEntity, w => import('./Workflow/WorkflowScriptRetryStrategy')));
@@ -432,8 +453,6 @@ export function start(options: { routes: RouteObject[], overrideCaseActivityMixi
   Constructor.registerConstructor(WorkflowActionEntity, props => WorkflowActionEntity.New({ eval: WorkflowActionEval.New(), ...props }));
   Constructor.registerConstructor(WorkflowScriptEntity, props => WorkflowScriptEntity.New({ eval: WorkflowScriptEval.New(), ...props }));
   Constructor.registerConstructor(WorkflowTimerEmbedded, props => Constructor.construct(TimeSpanEmbedded).then(ts => ts && WorkflowTimerEmbedded.New({ duration: ts, ...props })));
-
-  registerCustomContexts();
 
   TypeHelpButtonBarComponent.getTypeHelpButtons.push(props => [({
     element: <WorkflowHelpComponent typeName={props.typeName} mode={props.mode} />,
@@ -469,55 +488,6 @@ export function workflowStartUrl(lite: Lite<WorkflowEntity>, strategy?: Workflow
   return "/workflow/new/" + lite.id + (strategy == null ? "" : ("/" + strategy));
 }
 
-function registerCustomContexts() {
-
-  function addActx(cc: CodeContext) {
-    if (!cc.assignments["actx"]) {
-      cc.assignments["actx"] = "getCaseActivityContext(ctx)";
-      cc.imports.push("import { getCaseActivityContext } as WorkflowClient from '../../Workflow/WorkflowClient'");
-    }
-  }
-
-  DynamicViewClient.registeredCustomContexts["caseActivity"] = {
-    getTypeContext: ctx => {
-      var actx = getCaseActivityContext(ctx);
-      return actx;
-    },
-    getCodeContext: cc => {
-      addActx(cc);
-      return cc.createNewContext("actx");
-    },
-    getPropertyRoute: dn => PropertyRoute.root(CaseActivityEntity)
-  };
-
-  DynamicViewClient.registeredCustomContexts["case"] = {
-    getTypeContext: ctx => {
-      var actx = getCaseActivityContext(ctx);
-      return actx?.subCtx(a => a.case);
-    },
-    getCodeContext: cc => {
-      addActx(cc);
-      cc.assignments["cctx"] = "actx?.subCtx(a => a.case)";
-      return cc.createNewContext("cctx");
-    },
-    getPropertyRoute: dn => CaseActivityEntity.propertyRouteAssert(a => a.case)
-  };
-
-
-  DynamicViewClient.registeredCustomContexts["parentCase"] = {
-    getTypeContext: ctx => {
-      var actx = getCaseActivityContext(ctx);
-      return actx?.value.case.parentCase ? actx.subCtx(a => a.case.parentCase) : undefined;
-    },
-    getCodeContext: cc => {
-      addActx(cc);
-      cc.assignments["pcctx"] = "actx?.value.case.parentCase && actx.subCtx(a => a.case.parentCase)";
-      return cc.createNewContext("pcctx");
-    },
-    getPropertyRoute: dn => CaseActivityEntity.propertyRouteAssert(a => a.case.parentCase)
-  };
-}
-
 export function getCaseActivityContext(ctx: TypeContext<any>): TypeContext<CaseActivityEntity> | undefined {
   const f = ctx.frame;
   const fc = f?.frameComponent as any;
@@ -549,13 +519,12 @@ public interface IWorkflowTransition
     Lite<WorkflowActionEntity> Action { get; }
 }`;
 
-  ValueLineModal.show({
+  AutoLineModal.show({
     type: { name: "string" },
     initialValue: value,
-    valueLineType: "TextArea",
+    customComponent: props => <TextAreaLine {...props} />,
     title: "WorkflowTransitionContext Members",
     message: "Copy to clipboard: Ctrl+C, ESC",
-    initiallyFocused: true,
     valueHtmlAttributes: { style: { height: 215 } },
   });
 }
@@ -686,7 +655,7 @@ export function createNewCase(workflowId: number | string, mainEntityStrategy: W
       var coi: OperationInfo;
 
       if (mainEntityStrategy == "Clone") {
-        coi = Operations.getOperationInfo(`${wf.mainEntityType!.cleanName}Operation.Clone`, wf.mainEntityType!.cleanName);
+        coi = getOperationInfo(`${wf.mainEntityType!.cleanName}Operation.Clone`, wf.mainEntityType!.cleanName);
       }
 
       const typeName = wf.mainEntityType!.cleanName;

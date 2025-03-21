@@ -16,14 +16,15 @@ using Signum.ViewLog;
 using Signum.Toolbar;
 using Signum.API;
 using Signum.Omnibox;
+using System.Collections.Frozen;
 
 namespace Signum.Dashboard;
 
 public static class DashboardLogic
 {
-    public static ResetLazy<Dictionary<Lite<DashboardEntity>, DashboardEntity>> Dashboards = null!;
-    public static ResetLazy<Dictionary<Lite<DashboardEntity>, List<CachedQueryEntity>>> CachedQueriesCache = null!;
-    public static ResetLazy<Dictionary<Type, List<Lite<DashboardEntity>>>> DashboardsByType = null!;
+    public static ResetLazy<FrozenDictionary<Lite<DashboardEntity>, DashboardEntity>> Dashboards = null!;
+    public static ResetLazy<FrozenDictionary<Lite<DashboardEntity>, List<CachedQueryEntity>>> CachedQueriesCache = null!;
+    public static ResetLazy<FrozenDictionary<Type, List<Lite<DashboardEntity>>>> DashboardsByType = null!;
 
     public static Polymorphic<Func<IPartEntity, PanelPartEmbedded, IEnumerable<CachedQueryDefinition>>> OnGetCachedQueryDefinition = new();
 
@@ -58,6 +59,7 @@ public static class DashboardLogic
             OnGetCachedQueryDefinition.Register((LinkListPartEntity uqp, PanelPartEmbedded pp) => Array.Empty<CachedQueryDefinition>());
 
             sb.Include<DashboardEntity>()
+                .WithLiteModel(d => new DashboardLiteModel { DisplayName = d.DisplayName, HideQuickLink = d.HideQuickLink })
                 .WithVirtualMList(a => a.TokenEquivalencesGroups, e => e.Dashboard)
                 .WithQuery(() => cp => new
                 {
@@ -106,15 +108,15 @@ public static class DashboardLogic
             DashboardGraph.Register();
 
 
-            Dashboards = sb.GlobalLazy(() => Database.Query<DashboardEntity>().ToDictionary(a => a.ToLite()),
+            Dashboards = sb.GlobalLazy(() => Database.Query<DashboardEntity>().ToFrozenDictionary(a => a.ToLite()),
                 new InvalidateWith(typeof(DashboardEntity)));
 
-            CachedQueriesCache = sb.GlobalLazy(() => Database.Query<CachedQueryEntity>().GroupToDictionary(a => a.Dashboard),
+            CachedQueriesCache = sb.GlobalLazy(() => Database.Query<CachedQueryEntity>().GroupToDictionary(a => a.Dashboard).ToFrozenDictionary(),
                 new InvalidateWith(typeof(CachedQueryEntity)));
 
             DashboardsByType = sb.GlobalLazy(() => Dashboards.Value.Values.Where(a => a.EntityType != null)
             .SelectCatch(d => KeyValuePair.Create(TypeLogic.IdToType.GetOrThrow(d.EntityType!.Id), d.ToLite()))
-            .GroupToDictionary(),
+            .GroupToDictionary().ToFrozenDictionary(),
                 new InvalidateWith(typeof(DashboardEntity)));
 
             if (sb.WebServerBuilder != null)
@@ -202,7 +204,7 @@ public static class DashboardLogic
             new Execute(DashboardOperation.RegenerateCachedQueries)
             {
                 CanExecute = c => c.CacheQueryConfiguration == null ? ValidationMessage._0IsNotSet.NiceToString(ReflectionTools.GetPropertyInfo(() => c.CacheQueryConfiguration)) : null,
-                AvoidImplicitSave = true,
+                ForReadonlyEntity = true,
                 Execute = (db, _) =>
                 {
                     var cq = db.CacheQueryConfiguration!;
@@ -233,7 +235,7 @@ public static class DashboardLogic
 
                         var queryDuration = sw.ElapsedMilliseconds;
 
-                        if(c.QueryRequest.Pagination is Pagination.All)
+                        if (c.QueryRequest.Pagination is Pagination.All)
                         {
                             if (rt.Rows.Length == cq.MaxRows)
                                 throw new ApplicationException($"The query for {c.UserAssets.CommaAnd(a => a.KeyLong())} has returned more than {cq.MaxRows} rows: " +
@@ -252,7 +254,7 @@ public static class DashboardLogic
                             ResultTable = rt,
                         };
 
-                        var bytes =  JsonSerializer.SerializeToUtf8Bytes(json, EntityJsonContext.FullJsonSerializerOptions);
+                        var bytes = JsonSerializer.SerializeToUtf8Bytes(json, EntityJsonContext.FullJsonSerializerOptions);
 
                         var file = new FilePathEmbedded(CachedQueryFileType.CachedQuery, "CachedQuery.json", bytes).SaveFile();
 
@@ -272,7 +274,7 @@ public static class DashboardLogic
                     }
 
                 }
-            }.SetMinimumTypeAllowed(TypeAllowedBasic.Read).Register();
+            }.Register();
         }
     }
 
@@ -305,8 +307,8 @@ public static class DashboardLogic
 
     public static void RegisterTranslatableRoutes()
     {
-        PropertyRouteTranslationLogic.AddRoute((DashboardEntity d) => d.DisplayName);
-        PropertyRouteTranslationLogic.AddRoute((DashboardEntity d) => d.Parts[0].Title);
+        PropertyRouteTranslationLogic.RegisterRoute((DashboardEntity d) => d.DisplayName);
+        PropertyRouteTranslationLogic.RegisterRoute((DashboardEntity d) => d.Parts[0].Title);
     }
 
     public static List<DashboardEntity> GetEmbeddedDashboards(Type entityType)
@@ -335,18 +337,30 @@ public static class DashboardLogic
         var isAllowed = Schema.Current.GetInMemoryFilter<DashboardEntity>(userInterface: false);
         return Dashboards.Value.Values
             .Where(d => d.EntityType == null && isAllowed(d))
-            .Select(d => d.ToLite(PropertyRouteTranslationLogic.TranslatedField(d, d => d.DisplayName)))
+            .Select(d => d.ToLite(DashboardLiteModel.Translated(d)))
             .ToList();
     }
 
-    public static List<Lite<DashboardEntity>> GetDashboardsEntity(Type entityType)
+    public static IEnumerable<DashboardEntity> GetDashboardsEntity(Type entityType)
     {
         var isAllowed = Schema.Current.GetInMemoryFilter<DashboardEntity>(userInterface: false);
         return DashboardsByType.Value.TryGetC(entityType)
             .EmptyIfNull()
             .Select(lite => Dashboards.Value.GetOrThrow(lite))
-            .Where(d => isAllowed(d))
-            .Select(d => d.ToLite(PropertyRouteTranslationLogic.TranslatedField(d, d => d.DisplayName)))
+            .Where(d => isAllowed(d));
+    }
+
+    public static List<Lite<DashboardEntity>> GetDashboards(Type entityType)
+    {
+        return GetDashboardsEntity(entityType)
+            .Select(d => d.ToLite(DashboardLiteModel.Translated(d)))
+            .ToList();
+    }
+
+    public static List<Lite<DashboardEntity>> GetDashboardsModel(Type entityType)
+    {
+        return GetDashboardsEntity(entityType)
+            .Select(d => d.ToLite(DashboardLiteModel.Translated(d)))
             .ToList();
     }
 
@@ -355,7 +369,7 @@ public static class DashboardLogic
         var isAllowed = Schema.Current.GetInMemoryFilter<DashboardEntity>(userInterface: false);
         return Dashboards.Value.Values
             .Where(d => d.EntityType == null && isAllowed(d))
-            .Select(d => d.ToLite(PropertyRouteTranslationLogic.TranslatedField(d, d => d.DisplayName)))
+            .Select(d => d.ToLite(DashboardLiteModel.Translated(d)))
             .Autocomplete(subString, limit).ToList();
     }
 
@@ -382,27 +396,22 @@ public static class DashboardLogic
     {
         sb.Schema.Settings.AssertImplementedBy((DashboardEntity uq) => uq.Owner, typeof(UserEntity));
 
-        TypeConditionLogic.RegisterCompile<DashboardEntity>(typeCondition,
-            uq => uq.Owner.Is(UserEntity.Current));
-
-        RegisterPartsTypeCondition(typeCondition);
+        RegisterTypeCondition(typeCondition, uq => uq.Owner.Is(UserEntity.Current));
     }
 
     public static void RegisterRoleTypeCondition(SchemaBuilder sb, TypeConditionSymbol typeCondition)
     {
         sb.Schema.Settings.AssertImplementedBy((DashboardEntity uq) => uq.Owner, typeof(RoleEntity));
 
-        TypeConditionLogic.RegisterCompile<DashboardEntity>(typeCondition,
-            uq => AuthLogic.CurrentRoles().Contains(uq.Owner) || uq.Owner == null);
-
-        RegisterPartsTypeCondition(typeCondition);
+        RegisterTypeCondition(typeCondition, uq => AuthLogic.CurrentRoles().Contains(uq.Owner) || uq.Owner == null);
     }
 
-    public static void RegisterPartsTypeCondition(TypeConditionSymbol typeCondition)
+    public static void RegisterTypeCondition(TypeConditionSymbol typeCondition, Expression<Func<DashboardEntity, bool>> conditionExpression)
     {
+        TypeConditionLogic.RegisterCompile<DashboardEntity>(typeCondition, conditionExpression);
+
         TypeConditionLogic.Register<TokenEquivalenceGroupEntity>(typeCondition,
             teg => Database.Query<DashboardEntity>().WhereCondition(typeCondition).Any(d => d.TokenEquivalencesGroups.Contains(teg)));
-
 
         TypeConditionLogic.Register<LinkListPartEntity>(typeCondition,
              llp => Database.Query<DashboardEntity>().WhereCondition(typeCondition).Any(d => d.ContainsContent(llp)));

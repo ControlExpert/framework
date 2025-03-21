@@ -65,7 +65,7 @@ export const FileLine = React.memo(React.forwardRef(function FileLine(props: Fil
   const hasValue = !!p.ctx.value;
 
   return (
-    <FormGroup ctx={p.ctx} label={p.label}
+    <FormGroup ctx={p.ctx} label={p.label} labelIcon={p.labelIcon}
       labelHtmlAttributes={p.labelHtmlAttributes}
       htmlAttributes={{ ...c.baseHtmlAttributes(), ...EntityBaseController.entityHtmlAttributes(p.ctx.value), ...p.formGroupHtmlAttributes }}
       helpText={p.helpText}>
@@ -105,7 +105,7 @@ export const FileLine = React.memo(React.forwardRef(function FileLine(props: Fil
       <>
         {c.props.extraButtonsBefore && c.props.extraButtonsBefore(c)}
         {c.renderRemoveButton(true, val)}
-        {c.props.extraButtonsAfter && c.props.extraButtonsAfter(c)}
+        {c.props.extraButtons && c.props.extraButtons(c)}
       </>;
 
     if (!EntityBaseController.hasChildrens(buttons))

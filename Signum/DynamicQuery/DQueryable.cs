@@ -180,7 +180,7 @@ public static class DQueryable
 
     static LambdaExpression SelectTupleWithSubQueriesConstructor(BuildExpressionContext context, HashSet<QueryToken> tokens, out BuildExpressionContext newContext)
     {
-        string str = tokens.Select(t => QueryUtils.CanColumn(t)).NotNull().ToString("\r\n");
+        string str = tokens.Select(t => new { t, error = QueryUtils.CanColumn(t) }).Where(a => a.error != null).ToString(a => a.t.FullKey() + ": " + a.error, "\r\n");
         if (str.HasText())
             throw new ApplicationException(str);
 
@@ -207,7 +207,7 @@ public static class DQueryable
     {
         var simpleTokens = node.Value.ToList();
 
-        List<Expression> expressions = simpleTokens.Select(t => t.BuildExpression(context)).ToList();
+        List<Expression> expressions = simpleTokens.Select(t => t.BuildExpression(context, searchToArray: true)).ToList();
 
         List<BuildExpressionContext> subContext = new List<BuildExpressionContext>();
         foreach (var child in node.Children)
@@ -573,7 +573,7 @@ public static class DQueryable
 
     public static DQueryable<T> Where<T>(this DQueryable<T> query, List<Filter> filters)
     {
-        LambdaExpression? predicate = GetPredicateExpression(query.Context, filters);
+        LambdaExpression? predicate = GetPredicateExpression(query.Context, filters, inMemory: false);
         if (predicate == null)
             return query;
 
@@ -596,14 +596,14 @@ public static class DQueryable
 
     public static DEnumerable<T> Where<T>(this DEnumerable<T> collection, List<Filter> filters)
     {
-        LambdaExpression? where = GetPredicateExpression(collection.Context, filters);
+        LambdaExpression? where = GetPredicateExpression(collection.Context, filters, inMemory: true);
         if (where == null)
             return collection;
 
         return new DEnumerable<T>(Untyped.Where(collection.Collection, where.Compile()), collection.Context);
     }
 
-    static LambdaExpression? GetPredicateExpression(BuildExpressionContext context, List<Filter> filters)
+    static LambdaExpression? GetPredicateExpression(BuildExpressionContext context, List<Filter> filters, bool inMemory)
     {
         if (filters == null || filters.Count == 0)
             return null;
@@ -618,7 +618,7 @@ public static class DQueryable
         if (str.HasText())
             throw new ApplicationException(str);
 
-        Expression body = filters.Select(f => f.GetExpression(context)).AggregateAnd();
+        Expression body = filters.Select(f => f.GetExpression(context, inMemory)).AggregateAnd();
 
         return Expression.Lambda(body, context.Parameter);
     }

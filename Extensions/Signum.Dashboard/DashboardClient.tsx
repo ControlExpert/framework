@@ -15,7 +15,7 @@ import { onEmbeddedWidgets, EmbeddedWidget } from '@framework/Frames/Widgets'
 import * as AuthClient from '../Signum.Authorization/AuthClient'
 import {
   DashboardPermission, DashboardEntity, LinkListPartEntity, IPartEntity, DashboardMessage, PanelPartEmbedded,
-  CachedQueryEntity, DashboardOperation, ImagePartEntity, SeparatorPartEntity
+  CachedQueryEntity, DashboardOperation, ImagePartEntity, SeparatorPartEntity, DashboardLiteModel
 } from './Signum.Dashboard'
 import * as UserAssetClient from '../Signum.UserAssets/UserAssetClient'
 import { ImportComponent } from '@framework/ImportComponent'
@@ -27,11 +27,11 @@ import { QueryEntity } from '@framework/Signum.Basics';
 import { downloadFile } from '../Signum.Files/Components/FileDownloader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { QueryDescription } from '@framework/FindOptions';
-
 import * as ToolbarClient from '../Signum.Toolbar/ToolbarClient';
 import * as OmniboxClient from '../Signum.Omnibox/OmniboxClient';
 import DashboardToolbarConfig from './DashboardToolbarConfig';
 import DashboardOmniboxProvider from './DashboardOmniboxProvider';
+import { registerChangeLogModule } from '@framework/Basics/ChangeLogClient';
 
 export interface PanelPartContentProps<T extends IPartEntity> {
   partEmbedded: PanelPartEmbedded;
@@ -67,6 +67,8 @@ export const partRenderers: { [typeName: string]: PartRenderer<IPartEntity> } = 
 
 export function start(options: { routes: RouteObject[] }) {
 
+  registerChangeLogModule("Signum.Dashboard", () => import("./Changelog"));
+
   UserAssetClient.start({ routes: options.routes });
   UserAssetClient.registerExportAssertLink(DashboardEntity);
 
@@ -100,17 +102,17 @@ export function start(options: { routes: RouteObject[] }) {
 
   registerRenderer(LinkListPartEntity, {
     component: () => import('./View/LinkListPart').then(a => a.default),
-    defaultIcon: () => ({ icon: ["fas", "list"], iconColor: "#B9770E" })
+    defaultIcon: () => ({ icon: "list", iconColor: "#B9770E" })
   });
 
   registerRenderer(ImagePartEntity, {
     component: () => import('./View/ImagePartView').then(a => a.default),
-    defaultIcon: () => ({ icon: ["far", "rectangle-list"], iconColor: "forestgreen" }),
+    defaultIcon: () => ({ icon: "rectangle-list", iconColor: "forestgreen" }),
     withPanel: () => false
   });
   registerRenderer(SeparatorPartEntity, {
     component: () => import('./View/SeparatorPartView').then(a => a.default),
-    defaultIcon: () => ({ icon: ["far", "rectangle-list"], iconColor: "forestgreen" }),
+    defaultIcon: () => ({ icon: "rectangle-list", iconColor: "forestgreen" }),
     withPanel: () => false
   });
 
@@ -128,22 +130,22 @@ export function start(options: { routes: RouteObject[] }) {
     });
   });
 
-  QuickLinks.registerGlobalQuickLink(ctx => {
-    if (!AuthClient.isPermissionAuthorized(DashboardPermission.ViewDashboard))
-      return undefined;
+  if (AppContext.isPermissionAuthorized(DashboardPermission.ViewDashboard))
+    QuickLinks.registerGlobalQuickLink(entityType =>
+      API.forEntityType(entityType)
+        .then(ds => ds.map(d => new QuickLinks.QuickLinkAction(liteKey(d), () => getToString(d), (ctx, e) => AppContext.pushOrOpenInTab(dashboardUrl(d, ctx.lite), e),
+        {
+          order: 0,
+          icon: "gauge",
+          iconColor: "darkslateblue",
+          color: "success",
+          onlyForToken: (d.model as DashboardLiteModel).hideQuickLink
+        }
+      )))
+    );
 
-    var promise = ctx.widgetContext ?
-      Promise.resolve(ctx.widgetContext.frame.pack.dashboards ?? []) :
-      API.forEntityType(ctx.lite.EntityType);
-
-    return promise.then(das =>
-      das.map(d => new QuickLinks.QuickLinkAction(liteKey(d), () => getToString(d) ?? "", e => {
-        AppContext.pushOrOpenInTab(dashboardUrl(d, ctx.lite), e)
-      }, { icon: "gauge", iconColor: "darkslateblue" })));
-  });
-
-  QuickLinks.registerQuickLink(DashboardEntity, ctx => new QuickLinks.QuickLinkAction("preview", () => DashboardMessage.Preview.niceToString(),
-    e => Navigator.API.fetchAndRemember(ctx.lite)
+  QuickLinks.registerQuickLink(DashboardEntity, new QuickLinks.QuickLinkAction("preview", () => DashboardMessage.Preview.niceToString(),
+    (ctx, e) => Navigator.API.fetchAndRemember(ctx.lite)
       .then(db => {
         if (db.entityType == undefined)
           AppContext.pushOrOpenInTab(dashboardUrl(ctx.lite), e);
@@ -156,9 +158,15 @@ export function start(options: { routes: RouteObject[] }) {
 
               AppContext.pushOrOpenInTab(dashboardUrl(ctx.lite, entity), e);
             });
-      }), { group: null, icon: "eye", iconColor: "blue", color: "info" }));
-}
-
+      }),
+    {
+      group: null,
+      icon: "eye",
+      iconColor: "blue",
+      color: "info"
+    }
+  ));
+};
 
 
 export function home(): Promise<Lite<DashboardEntity> | null> {

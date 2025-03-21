@@ -2,9 +2,12 @@ import * as React from 'react'
 import { RouteObject } from 'react-router'
 import { ajaxPost, ajaxPostRaw, saveFile } from '@framework/Services';
 import { Type } from '@framework/Reflection'
-import { Entity, getToString, Lite, liteKey, MList, parseLite, toLite, translated } from '@framework/Signum.Entities'
+import { Entity, getToString, Lite, liteKey, MList, ModelEntity, parseLite, toLite, translated } from '@framework/Signum.Entities'
 import * as QuickLinks from '@framework/QuickLinks'
-import { FilterOption, FilterOperation, FilterOptionParsed, FilterGroupOptionParsed, FilterConditionOptionParsed, FilterGroupOption, FilterConditionOption, PinnedFilter, isFilterGroupOption, toPinnedFilterParsed, FindOptions, FindOptionsParsed } from '@framework/FindOptions'
+import {
+  FilterOption, FilterOperation, FilterOptionParsed, FilterGroupOptionParsed, FilterConditionOptionParsed,
+  FilterGroupOption, FilterConditionOption, PinnedFilter, toPinnedFilterParsed, FindOptions, FindOptionsParsed, isFilterGroup
+} from '@framework/FindOptions'
 import * as AuthClient from '../Signum.Authorization/AuthClient'
 import { IUserAssetEntity, UserAssetMessage, UserAssetPreviewModel, UserAssetPermission } from './Signum.UserAssets'
 import * as OmniboxSpecialAction from '@framework/OmniboxSpecialAction'
@@ -18,15 +21,18 @@ import * as Navigator from '@framework/Navigator'
 import SelectorModal from '@framework/SelectorModal';
 import { SearchControlLoaded } from '@framework/Search';
 import { PinnedQueryFilterEmbedded, QueryFilterEmbedded, QueryTokenEmbedded } from './Signum.UserAssets.Queries';
+import { registerChangeLogModule } from '@framework/Basics/ChangeLogClient';
 
 let started = false;
 export function start(options: { routes: RouteObject[] }) {
   if (started)
     return;
 
+  registerChangeLogModule("Signum.UserAssets", () => import("./Changelog"));
+
   options.routes.push({ path: "/userAssets/import", element: <ImportComponent onImport={() => import("./ImportAssetsPage")} /> });
   OmniboxSpecialAction.registerSpecialAction({
-    allowed: () => AuthClient.isPermissionAuthorized(UserAssetPermission.UserAssetsToXML),
+    allowed: () => AppContext.isPermissionAuthorized(UserAssetPermission.UserAssetsToXML),
     key: "ImportUserAssets",
     onClick: () => Promise.resolve("/userAssets/import")
   });
@@ -36,17 +42,13 @@ export function start(options: { routes: RouteObject[] }) {
 }
 
 export function registerExportAssertLink(type: Type<IUserAssetEntity>) {
-  QuickLinks.registerQuickLink(type, ctx => {
-    if (!AuthClient.isPermissionAuthorized(UserAssetPermission.UserAssetsToXML))
-      return undefined;
-
-    return new QuickLinks.QuickLinkAction(UserAssetMessage.ExportToXml.name, () => UserAssetMessage.ExportToXml.niceToString(), () => {
-      API.exportAsset(ctx.lites);
-    }, {
+  if (AppContext.isPermissionAuthorized(UserAssetPermission.UserAssetsToXML))
+    QuickLinks.registerQuickLink(type,
+      new QuickLinks.QuickLinkAction(UserAssetMessage.ExportToXml.name, () => UserAssetMessage.ExportToXml.niceToString(), ctx => API.exportAsset(ctx.lites), {
+        allowsMultiple: true,
         iconColor: "#FCAE25",
         icon: "file-code"
-      });
-  }, { allowsMultiple : true });
+      }));
 }
 
 export function toQueryTokenEmbedded(token: QueryToken): QueryTokenEmbedded {
@@ -74,7 +76,6 @@ export module Converter {
         pinned: fn.pinned && toPinnedFilterParsed(fn.pinned),
         dashboardBehaviour: fn.dashboardBehaviour,
         frozen: false,
-        expanded: false,
       });
     else
       return softCast<FilterConditionOptionParsed>({
@@ -108,7 +109,7 @@ export module Converter {
 
   export function toFilterNode(fr: FilterOption) : API.FilterNode {
 
-    if (isFilterGroupOption(fr))
+    if (isFilterGroup(fr))
       return ({
         groupOperation: fr.groupOperation,
         tokenString: fr.token && fr.token.toString(),
@@ -134,6 +135,7 @@ export module Converter {
       return PinnedQueryFilterEmbedded.New({
         label: typeof e.label == "function" ? e.label() : e.label,
         column: e.column,
+        colSpan: e.colSpan,
         row: e.row,
         active: e.active ?? "Always",
         splitValue: e.splitValue ?? false

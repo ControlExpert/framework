@@ -6,6 +6,7 @@ using System.Collections.ObjectModel;
 using System.Data;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Linq.Expressions;
 using System.Text.RegularExpressions;
 
 namespace Signum.Engine.Linq;
@@ -632,7 +633,7 @@ internal class DbExpressionNominator : DbExpressionVisitor
         return new ToDayOfWeekExpression(number).TryConvert(typeof(DayOfWeek));
     }
 
-    private Expression? TrySqlStartOf(Expression expression, SqlEnums part)
+    private Expression? TrySqlStartOf(Expression expression, SqlEnums part, Expression? step = null)
     {
         Expression expr = Visit(expression);
         if (innerProjection || !Has(expr))
@@ -648,6 +649,34 @@ internal class DbExpressionNominator : DbExpressionVisitor
         }
         else
         {
+            if (((SqlServerConnector)Connector.Current).SupportsDateTrunc && step == null && part != SqlEnums.week)
+            {
+                Expression? result =
+                TrySqlFunction(null, SqlFunction.DATETRUNC, expr.Type,
+                    new SqlLiteralExpression(part), expr);
+
+                return Add(result);
+            }
+
+            if (step != null)
+            {
+                var stepVisit = Visit(step);
+
+                if (stepVisit is ConstantExpression c)
+                    stepVisit = new SqlConstantExpression(c.Value!);
+
+                Expression result =
+                  TrySqlFunction(null, SqlFunction.DATEADD, expr.Type, new SqlLiteralExpression(part),
+                     Expression.Multiply(
+                         Expression.Divide(
+                            TrySqlFunction(null, SqlFunction.DATEDIFF, typeof(int), new SqlLiteralExpression(part), new SqlConstantExpression(0), expr)!,
+                            stepVisit),
+                         stepVisit),
+                      new SqlConstantExpression(0))!;
+
+                return Add(result);
+            }
+
             if (part == SqlEnums.second)
             {
                 Expression result =
@@ -1599,6 +1628,16 @@ internal class DbExpressionNominator : DbExpressionVisitor
                 return TryLike(m.GetArgument("str"), m.GetArgument("pattern"));
             case "StringExtensions.Etc":
                 return TryEtc(m.GetArgument("str"), m.GetArgument("max"), m.TryGetArgument("etcString"));
+            case "StringExtensions.After":
+            case "StringExtensions.AfterLast":
+            case "StringExtensions.Before":
+            case "StringExtensions.BeforeLast":
+            case "StringExtensions.TryAfter":
+            case "StringExtensions.TryAfterLast":
+            case "StringExtensions.TryBefore":
+            case "StringExtensions.TryBeforeLast":
+                return TryBeforeAfter(m.Method, m.GetArgument("str"), m.GetArgument("separator"));
+
             case "LinqHints.Collate":
                 return TryCollate(m.GetArgument("str"), m.GetArgument("collation"));
 
@@ -1650,9 +1689,10 @@ internal class DbExpressionNominator : DbExpressionVisitor
             case "DateTimeExtensions.MonthStart": return TrySqlStartOf(m.TryGetArgument("dateTime") ?? m.GetArgument("date"), SqlEnums.month);
             case "DateTimeExtensions.QuarterStart": return TrySqlStartOf(m.TryGetArgument("dateTime") ?? m.GetArgument("date"), SqlEnums.quarter);
             case "DateTimeExtensions.WeekStart": return TrySqlStartOf(m.TryGetArgument("dateTime") ?? m.GetArgument("date"), SqlEnums.week);
-            case "DateTimeExtensions.HourStart": return TrySqlStartOf(m.GetArgument("dateTime"), SqlEnums.hour);
-            case "DateTimeExtensions.MinuteStart": return TrySqlStartOf(m.GetArgument("dateTime"), SqlEnums.minute);
-            case "DateTimeExtensions.SecondStart": return TrySqlStartOf(m.GetArgument("dateTime"), SqlEnums.second);
+            case "DateTimeExtensions.TruncHours": return TrySqlStartOf(m.GetArgument("dateTime"), SqlEnums.hour, m.TryGetArgument("step"));
+            case "DateTimeExtensions.TruncMinutes": return TrySqlStartOf(m.GetArgument("dateTime"), SqlEnums.minute, m.TryGetArgument("step"));
+            case "DateTimeExtensions.TruncSeconds": return TrySqlStartOf(m.GetArgument("dateTime"), SqlEnums.second, m.TryGetArgument("step"));
+            case "DateTimeExtensions.TruncMilliseconds": return TrySqlStartOf(m.GetArgument("dateTime"), SqlEnums.millisecond, m.GetArgument("step"));
             case "DateTimeExtensions.YearsTo": return TryDatePartTo(SqlEnums.year, m.GetArgument("start"), m.GetArgument("end"));
             case "DateTimeExtensions.MonthsTo": return TryDatePartTo(SqlEnums.month, m.GetArgument("start"), m.GetArgument("end"));
             case "DateTimeExtensions.DaysTo": return TryDatePartTo(SqlEnums.day, m.GetArgument("start"), m.GetArgument("end"));
@@ -1670,6 +1710,16 @@ internal class DbExpressionNominator : DbExpressionVisitor
             case "TimeSpan.FromMinute": return TryTimeSpanFrom(SqlEnums.minute, m.GetArgument("value"));
             case "TimeSpan.FromSeconds": return TryTimeSpanFrom(SqlEnums.second, m.GetArgument("value"));
             case "TimeSpan.FromMilliseconds": return TryTimeSpanFrom(SqlEnums.millisecond, m.GetArgument("value"));
+
+            case "TimeSpanExtensions.TruncHours": return TrySqlStartOf(m.GetArgument("dateTime"), SqlEnums.hour, m.TryGetArgument("step"));
+            case "TimeSpanExtensions.TruncMinutes": return TrySqlStartOf(m.GetArgument("dateTime"), SqlEnums.minute, m.TryGetArgument("step"));
+            case "TimeSpanExtensions.TruncSeconds": return TrySqlStartOf(m.GetArgument("dateTime"), SqlEnums.second, m.TryGetArgument("step"));
+            case "TimeSpanExtensions.TruncMilliseconds": return TrySqlStartOf(m.GetArgument("dateTime"), SqlEnums.millisecond, m.GetArgument("step"));
+
+            case "TimeOnlyExtensions.TruncHours": return TrySqlStartOf(m.GetArgument("time"), SqlEnums.hour, m.TryGetArgument("step"));
+            case "TimeOnlyExtensions.TruncMinutes": return TrySqlStartOf(m.GetArgument("time"), SqlEnums.minute, m.TryGetArgument("step"));
+            case "TimeOnlyExtensions.TruncSeconds": return TrySqlStartOf(m.GetArgument("time"), SqlEnums.second, m.TryGetArgument("step"));
+            case "TimeOnlyExtensions.TruncMilliseconds": return TrySqlStartOf(m.GetArgument("time"), SqlEnums.millisecond, m.GetArgument("step"));
 
             case "Math.Sign": return TrySqlFunction(null, SqlFunction.SIGN, m.Type, m.GetArgument("value"));
             case "Math.Abs": return TrySqlFunction(null, SqlFunction.ABS, m.Type, m.GetArgument("value"));
@@ -1723,6 +1773,8 @@ internal class DbExpressionNominator : DbExpressionVisitor
             default: return null;
         }
     }
+
+
 
     private SqlLiteralExpression ToLiteralColumns(MethodCallExpression mce)
     {
@@ -1856,6 +1908,104 @@ internal class DbExpressionNominator : DbExpressionVisitor
             Expression.Call(miEtc3, newStr, max, etcString);
     }
 
+    private Expression? TryBeforeAfter(MethodInfo method, Expression str, Expression separator)
+    {
+        var newStr = Visit(str)!;
+        if (!Has(newStr))
+            return null;
+
+        var newSep = Visit(separator)!;
+        if (!Has(newSep))
+            return null;
+
+
+        Expression SepLen() => newSep is ConstantExpression c ? (Expression)new SqlConstantExpression(((string)c.Value!).Length) :
+            SqlFunction.LEN.Call<int>(newSep);
+
+        Expression ReverseSep()
+        {
+            if (newSep is ConstantExpression c)
+                return new SqlConstantExpression(((string)c.Value!).Reverse());
+            else
+                return SqlFunction.REVERSE.Call<string>(newSep);
+        }
+
+
+
+
+        //str = 'A=>B=>C'
+        //sep = '=>'
+
+        Expression value;
+        if (method.Name.EndsWith("Before"))
+        {
+            //LEFT('A=>B=>C', CHARINDEX('=>', 'A=>B=>C') - 1)
+            //LEFT('A=>B=>C', 2 - 1)
+            //'A'
+
+            var index = SqlFunction.CHARINDEX.Call<int>(newSep, newStr);
+            var len = Expression.Subtract(index, new SqlConstantExpression(1));
+
+            value = SqlFunction.LEFT.Call<string>(newStr, len);
+        }
+        else if (method.Name.EndsWith("After"))
+        {
+            //RIGHT('A=>B=>C', LEN('A=>B=>C') - CHARINDEX('=>', 'A=>B=>C') - (2 - 1))
+            //RIGHT('A=>B=>C', (7 - CHARINDEX('=>', 'A=>B=>C')) - (2 - 1))
+            //RIGHT('A=>B=>C', (7 - 2) - (1))
+            //RIGHT('A=>B=>C', 4)
+            //'B=>C'
+
+            var index = SqlFunction.CHARINDEX.Call<int>(newSep, newStr);
+
+            var len = IsOneLength(newSep) ? 
+                                    Expression.Subtract(SqlFunction.LEN.Call<int>(newStr), index):
+                Expression.Subtract(Expression.Subtract(SqlFunction.LEN.Call<int>(newStr), index), Expression.Subtract(SepLen(), new SqlConstantExpression(1)));
+
+            value = SqlFunction.RIGHT.Call<string>(newStr, len);
+        }
+        else if (method.Name.EndsWith("BeforeLast"))
+        {
+            //LEFT('A=>B=>C',  LEN('A=>B=>C') - CHARINDEX('>=', REVERSE('A=>B=>C')) - (2 - 1))
+            //LEFT('A=>B=>C',  LEN('A=>B=>C') - 2) - (2 - 1))
+            //LEFT('A=>B=>C',  7 - 2 - 1)
+            //'A=>B'
+
+            var index = SqlFunction.CHARINDEX.Call<int>(ReverseSep(), SqlFunction.REVERSE.Call<string>(newStr));
+
+            var len = IsOneLength(newSep) ? 
+                                    Expression.Subtract(SqlFunction.LEN.Call<int>(newStr), index) :
+                Expression.Subtract(Expression.Subtract(SqlFunction.LEN.Call<int>(newStr), index), Expression.Subtract(SepLen(), new SqlConstantExpression(1)));
+
+            value = SqlFunction.LEFT.Call<string>(newStr, len);
+        }
+        else if (method.Name.EndsWith("AfterLast"))
+        {
+            //RIGHT('A=>B=>C', CHARINDEX('>=', REVERSE('A=>B=>C')) - 1)
+            //RIGHT('A=>B=>C', 2 - 1)
+            //'C'
+
+            var index = SqlFunction.CHARINDEX.Call<int>(ReverseSep(), SqlFunction.REVERSE.Call<string>(newStr));
+            var len = Expression.Subtract(index, new SqlConstantExpression(1));
+            value = SqlFunction.RIGHT.Call<string>(newStr, len);
+        }
+        else
+        {
+            throw new UnexpectedValueException(method.Name);
+        }
+
+
+        return Add(new CaseExpression(
+            new[] { new When(Expression.Equal(SqlFunction.CHARINDEX.Call<int>(newSep!, newStr!), new SqlConstantExpression(0)), new SqlConstantExpression(null, typeof(string))) },
+            value
+        ));
+    }
+
+    private static bool IsOneLength(Expression newSep)
+    {
+        return newSep is ConstantExpression c && c.Value is string s && s.Length == 1;
+    }
+
     private Expression? TryCollate(Expression str, Expression collation)
     {
         var newStr = Visit(str);
@@ -1877,5 +2027,13 @@ internal class DbExpressionNominator : DbExpressionVisitor
         bool oldTemp = isFullNominate;
         isFullNominate = true;
         return new Disposable(() => isFullNominate = oldTemp);
+    }
+}
+
+internal static class SqlFunctionExtensions
+{
+    public static SqlFunctionExpression Call<T>(this SqlFunction function, params Expression[] arguments)
+    {
+        return new SqlFunctionExpression(typeof(T), null, function.ToString(), arguments);
     }
 }

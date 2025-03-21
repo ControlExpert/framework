@@ -45,7 +45,7 @@ export class EntityComboController extends EntityBaseController<EntityComboProps
   overrideProps(p: EntityComboProps, overridenProps: EntityComboProps) {
     super.overrideProps(p, overridenProps);
     if (p.onRenderItem === undefined && p.type && tryGetTypeInfos(p.type).some(a => a && Navigator.getSettings(a)?.renderLite)) {
-      p.onRenderItem = (row, role, searchTerm) => (row?.entity && Navigator.renderLite(row.entity, TextHighlighter.fromString(searchTerm))) ?? "";
+      p.onRenderItem = (row, role, searchTerm) => row == null ? <span className="mx-2">-</span>: (row?.entity && Navigator.renderLite(row.entity, TextHighlighter.fromString(searchTerm))) ?? "";
     }
   }
 
@@ -99,7 +99,7 @@ export const EntityCombo = React.memo(React.forwardRef(function EntityCombo(prop
       {!hasValue && c.renderFindButton(true)}
       {hasValue && c.renderViewButton(true, c.props.ctx.value!)}
       {hasValue && c.renderRemoveButton(true, c.props.ctx.value!)}
-      {c.props.extraButtonsAfter && c.props.extraButtonsAfter(c)}
+      {c.props.extraButtons && c.props.extraButtons(c)}
     </>
   );
 
@@ -115,7 +115,7 @@ export const EntityCombo = React.memo(React.forwardRef(function EntityCombo(prop
 
   return (
     <FormGroup ctx={c.props.ctx}
-      label={getLabelText()}
+      label={getLabelText()} labelIcon={p.labelIcon}
       helpText={p.helpText}
       htmlAttributes={{ ...c.baseHtmlAttributes(), ...EntityBaseController.entityHtmlAttributes(p.ctx.value), ...p.formGroupHtmlAttributes }}
       labelHtmlAttributes={p.labelHtmlAttributes}>

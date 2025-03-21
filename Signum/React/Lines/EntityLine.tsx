@@ -142,12 +142,12 @@ export const EntityLine = React.memo(React.forwardRef(function EntityLine(props:
       {hasValue && !p.avoidViewButton && c.renderViewButton(true, p.ctx.value!)}
       {hasValue && c.renderRemoveButton(true, p.ctx.value!)}
       {c.renderPasteButton(true)}
-      {c.props.extraButtonsAfter && c.props.extraButtonsAfter(c)}
+      {c.props.extraButtons && c.props.extraButtons(c)}
     </>
   );
 
   return (
-    <FormGroup ctx={p.ctx} label={p.label} helpText={p.helpText}
+    <FormGroup ctx={p.ctx} label={p.label} labelIcon={p.labelIcon} helpText={p.helpText}
       htmlAttributes={{ ...c.baseHtmlAttributes(), ...EntityBaseController.entityHtmlAttributes(p.ctx.value!), ...p.formGroupHtmlAttributes }}
       labelHtmlAttributes={p.labelHtmlAttributes}>
       {inputId => <div className="sf-entity-line">

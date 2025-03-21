@@ -231,7 +231,11 @@ public static class ProcessRunner
                                                 {
                                                     try
                                                     {
-                                                        executingProcess.Execute();
+                                                        using (ProcessLogic.OnApplySession(executingProcess.CurrentProcess))
+                                                        {
+                                                            executingProcess.Execute();
+                                                        }
+                                                       
                                                     }
                                                     catch (Exception ex)
                                                     {
@@ -307,11 +311,11 @@ public static class ProcessRunner
 
                 if (exception != null)
                 {
-                    Task.Run(() =>
-                    {
-                        Thread.Sleep(1 * 60 * 1000);
-                        StartRunningProcesses();
-                    });
+                    using (ExecutionContext.SuppressFlow())
+                        Task.Delay(1 * 60 * 1000).ContinueWith(t =>
+                        {
+                            StartRunningProcesses();
+                        });
                 }
 
             }, TaskCreationOptions.LongRunning);

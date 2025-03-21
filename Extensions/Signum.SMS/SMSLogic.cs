@@ -252,7 +252,7 @@ public static class SMSLogic
             try
             {
                 message.MessageID = GetProvider().SMSSendAndGetTicket(message);
-                message.SendDate = Clock.Now.TrimToSeconds();
+                message.SendDate = Clock.Now.TruncSeconds();
                 message.State = SMSMessageState.Sent;
                 message.Save();
 
@@ -284,7 +284,7 @@ public static class SMSLogic
     {
         var messages = new List<SMSMessageEntity>();
         var IDs = GetProvider().SMSMultipleSendAction(template, phones);
-        var sendDate = Clock.Now.TrimToSeconds();
+        var sendDate = Clock.Now.TruncSeconds();
         for (int i = 0; i < phones.Count; i++)
         {
             var message = new SMSMessageEntity { Message = template.Message, From = template.From };
@@ -346,7 +346,7 @@ public static class SMSLogic
             return new SMSMessageEntity
             {
                 Template = t.ToLite(),
-                Message = node.Print(new TextTemplateParameters(entity, ci, columnTokens, table.Rows) { Model = model }),
+                Message = node.Print(new TextTemplateParameters(entity, ci, new QueryContext(qd, table)) { Model = model }),
                 From = t.From,
                 EditableMessage = t.EditableMessage,
                 State = SMSMessageState.Created,

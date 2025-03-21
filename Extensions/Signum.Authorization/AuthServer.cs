@@ -8,6 +8,10 @@ using Signum.Authorization.AuthToken;
 using Signum.API;
 using Signum.API.Controllers;
 using Signum.API.Json;
+using System.Runtime.InteropServices;
+using System.Collections.Concurrent;
+using System.Reflection;
+using System.Collections.Frozen;
 
 namespace Signum.Authorization;
 
@@ -20,7 +24,7 @@ public static class AuthServer
     public static Action<ActionContext, UserWithClaims> UserLoggingOut;
 
 
-    public static void Start(IApplicationBuilder app, Func<AuthTokenConfigurationEmbedded> tokenConfig, string hashableEncryptionKey)
+    public static void Start(Func<AuthTokenConfigurationEmbedded> tokenConfig, string hashableEncryptionKey)
     {
         AuthTokenServer.Start(tokenConfig, hashableEncryptionKey);
 
@@ -63,6 +67,16 @@ public static class AuthServer
 
                     ti.Extension.Add("maxTypeAllowed", ta.MaxUI());
                     ti.Extension.Add("minTypeAllowed", ta.MinUI());
+
+                    if (ta.Fallback == TypeAllowed.None)
+                    {
+                        var conditions = ta.ConditionRules.SelectMany(a => a.TypeConditions)
+                        .Distinct().Where(a => TypeConditionLogic.IsQueryAuditor(t, a)).Select(a => a.Key);
+
+                        if (conditions.Any())
+                            ti.Extension.Add("queryAuditors", conditions.ToList());
+                    }
+
                     ti.RequiresEntityPack |= ta.ConditionRules.Any();
 
                     return ti;
@@ -85,11 +99,13 @@ public static class AuthServer
 
             EntityPackTS.AddExtension += ep =>
             {
+                var args = FilterQueryArgs.FromEntity(ep.entity);
+
                 var typeAllowed =
                 UserEntity.Current == null ? TypeAllowedBasic.None :
                 ep.entity.IsNew ? TypeAuthLogic.GetAllowed(ep.entity.GetType()).MaxUI() :
-                TypeAuthLogic.IsAllowedFor(ep.entity, TypeAllowedBasic.Write, true) ? TypeAllowedBasic.Write :
-                TypeAuthLogic.IsAllowedFor(ep.entity, TypeAllowedBasic.Read, true) ? TypeAllowedBasic.Read :
+                TypeAuthLogic.IsAllowedFor(ep.entity, TypeAllowedBasic.Write, inUserInterface: true, args) ? TypeAllowedBasic.Write :
+                TypeAuthLogic.IsAllowedFor(ep.entity, TypeAllowedBasic.Read, inUserInterface: true, args) ? TypeAllowedBasic.Read :
                 TypeAllowedBasic.None;
 
                 ep.extension.Add("typeAllowed", typeAllowed);
@@ -107,7 +123,7 @@ public static class AuthServer
                     if (ta.Max(inUserInterface: true) <= TypeAllowedBasic.Read)
                         return true;
 
-                    return giCountReadonly.GetInvoker(gr.Key)() > 0;
+                    return giCountReadonly.GetInvoker(gr.Key)(gr) > 0;
                 });
             };
         }
@@ -118,7 +134,10 @@ public static class AuthServer
             {
                 if (ti.QueryDefined)
                 {
-                    var allowed = UserEntity.Current == null ? QueryAllowed.None : QueryAuthLogic.GetQueryAllowed(t);
+                    var allowed = UserEntity.Current == null ? QueryAllowed.None :
+                    QueryLogic.Queries.QueryAllowed(t, fullScreen: true) ? QueryAllowed.Allow :
+                    QueryLogic.Queries.QueryAllowed(t, fullScreen: false) ? QueryAllowed.EmbeddedOnly : QueryAllowed.None;
+
                     if (allowed == QueryAllowed.None)
                         ti.QueryDefined = false;
 
@@ -132,7 +151,11 @@ public static class AuthServer
             {
                 if (fi.DeclaringType!.Name.EndsWith("Query"))
                 {
-                    var allowed = UserEntity.Current == null ? QueryAllowed.None : QueryAuthLogic.GetQueryAllowed(fi.GetValue(null)!);
+                    var q = fi.GetValue(null)!;
+
+                    var allowed = UserEntity.Current == null ? QueryAllowed.None :
+                    QueryLogic.Queries.QueryAllowed(q, fullScreen: true) ? QueryAllowed.Allow :
+                    QueryLogic.Queries.QueryAllowed(q, fullScreen: false) ? QueryAllowed.EmbeddedOnly : QueryAllowed.None;
 
                     if (allowed == QueryAllowed.None)
                         return null;
@@ -141,7 +164,6 @@ public static class AuthServer
                 }
                 return mi;
             };
-
         }
 
         if (PropertyAuthLogic.IsStarted)
@@ -169,6 +191,8 @@ public static class AuthServer
 
                 return allowed == PropertyAllowed.Write ? null : "Not allowed to write property: " + pr.ToString();
             };
+
+            PropertyAuthLogic.GetPropertyConverters = (t) => SignumServer.WebEntityJsonConverterFactory.GetPropertyConverters(t);
         }
 
         if (OperationAuthLogic.IsStarted)
@@ -224,7 +248,7 @@ public static class AuthServer
                     if (error != null)
                         throw new ApplicationException(error);
 
-                    ((UserEntity)ctx.Entity).PasswordHash = PasswordEncoding.EncodePassword(((UserEntity)ctx.Entity).UserName, password).Last();
+                    ((UserEntity)ctx.Entity).PasswordHash = PasswordEncoding.EncodePassword(((UserEntity)ctx.Entity).UserName, password);
                 }
             }
         });
@@ -238,11 +262,13 @@ public static class AuthServer
                     re.Headers["User-Agent"].FirstOrDefault());
             };
 
-        MapColorProvider.GetColorProviders += GetMapColors;
+
     }
 
-    public static ResetLazy<Dictionary<string, List<Type>>> entitiesByNamespace =
-        new ResetLazy<Dictionary<string, List<Type>>>(() => Schema.Current.Tables.Keys.Where(t => !EnumEntity.IsEnumEntity(t)).GroupToDictionary(t => t.Namespace!));
+    public static ResetLazy<FrozenDictionary<string, List<Type>>> entitiesByNamespace =
+        new(() => Schema.Current.Tables.Keys.Where(t => !EnumEntity.IsEnumEntity(t)).GroupToDictionary(t => t.Namespace!).ToFrozenDictionary());
+
+    public static ConcurrentDictionary<string, bool> NamespaceNoLoaded = new ConcurrentDictionary<string, bool>();
 
     public static bool IsNamespaceAllowed(Type type)
     {
@@ -256,16 +282,30 @@ public static class AuthServer
             return typesInNamespace.Any(t => TypeAuthLogic.GetAllowed(t).MaxUI() > TypeAllowedBasic.None);
 
 
+        var notLoaded = NamespaceNoLoaded.GetOrAdd(type.Namespace!, ns =>
+        {
+            var entities = type.Assembly.ExportedTypes.Where(a => a.Namespace == type.Namespace && typeof(Entity).IsAssignableFrom(a) && !a.IsAbstract);
+
+            return entities.Any() && !entities.Any(e => Schema.Current.Tables.ContainsKey(e));
+        });
+
+        if (notLoaded)
+            return false;
+
         throw new InvalidOperationException(@$"Unable to determine whether the metadata for '{type.FullName}' should be delivered to the client because there are no entities in the namespace '{type.Namespace!}'.
 Consider calling ReflectionServer.RegisterLike(typeof({type.Name}), ()=> yourCondition);");
     }
 
 
 
-    static GenericInvoker<Func<int>> giCountReadonly = new(() => CountReadonly<Entity>());
-    public static int CountReadonly<T>() where T : Entity
+    static GenericInvoker<Func<IEnumerable<Lite<Entity>>, int>> giCountReadonly = new(lites => CountReadonly<UserEntity>(lites));
+    public static int CountReadonly<T>(IEnumerable<Lite<Entity>> lites) where T : Entity
     {
-        return Database.Query<T>().Count(a => !a.IsAllowedFor(TypeAllowedBasic.Write, true));
+        var array = lites.Cast<Lite<T>>().ToArray();
+        var args = FilterQueryArgs.FromFilter<T>(e => array.Contains(e.ToLite()));
+
+        using (TypeAuthLogic.DisableQueryFilter())
+            return Database.Query<T>().Where(a => array.Contains(a.ToLite())).Count(a => !a.IsAllowedFor(TypeAllowedBasic.Write, true, args));
     }
 
     public static void OnUserPreLogin(ActionContext ac, UserEntity user)
@@ -280,60 +320,6 @@ Consider calling ReflectionServer.RegisterLike(typeof({type.Name}), ()=> yourCon
         AuthServer.UserLogged?.Invoke(ac, user);
     }
 
-    static MapColorProvider[] GetMapColors()
-    {
-        if (!BasicPermission.AdminRules.IsAuthorized())
-            return new MapColorProvider[0];
 
-        var roleRules = AuthLogic.RolesInOrder(includeTrivialMerge: false).ToDictionary(r => r,
-            r => TypeAuthLogic.GetTypeRules(r).Rules.ToDictionary(a => a.Resource.CleanName, a => a.Allowed));
-
-        return roleRules.Keys.Select((r, i) => new MapColorProvider
-        {
-            Name = "role-" + r.Key(),
-            NiceName = "Role - " + r.ToString(),
-            AddExtra = t =>
-            {
-                TypeAllowedAndConditions? tac = roleRules[r].TryGetC(t.typeName);
-
-                if (tac == null)
-                    return;
-
-                t.extra["role-" + r.Key() + "-ui"] = GetName(ToStringList(tac, userInterface: true));
-                t.extra["role-" + r.Key() + "-db"] = GetName(ToStringList(tac, userInterface: false));
-                t.extra["role-" + r.Key() + "-tooltip"] = ToString(tac.Fallback) + "\n" + (tac.ConditionRules.IsNullOrEmpty() ? null :
-                    tac.ConditionRules.ToString(a => a.ToString() + ": " + ToString(a.Allowed), "\n") + "\n");
-            },
-            Order = 10,
-        }).ToArray();
-    }
-
-    static string GetName(List<TypeAllowedBasic> list)
-    {
-        return "auth-" + list.ToString("-");
-    }
-
-    static List<TypeAllowedBasic> ToStringList(TypeAllowedAndConditions tac, bool userInterface)
-    {
-        List<TypeAllowedBasic> result = new List<TypeAllowedBasic>();
-        result.Add(tac.Fallback.Get(userInterface));
-
-        foreach (var c in tac.ConditionRules)
-            result.Add(c.Allowed.Get(userInterface));
-
-        return result;
-    }
-
-
-    private static string ToString(TypeAllowed? typeAllowed)
-    {
-        if (typeAllowed == null)
-            return "MERGE ERROR!";
-
-        if (typeAllowed.Value.GetDB() == typeAllowed.Value.GetUI())
-            return typeAllowed.Value.GetDB().NiceToString();
-
-        return "DB {0} / UI {1}".FormatWith(typeAllowed.Value.GetDB().NiceToString(), typeAllowed.Value.GetUI().NiceToString());
-    }
 
 }

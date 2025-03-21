@@ -5,13 +5,14 @@ import * as Navigator from '../Navigator'
 import { ModifiableEntity, MList, EntityControlMessage, newMListElement, Entity, Lite, is } from '../Signum.Entities'
 import { EntityBaseController } from './EntityBase'
 import { EntityListBaseController, EntityListBaseProps, DragConfig, MoveConfig } from './EntityListBase'
-import DynamicComponent, { getAppropiateComponent, getAppropiateComponentFactory } from './DynamicComponent'
 import { Property } from 'csstype';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { Breakpoints, getBreakpoint, useAPI, useBreakpoint, useForceUpdate } from '../Hooks'
 import { useController } from './LineBase'
-import { KeyCodes } from '../Components'
+import { KeyNames } from '../Components'
 import { getTimeMachineIcon } from './TimeMachineIcon'
+import { GroupHeader, HeaderType } from './GroupHeader'
+import { AutoLine } from './AutoLine'
 
 
 export interface EntityTableProps extends EntityListBaseProps {
@@ -21,7 +22,7 @@ export interface EntityTableProps extends EntityListBaseProps {
   columns?: EntityTableColumn<any /*T*/, any /*RS*/>[],
   rowHooks?: (ctx: TypeContext<any /*T*/>, row: EntityTableRowHandle) => any /*RS*/;
   onRowHtmlAttributes?: (ctx: TypeContext<any /*T*/>, row: EntityTableRowHandle, rowState: any) => React.HTMLAttributes<any> | null | undefined;
-  avoidFieldSet?: boolean;
+  avoidFieldSet?: boolean | HeaderType;
   avoidEmptyTable?: boolean;
   maxResultsHeight?: Property.MaxHeight<string | number> | any;
   scrollable?: boolean;
@@ -97,11 +98,12 @@ export class EntityTableController extends EntityListBaseController<EntityTableP
           if (c.property == null)
             throw new Error("Column has no property and no template");
 
-          var factory = getAppropiateComponentFactory(c.property == "string" ? pr.addMember("Member", c.property, true) : pr.addLambda(c.property!));
+          var propertyRoute = c.property == "string" ? pr.addMember("Member", c.property, true) : pr.addLambda(c.property!);
+          var factory = AutoLine.getComponentFactory(propertyRoute.typeReference(), propertyRoute);
 
           c.template = (ctx, row, state) => {
             var subCtx = typeof c.property == "string" ? ctx.subCtx(c.property) : ctx.subCtx(c.property!);
-            return factory(subCtx);
+            return factory({ ctx: subCtx });
           };
         }
 
@@ -126,7 +128,7 @@ export class EntityTableController extends EntityListBaseController<EntityTableP
 
   handleKeyDown = (sender: EntityTableRowHandle, e: React.KeyboardEvent<HTMLTableRowElement>) => {
 
-    if (e.keyCode != KeyCodes.tab) {
+    if (e.key != KeyNames.tab) {
       if (this.recentlyCreated.current && sender.props.ctx.value == this.recentlyCreated.current)
         this.recentlyCreated.current = null;
 
@@ -204,24 +206,15 @@ export const EntityTable: React.ForwardRefExoticComponent<EntityTableProps & Rea
 
     let ctx = (p.ctx as TypeContext<MList<ModifiableEntity>>).subCtx({ formGroupStyle: "SrOnly" });
 
-    if (p.avoidFieldSet == true)
-      return (
-        <div className={classes("sf-table-field sf-control-container", ctx.errorClassBorder)} {...c.baseHtmlAttributes()} {...p.formGroupHtmlAttributes} {...ctx.errorAttributes()}>
-          {renderButtons()}
-          {renderTable()}
-        </div>
-      );
-
     return (
-      <fieldset className={classes("sf-table-field sf-control-container", ctx.errorClass)} {...c.baseHtmlAttributes()} {...p.formGroupHtmlAttributes} {...ctx.errorAttributes()}>
-        <legend>
-          <div>
-            <span>{p.label}</span>
-            {renderButtons()}
-          </div>
-        </legend>
+      <GroupHeader className={classes("sf-table-field sf-control-container", ctx.errorClassBorder)}
+        label={p.label}
+        labelIcon={p.labelIcon}
+        avoidFieldSet={p.avoidFieldSet}
+        buttons={renderButtons()}
+        htmlAttributes={{ ...c.baseHtmlAttributes(), ...p.formGroupHtmlAttributes, ...ctx.errorAttributes() }}>
         {renderTable()}
-      </fieldset>
+      </GroupHeader >
     );
 
     function renderButtons() {
@@ -230,7 +223,7 @@ export const EntityTable: React.ForwardRefExoticComponent<EntityTableProps & Rea
           {c.props.extraButtonsBefore && c.props.extraButtonsBefore(c)}
           {p.createAsLink == false && c.renderCreateButton(false, p.createMessage)}
           {c.renderFindButton(false)}
-          {c.props.extraButtonsAfter && c.props.extraButtonsAfter(c)}
+          {c.props.extraButtons && c.props.extraButtons(c)}
         </span>
       );
 
@@ -448,9 +441,9 @@ export function EntityTableRow(p: EntityTableRowProps) {
       throw new Error("Column has no property and no template");
 
     if (typeof col.property == "string")
-      return getAppropiateComponent(p.ctx.subCtx(col.property)); /*string overload*/
+      return <AutoLine ctx={p.ctx.subCtx(col.property)} />; /*string overload*/
     else
-      return getAppropiateComponent(p.ctx.subCtx(col.property)); /*lambda overload*/
+      return AutoLine.getComponentFactory(col.property)({ ctx: p.ctx.subCtx(col.property) }); /*lambda overload*/
 
   }
 }

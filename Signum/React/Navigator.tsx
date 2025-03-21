@@ -39,12 +39,14 @@ export function start(options: { routes: RouteObject[] }) {
   AppContext.clearSettingsActions.push(clearWidgets)
   AppContext.clearSettingsActions.push(ButtonBarManager.clearButtonBarRenderer);
   AppContext.clearSettingsActions.push(clearCustomConstructors);
-  AppContext.clearSettingsActions.push(cleanEntityChanged);
+  AppContext.clearSettingsActions.push(clearEntityChanged);
   AppContext.clearSettingsActions.push(clearSpecialActions);
+  AppContext.clearSettingsActions.push(clearEvents);
 
   ErrorModalOptions.getExceptionUrl = exceptionId => navigateRoute(newLite(ExceptionEntity, exceptionId));
   ErrorModalOptions.isExceptionViewable = () => isViewable(ExceptionEntity);
 }
+
 
 export namespace NavigatorManager {
   export function getFramePage() {
@@ -90,7 +92,7 @@ export function useEntityChanged<T extends Entity>(typeOrTypes: Type<any> | stri
   }, [types.join(","), ...deps]);
 }
 
-function cleanEntityChanged() {
+function clearEntityChanged() {
   Dic.clear(entityChanged);
 }
 
@@ -103,6 +105,11 @@ export function raiseEntityChanged(typeOrEntity: Type<any> | string | Entity, is
 
 export function getTypeSubTitle(entity: ModifiableEntity, pr: PropertyRoute | undefined): React.ReactNode | undefined {
 
+  var settings = entitySettings[entity.Type];
+
+  if (settings?.renderSubTitle)
+    return settings.renderSubTitle(entity);
+
   if (isTypeEntity(entity.Type)) {
 
     const typeInfo = getTypeInfo(entity.Type);
@@ -110,7 +117,7 @@ export function getTypeSubTitle(entity: ModifiableEntity, pr: PropertyRoute | un
     if (entity.isNew)
       return FrameMessage.New0_G.niceToString().forGenderAndNumber(typeInfo.gender).formatWith(typeInfo.niceName);
 
-    return renderTitle(typeInfo, entity);
+    return defaultRenderSubTitle(typeInfo, entity);
   }
   else if (isTypeModel(entity.Type)) {
     return undefined;
@@ -120,11 +127,22 @@ export function getTypeSubTitle(entity: ModifiableEntity, pr: PropertyRoute | un
   }
 }
 
+let defaultRenderSubTitle = (typeInfo: TypeInfo, entity: ModifiableEntity): React.ReactElement | null => {
+  return <span>{typeInfo.niceName} {renderId(entity as Entity)}</span>;
+}
+
+export function setDefaultRenderTitleFunction(newFunction: (typeInfo: TypeInfo, entity: ModifiableEntity) => React.ReactElement | null) {
+  defaultRenderSubTitle = newFunction;
+}
+
+
 let renderId = (entity: Entity): React.ReactChild => {
-  const guid = getTypeInfo(entity.Type).members["Id"].type!.name == "Guid";
+  var idType = getTypeInfo(entity.Type).members["Id"].type;
+
+  const hideId = getSettings(entity.Type)?.hideId ?? idType!.name == "Guid";
   return (
     <>
-      <span className={guid ? "sf-hide-id" : ""}>
+      <span className={hideId ? "sf-hide-id" : ""}>
         {entity.id}
       </span>
       <CopyLiteButton className={"sf-hide-id"} entity={entity} />
@@ -137,14 +155,6 @@ export function setRenderIdFunction(newFunction: (entity: Entity) => React.React
   renderId = newFunction;
 }
 
-let renderTitle = (typeInfo: TypeInfo, entity: ModifiableEntity) => {
-  return "{0} {1}".formatHtml(typeInfo.niceName, renderId(entity as Entity));
-  return null;
-}
-
-export function setRenderTitleFunction(newFunction: (typeInfo: TypeInfo, entity: ModifiableEntity) => React.ReactElement | null) {
-  renderTitle = newFunction;
-}
 
 export function navigateRoute(entity: Entity, viewName?: string): string;
 export function navigateRoute(lite: Lite<Entity>, viewName?: string): string;
@@ -226,6 +236,14 @@ export function clearEntitySettings() {
   Dic.clear(entitySettings);
 }
 
+export function clearEvents() {
+
+  isCreableEvent.clear();
+  isReadonlyEvent.clear();
+  isViewableEvent.clear();
+  Finder.isFindableEvent.clear();
+}
+
 export const entitySettings: { [type: string]: EntitySettings<ModifiableEntity> } = {};
 export function addSettings(...settings: EntitySettings<any>[]) {
   settings.forEach(s => Dic.addOrThrow(entitySettings, s.typeName, s));
@@ -300,7 +318,7 @@ export class BasicViewDispatcher implements ViewDispatcher {
 
 }
 
-export class DynamicComponentViewDispatcher implements ViewDispatcher {
+export class AutoViewDispatcher implements ViewDispatcher {
 
   hasDefaultView(typeName: string) {
     return true;
@@ -322,7 +340,7 @@ export class DynamicComponentViewDispatcher implements ViewDispatcher {
     if (viewName == undefined) {
 
       if (es?.getViewPromise == null)
-        return new ViewPromise<ModifiableEntity>(import('./Lines/DynamicComponent'));
+        return new ViewPromise<ModifiableEntity>(import('./AutoComponent'));
 
       return es.getViewPromise(entity).applyViewOverrides(entity.Type);
     } else {
@@ -339,7 +357,7 @@ export class DynamicComponentViewDispatcher implements ViewDispatcher {
   }
 }
 
-export let viewDispatcher: ViewDispatcher = new DynamicComponentViewDispatcher();
+export let viewDispatcher: ViewDispatcher = new AutoViewDispatcher();
 
 export function getViewPromise<T extends ModifiableEntity>(entity: T, viewName?: string): ViewPromise<T> {
   return viewDispatcher.getViewPromise(entity, viewName);
@@ -524,7 +542,7 @@ export const isViewableEvent: Array<(typeName: string, entityPack: EntityPack<Mo
 
 export interface IsViewableOptions {
   customComponent?: boolean;
-  isSearch?: boolean;
+  isSearch?: "main" | "related";
   isEmbedded?: boolean;
   buttons?: ViewButtons;
 }
@@ -553,7 +571,7 @@ export function isViewable(typeOrEntity: PseudoType | EntityPack<ModifiableEntit
 
   const typeName = isEntityPack(typeOrEntity) ? typeOrEntity.entity.Type : getTypeName(typeOrEntity as PseudoType);
 
-  const baseTypeName = checkFlag(typeIsViewable(typeName, options?.isEmbedded), options?.isSearch);
+  const baseTypeName = checkFlag(typeIsViewable(typeName, options?.isEmbedded), options?.isSearch == "main");
 
   const hasView = options?.customComponent || viewDispatcher.hasDefaultView(typeName);
 
@@ -930,6 +948,8 @@ export interface EntitySettingsOptions<T extends ModifiableEntity> {
   avoidPopup?: boolean;
   supportsAdditionalTabs?: boolean;
 
+  hideId?: boolean;
+
   allowWrapEntityLink?: boolean;
   avoidFillSearchColumnWidth?: boolean;
 
@@ -938,6 +958,8 @@ export interface EntitySettingsOptions<T extends ModifiableEntity> {
   stickyHeader?: boolean;
 
   onAssignServerChanges?: (local: T, server: T) => void;
+
+  renderSubTitle?: (entity: T) => React.ReactNode;
 
   autocomplete?: (fo: FindOptions | undefined, showType: boolean) => AutocompleteConfig<any> | undefined | null;
   autocompleteDelay?: number;
@@ -1006,6 +1028,8 @@ export class EntitySettings<T extends ModifiableEntity> {
   avoidPopup!: boolean;
   supportsAdditionalTabs?: boolean;
 
+  hideId?: boolean;
+
   allowWrapEntityLink?: boolean;
   avoidFillSearchColumnWidth?: boolean;
 
@@ -1014,6 +1038,8 @@ export class EntitySettings<T extends ModifiableEntity> {
   stickyHeader?: boolean;
 
   onAssignServerChanges?: (local: T, server: T) => void;
+
+  renderSubTitle?: (entity: T) => React.ReactNode;
 
   autocomplete?: (fo: FindOptions | undefined, showType: boolean) => AutocompleteConfig<any> | undefined | null;
   autocompleteDelay?: number;
@@ -1158,10 +1184,8 @@ function monkeyPatchClassComponent<T extends ModifiableEntity>(component: React.
     const ctx = this.props.ctx;
 
     const view = baseRender.call(this);
-    if (view == null)
-      return null;
 
-    const replacer = new ViewReplacer<T>(view, ctx);
+    const replacer = new ViewReplacer<T>(view!, ctx);
     viewOverrides.forEach(vo => vo.override(replacer));
     return replacer.result;
   };
@@ -1169,25 +1193,44 @@ function monkeyPatchClassComponent<T extends ModifiableEntity>(component: React.
   component.prototype.render.withViewOverrides = true;
 }
 
-export function surroundFunctionComponent<T extends ModifiableEntity>(functionComponent: React.FunctionComponent<{ ctx: TypeContext<T> }>, viewOverrides: ViewOverride<T>[]) {
+interface FunctionCache<T extends ModifiableEntity>  {
+  overridenView: React.FunctionComponent<{ ctx: TypeContext<T> }>,
+  viewOverrides: ViewOverride<T>[]
+}
+
+export function surroundFunctionComponent<T extends ModifiableEntity>(functionComponent: React.FunctionComponent<{ ctx: TypeContext<T> }>, viewOverrides: ViewOverride<T>[]): React.FunctionComponent<{ ctx: TypeContext<T> }>{
+
+  var cache = (functionComponent as any).cache as FunctionCache<T>; 
+
+  if (cache) {
+    if (cache.viewOverrides.every((vo, i) => viewOverrides[i] == vo))
+      return cache.overridenView;
+    else {
+      (functionComponent as any).cache = null;
+    }
+  }
+
   var result = function NewComponent(props: { ctx: TypeContext<T> }) {
     var view = functionComponent(props);
-    if (view == null)
-      return null;
 
-    const replacer = new ViewReplacer<T>(view, props.ctx);
+    const replacer = new ViewReplacer<T>(view! as React.ReactElement, props.ctx);
     viewOverrides.forEach(vo => vo.override(replacer));
     return replacer.result;
   };
 
   Object.defineProperty(result, "name", { value: functionComponent.name + "VO" });
 
+  (functionComponent as any).cache = softCast<FunctionCache<T>>({
+    overridenView: result,
+    viewOverrides: viewOverrides,
+  });
+
   return result;
 }
 
-export function checkFlag(entityWhen: EntityWhen, isSearch: boolean | undefined) {
+export function checkFlag(entityWhen: EntityWhen, isSearchMainEntity: boolean | undefined) {
   return entityWhen == "Always" ||
-    entityWhen == (isSearch ? "IsSearch" : "IsLine");
+    entityWhen == (isSearchMainEntity ? "IsSearch" : "IsLine");
 }
 
 export type EntityWhen = "Always" | "IsSearch" | "IsLine" | "Never";

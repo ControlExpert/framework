@@ -18,6 +18,7 @@ export interface PinnedQueryFilterEmbedded extends Entities.EmbeddedEntity {
   Type: "PinnedQueryFilterEmbedded";
   label: string | null;
   column: number | null;
+  colSpan: number | null;
   row: number | null;
   active: DynamicQuery.PinnedFilterActive;
   splitValue: boolean;
@@ -57,5 +58,10 @@ export const QueryTokenEmbedded = new Type<QueryTokenEmbedded>("QueryTokenEmbedd
 export interface QueryTokenEmbedded extends Entities.EmbeddedEntity {
   Type: "QueryTokenEmbedded";
   tokenString: string;
+}
+
+export module UserAssetQueryMessage {
+  export const SwitchToValue = new MessageKey("UserAssetQueryMessage", "SwitchToValue");
+  export const SwitchToExpression = new MessageKey("UserAssetQueryMessage", "SwitchToExpression");
 }
 

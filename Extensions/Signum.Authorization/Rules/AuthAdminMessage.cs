@@ -44,21 +44,9 @@ public enum AuthAdminMessage
     [Description(@"{0} cycles have been found in the graph of Roles due to the relationships:")]
     _0CyclesHaveBeenFoundInTheGraphOfRolesDueToTheRelationships,
 
-    ConflictMergingTypeConditions,
-
     Save,
 
-    [Description("Default Authorization: ")]
-    DefaultAuthorization,
-
-    [Description("Maximum of the {0}")]
-    MaximumOfThe0,
-    [Description("Minimum of the {0}")]
-    MinumumOfThe0,
-    [Description("Same as {0}")]
-    SameAs0,
-    Nothing,
-    Everything,
+   
 
     [Description("Select Type Condition(s)")]
     SelectTypeConditions,
@@ -80,8 +68,6 @@ public enum AuthAdminMessage
 
     [Description("Role {0} inherits from trivial merge role {1}")]
     Role0InheritsFromTrivialMergeRole1,
-
-    IncludeTrivialMerges,
 
     [Description("Role {0} is trivial merge")]
     Role0IsTrivialMerge,

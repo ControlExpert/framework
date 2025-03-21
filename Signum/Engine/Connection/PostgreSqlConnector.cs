@@ -176,27 +176,39 @@ public class PostgreSqlConnector : Connector
     {
         EnsureConnectionRetry(con =>
         {
-            con = con ?? (NpgsqlConnection)Transaction.CurrentConnection!;
-
-            bool isPostgres = true;
-
-            var columnsSql = dt.Columns.Cast<DataColumn>().ToString(a => a.ColumnName.SqlEscape(isPostgres), ", ");
-            using (var writer = con.BeginBinaryImport($"COPY {destinationTable} ({columnsSql}) FROM STDIN (FORMAT BINARY)"))
+            try
             {
-                for (int i = 0; i < dt.Rows.Count; i++)
-                {
-                    var row = dt.Rows[i];
-                    writer.StartRow();
-                    for (int j = 0; j < dt.Columns.Count; j++)
-                    {
-                        var col = dt.Columns[j];
-                        writer.Write(row[col], columns[j].DbType.PostgreSql);
-                    }
-                }
+                con = con ?? (NpgsqlConnection)Transaction.CurrentConnection!;
 
-                writer.Complete();
-                return 0;
+                bool isPostgres = true;
+
+                var columnsSql = dt.Columns.Cast<DataColumn>().ToString(a => a.ColumnName.SqlEscape(isPostgres), ", ");
+                using (var writer = con.BeginBinaryImport($"COPY {destinationTable} ({columnsSql}) FROM STDIN (FORMAT BINARY)"))
+                {
+                    for (int i = 0; i < dt.Rows.Count; i++)
+                    {
+                        var row = dt.Rows[i];
+                        writer.StartRow();
+                        for (int j = 0; j < dt.Columns.Count; j++)
+                        {
+                            var col = dt.Columns[j];
+                            writer.Write(row[col], columns[j].DbType.PostgreSql);
+                        }
+                    }
+
+                    writer.Complete();
+                    return 0;
+                }
             }
+            catch (Exception ex)
+            {
+                var nex = HandleException(ex, new SqlPreCommandSimple($"## BeginBinaryImport into {destinationTable} ({columns.ToString(a => "'" + a.Name + "'", ", ")})"));
+                if (nex == ex)
+                    throw;
+
+                throw nex;
+            }
+
         });
     }
 
@@ -328,16 +340,16 @@ public class PostgreSqlConnector : Connector
 
     Exception ReplaceException(Exception ex, SqlPreCommandSimple command)
     {
-        //if (ex is Npgsql.PostgresException se)
-        //{
-        //    switch (se.Number)
-        //    {
-        //        case -2: return new TimeoutException(ex.Message, ex);
-        //        case 2601: return new UniqueKeyException(ex);
-        //        case 547: return new ForeignKeyException(ex);
-        //        default: return ex;
-        //    }
-        //}
+        if (ex is Npgsql.PostgresException se)
+        {
+            switch (se.SqlState)
+            {
+                //case "-2": return new TimeoutException(ex.Message, ex);
+                case "23505": return new UniqueKeyException(ex);
+                case "23503": return new ForeignKeyException(ex);
+                default: return ex;
+            }
+        }
 
         //if (ex is SqlTypeException ste && ex.Message.Contains("DateTime"))
         //{

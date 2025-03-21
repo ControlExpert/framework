@@ -24,7 +24,7 @@ public class AuthController : ControllerBase
         try
         {
             if (AuthLogic.Authorizer == null)
-                user = AuthLogic.Login(data.userName, PasswordEncoding.EncodePassword(data.userName, data.password), out authenticationType);
+                user = AuthLogic.Login(data.userName, PasswordEncoding.EncodePasswordAlternatives(data.userName, data.password), out authenticationType);
             else
                 user = AuthLogic.Authorizer.Login(data.userName, data.password, out authenticationType);
         }
@@ -120,11 +120,11 @@ public class AuthController : ControllerBase
         }
         else
         {
-            if (user.PasswordHash == null || !PasswordEncoding.EncodePassword(user.UserName, request.oldPassword).Any(oldPasswordHash => oldPasswordHash.SequenceEqual(user.PasswordHash)))
+            if (user.PasswordHash == null || !PasswordEncoding.EncodePasswordAlternatives(user.UserName, request.oldPassword).Any(oldPasswordHash => oldPasswordHash.SequenceEqual(user.PasswordHash)))
                 return ModelError("oldPassword", LoginAuthMessage.InvalidPassword.NiceToString());
         }
 
-        user.PasswordHash = PasswordEncoding.EncodePassword(user.UserName, request.newPassword).Last();
+        user.PasswordHash = PasswordEncoding.EncodePassword(user.UserName, request.newPassword);
         using (AuthLogic.Disable())
         using (OperationLogic.AllowSave<UserEntity>())
         {
@@ -145,28 +145,28 @@ public class AuthController : ControllerBase
 #pragma warning disable IDE1006 // Naming Styles
 public class LoginRequest
 {
-        public string userName { get; set; }
-        public string password { get; set; }
-        public bool? rememberMe { get; set; }
+    public string userName { get; set; }
+    public string password { get; set; }
+    public bool? rememberMe { get; set; }
 }
 
 public class LoginResponse
 {
-        public string authenticationType { get; set; }
-        public string token { get; set; }
-        public UserEntity userEntity { get; set; }
+    public string authenticationType { get; set; }
+    public string token { get; set; }
+    public UserEntity userEntity { get; set; }
 }
 
 public class ChangePasswordRequest
 {
-        public string oldPassword { get; set; }
-        public string newPassword { get; set; }
+    public string oldPassword { get; set; }
+    public string newPassword { get; set; }
 }
 
 public class ResetPasswordRequest
 {
-        public string code { get; set; }
-        public string newPassword { get; set; }
+    public string code { get; set; }
+    public string newPassword { get; set; }
 }
 
 public class ForgotPasswordRequest

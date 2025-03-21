@@ -1,6 +1,7 @@
 import { ModelState, isEntity, ModelEntity } from './Signum.Entities'
 import { GraphExplorer } from './Reflection'
 import { toAbsoluteUrl } from './AppContext';
+import luxon, { DateTime } from 'luxon';
 
 export interface AjaxOptions {
   url: string;
@@ -154,11 +155,13 @@ export module VersionFilter {
         latestVersion = ver;
         initialBuildTime = buildTime!;
       }
-
+     
       if (latestVersion != ver) {
-        latestVersion = ver;
-        if (versionHasChanged)
-          versionHasChanged();
+        if (buildTime && initialBuildTime && DateTime.fromISO(buildTime) > DateTime.fromISO(initialBuildTime)) {
+          latestVersion = ver;
+          if (versionHasChanged)
+            versionHasChanged();
+        }
       }
     }
 
@@ -173,9 +176,8 @@ export module NotifyPendingFilter {
 
     notifyPendingRequests(++pendingRequests);
 
-    return makeCall().then(
-      resp => { notifyPendingRequests(--pendingRequests); return resp; },
-      error => { notifyPendingRequests(--pendingRequests); throw error; });
+    return makeCall()
+      .finally(() => notifyPendingRequests(--pendingRequests));
   }
 }
 

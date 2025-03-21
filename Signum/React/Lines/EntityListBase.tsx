@@ -8,10 +8,9 @@ import { TypeContext, mlistItemContext } from '../TypeContext'
 import { EntityBaseController, EntityBaseProps } from './EntityBase'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { LineBaseController, LineBaseProps, tasks } from './LineBase'
-import { FindOptionsAutocompleteConfig, LiteAutocompleteConfig } from './AutoCompleteConfig'
 import { tryGetTypeInfos } from '../Reflection'
-import { KeyCodes } from '../Components'
 import { isRtl, toAbsoluteUrl } from '../AppContext'
+import { KeyNames } from '../Components'
 
 export interface EntityListBaseProps extends EntityBaseProps {
   move?: boolean | ((item: ModifiableEntity | Lite<Entity>) => boolean);
@@ -106,7 +105,7 @@ export abstract class EntityListBaseController<T extends EntityListBaseProps> ex
   }
 
   doView(entity: ModifiableEntity | Lite<Entity>) {
-    const pr = this.props.ctx.propertyRoute!.addLambda(a => a[0]);
+    const pr = this.props.ctx.propertyRoute?.addLambda(a => a[0])!;
     return this.props.onView ?
       this.props.onView(entity, pr) :
       this.defaultView(entity, pr);
@@ -129,7 +128,7 @@ export abstract class EntityListBaseController<T extends EntityListBaseProps> ex
       window.open(toAbsoluteUrl(route));
     }
     else {
-      const pr = ctx.propertyRoute!.addLambda(a => a[0]);
+      const pr = ctx.propertyRoute?.addLambda(a => a[0])!;
 
       const promise = p.onView ?
         p.onView(entity, pr) :
@@ -165,7 +164,7 @@ export abstract class EntityListBaseController<T extends EntityListBaseProps> ex
 
     event.preventDefault();
     event.stopPropagation();
-    var pr = this.props.ctx.propertyRoute!.addLambda(a => a[0]);
+    var pr = this.props.ctx.propertyRoute?.addLambda(a => a[0])!;
 
     const promise = this.props.onCreate ? this.props.onCreate(pr) : this.defaultCreate(pr);
 
@@ -416,8 +415,8 @@ export abstract class EntityListBaseController<T extends EntityListBaseProps> ex
 
     if (ke.ctrlKey) {
       var direction =
-        ke.keyCode == KeyCodes.down || ke.keyCode == KeyCodes.right ? +1 :
-          ke.keyCode == KeyCodes.up || ke.keyCode == KeyCodes.left ? -1 :
+        ke.key == KeyNames.arrowDown || ke.key == KeyNames.arrowRight ? +1 :
+          ke.key == KeyNames.arrowUp || ke.key == KeyNames.arrowLeft ? -1 :
             null;
 
       if (direction != null) {

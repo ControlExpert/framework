@@ -268,6 +268,13 @@ public class CodeFile
             new(s => s.Contains("}"), -1) { SameIdentation = true });
 
 
+    public void ReplaceMethod(Expression<Predicate<string>> methodLine, string text) =>
+        ReplaceBetween(
+            new(methodLine, 0),
+            new(s => s.Contains("}"), 0) { SameIdentation = true }, 
+            text);
+
+
     /// <param name="fromLine">Not included</param>
     /// <param name="toLine">Not included</param>
     public string GetLinesBetweenExcluded(Expression<Predicate<string>> fromLine, Expression<Predicate<string>> toLine) =>
@@ -614,6 +621,13 @@ public class CodeFile
                     return text.Replace("\tEndProjectSection", "\t\t" + relativeFilePath + " = " + relativeFilePath + "\r\n" +
                     "\tEndProjectSection");
             });
+    }
+
+    internal IDisposable OverrideWarningLevel(WarningLevel none)
+    {
+        var oldLevel = this.WarningLevel;
+        this.WarningLevel = none;
+        return new Disposable(() => this.WarningLevel = oldLevel);
     }
 }
 

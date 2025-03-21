@@ -7,6 +7,7 @@ import * as Entities from '../../Signum/React/Signum.Entities'
 import * as Operations from '../../Signum/React/Signum.Operations'
 import * as Basics from '../../Signum/React/Signum.Basics'
 import * as Authorization from '../Signum.Authorization/Signum.Authorization'
+import * as Files from '../Signum.Files/Signum.Files'
 import * as Scheduler from '../Signum.Scheduler/Signum.Scheduler'
 
 
@@ -23,6 +24,7 @@ export interface ActiveDirectoryConfigurationEmbedded extends Entities.EmbeddedE
   azure_ApplicationID: string /*Guid*/ | null;
   azure_DirectoryID: string /*Guid*/ | null;
   azure_ClientSecret: string | null;
+  useDelegatedPermission: boolean;
   loginWithWindowsAuthenticator: boolean;
   loginWithActiveDirectoryRegistry: boolean;
   loginWithAzureAD: boolean;
@@ -71,24 +73,22 @@ export module ADGroupOperation {
   export const Delete : Operations.DeleteSymbol<ADGroupEntity> = registerSymbol("Operation", "ADGroupOperation.Delete");
 }
 
-export const OnPremisesExtensionAttributesModel = new Type<OnPremisesExtensionAttributesModel>("OnPremisesExtensionAttributesModel");
-export interface OnPremisesExtensionAttributesModel extends Entities.ModelEntity {
-  Type: "OnPremisesExtensionAttributesModel";
-  extensionAttribute1: string | null;
-  extensionAttribute2: string | null;
-  extensionAttribute3: string | null;
-  extensionAttribute4: string | null;
-  extensionAttribute5: string | null;
-  extensionAttribute6: string | null;
-  extensionAttribute7: string | null;
-  extensionAttribute8: string | null;
-  extensionAttribute9: string | null;
-  extensionAttribute10: string | null;
-  extensionAttribute11: string | null;
-  extensionAttribute12: string | null;
-  extensionAttribute13: string | null;
-  extensionAttribute14: string | null;
-  extensionAttribute15: string | null;
+export module AuthADFileType {
+  export const CachedProfilePhoto : Files.FileTypeSymbol = registerSymbol("FileType", "AuthADFileType.CachedProfilePhoto");
+}
+
+export const CachedProfilePhotoEntity = new Type<CachedProfilePhotoEntity>("CachedProfilePhoto");
+export interface CachedProfilePhotoEntity extends Entities.Entity {
+  Type: "CachedProfilePhoto";
+  user: Entities.Lite<Authorization.UserEntity>;
+  size: number;
+  photo: Files.FilePathEmbedded | null;
+  creationDate: string /*DateTime*/;
+}
+
+export module CachedProfilePhotoOperation {
+  export const Save : Operations.ExecuteSymbol<CachedProfilePhotoEntity> = registerSymbol("Operation", "CachedProfilePhotoOperation.Save");
+  export const Delete : Operations.DeleteSymbol<CachedProfilePhotoEntity> = registerSymbol("Operation", "CachedProfilePhotoOperation.Delete");
 }
 
 export const RoleMappingEmbedded = new Type<RoleMappingEmbedded>("RoleMappingEmbedded");
@@ -112,11 +112,6 @@ export interface UserADMixin extends Entities.MixinEntity {
   Type: "UserADMixin";
   oID: string /*Guid*/ | null;
   sID: string | null;
-}
-
-export module UserADQuery {
-  export const ActiveDirectoryUsers = new QueryKey("UserADQuery", "ActiveDirectoryUsers");
-  export const ActiveDirectoryGroups = new QueryKey("UserADQuery", "ActiveDirectoryGroups");
 }
 
 export module UserOIDMessage {

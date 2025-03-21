@@ -51,10 +51,12 @@ export class EntityStripController extends EntityListBaseController<EntityStripP
           if (types.length == 0)
             return;
 
-          if (types.length == 1)
-            p.findOptions = withAvoidDuplicates(p.findOptions ?? { queryName: types.single().name }, types.single().name);
+          if (types.length == 1) {
+            var tn = types.single().name;
+            p.findOptions = withAvoidDuplicates(p.findOptions ?? Navigator.entitySettings[tn]?.defaultFindOptions ?? { queryName: tn }, tn);
+          }
           else {
-            p.findOptionsDictionary = types.toObject(a => a.name, a => withAvoidDuplicates(p.findOptionsDictionary?.[a.name] ?? { queryName: a.name }, a.name));
+            p.findOptionsDictionary = types.toObject(a => a.name, a => withAvoidDuplicates(p.findOptionsDictionary?.[a.name] ?? Navigator.entitySettings[a.name]?.defaultFindOptions ?? { queryName: a.name }, a.name));
           }
         }
 
@@ -95,7 +97,7 @@ export const EntityStrip = React.forwardRef(function EntityStrip(props: EntitySt
   const readOnly = p.ctx.readOnly;
   return (
     <FormGroup ctx={p.ctx!}
-      label={p.label}
+      label={p.label} labelIcon={p.labelIcon}
       labelHtmlAttributes={p.labelHtmlAttributes}
       helpText={p.helpText}
       htmlAttributes={{ ...c.baseHtmlAttributes(), ...p.formGroupHtmlAttributes }}>
@@ -142,7 +144,7 @@ export const EntityStrip = React.forwardRef(function EntityStrip(props: EntitySt
         {c.renderCreateButton(true)}
         {c.renderFindButton(true)}
         {c.renderPasteButton(true)}
-        {p.extraButtonsAfter && p.extraButtonsAfter(c)}
+        {p.extraButtons && p.extraButtons(c)}
       </>
     );
 

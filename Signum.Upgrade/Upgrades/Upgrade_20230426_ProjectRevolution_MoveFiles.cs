@@ -16,7 +16,7 @@ class Upgrade_20230426_ProjectRevolution_MoveFiles : CodeUpgradeBase
         SafeConsole.WriteLineColor(ConsoleColor.Magenta, "This upgrade will completely re-structure your application!!");
         Console.WriteLine("Some important considerations:");
         Console.WriteLine("* After running this upgrade, manual work is expected fixing namespaces, so it is recommended that you run it from the framework branch origin/revolution to avoid extra changes that could come in the future.");
-        Console.WriteLine("* Read XXXXX before continuing.");
+        Console.WriteLine("* Read https://github.com/signumsoftware/framework/commit/25f239479afa9027d24b7cc12f75722550411f06#comments before continuing.");
 
         Console.WriteLine();
         Console.WriteLine("Press any key when you have read it");
@@ -134,7 +134,6 @@ class Upgrade_20230426_ProjectRevolution_MoveFiles : CodeUpgradeBase
             		<ProjectReference Include="..\Framework\Extensions\Signum.Isolation\Signum.Isolation.csproj" />FROM_CS CompileDynamicCode
             		<ProjectReference Include="..\Framework\Extensions\Signum.MachineLearning\Signum.MachineLearning.csproj" />FROM_CS PredictorLogic
             		<ProjectReference Include="..\Framework\Extensions\Signum.Mailing.MicrosoftGraph\Signum.Mailing.MicrosoftGraph.csproj" />FROM_CS activeDirectoryIntegration: true
-            		<ProjectReference Include="..\Framework\Extensions\Signum.Mailing.Package\Signum.Mailing.Package.csproj" />FROM_CS EmailLogic
             		<ProjectReference Include="..\Framework\Extensions\Signum.Mailing\Signum.Mailing.csproj" />FROM_CS EmailLogic
             		<ProjectReference Include="..\Framework\Extensions\Signum.Map\Signum.Map.csproj" />FROM_CS MapLogic
             		<ProjectReference Include="..\Framework\Extensions\Signum.Migrations\Signum.Migrations.csproj" />FROM_CS MigrationLogic
@@ -151,7 +150,7 @@ class Upgrade_20230426_ProjectRevolution_MoveFiles : CodeUpgradeBase
             		<ProjectReference Include="..\Framework\Extensions\Signum.Translation\Signum.Translation.csproj" />FROM_CS TranslationLogic
             		<ProjectReference Include="..\Framework\Extensions\Signum.UserAssets\Signum.UserAssets.csproj" />FROM_CS UserQueryLogic
             		<ProjectReference Include="..\Framework\Extensions\Signum.UserQueries\Signum.UserQueries.csproj" />FROM_CS UserQueryLogic 
-            		<ProjectReference Include="..\Framework\Extensions\Signum.ViewLog\Signum.ViewLog.csproj" />FROM_CS ViewLogLogic
+            		<ProjectReference Include="..\Framework\Extensions\Signum.ViewLog\Signum.ViewLog.csproj" />
             		<ProjectReference Include="..\Framework\Extensions\Signum.Word\Signum.Word.csproj" />FROM_CS WordTemplateLogic
             		<ProjectReference Include="..\Framework\Extensions\Signum.Workflow\Signum.Workflow.csproj" />FROM_CS WorkflowLogicStarter
             		<ProjectReference Include="..\Framework\Signum.Utilities\Signum.Utilities.csproj" /> 
@@ -251,7 +250,12 @@ class Upgrade_20230426_ProjectRevolution_MoveFiles : CodeUpgradeBase
         uctx.DeleteFile("Southwind.React/Southwind.React.csproj");
         uctx.DeleteFile("Southwind.React/Properties/GlobalUsings.cs");
 
-        uctx.ForeachCodeFile("*.cs", "Southwind.Entities", a =>
+        uctx.ForeachCodeFile("*.cs", "Southwind.Logic", a =>
+        {
+            a.Replace("PermissionAuthLogic.Register", "PermissionLogic.Register");
+        });
+
+       uctx.ForeachCodeFile("*.cs", "Southwind.Entities", a =>
         {
             var fileName = Path.GetFileNameWithoutExtension(a.FilePath);
             if (!fileName.EndsWith("Entity") && !fileName.EndsWith("Embedded")  && !fileName.EndsWith("Model"))
@@ -269,7 +273,7 @@ class Upgrade_20230426_ProjectRevolution_MoveFiles : CodeUpgradeBase
         {
             var fileName = a.FilePath.Replace(".Entities", "");
 
-            uctx.MoveFile(a.FilePath, fileName);
+            uctx.MoveFile(a.FilePath, fileName, createDirectory: true);
         });
 
         uctx.MoveFiles("Southwind.Entities", "Southwind", "*.*");
@@ -297,6 +301,8 @@ class Upgrade_20230426_ProjectRevolution_MoveFiles : CodeUpgradeBase
             if(a.Content.Contains(": ControllerBase") || a.Content.Contains(": ControllerBase") || a.Content.Contains("HttpPost") || a.Content.Contains("HttpGet") || a.Content.Contains("FromBody"))
             {
                 a.InsertBeforeFirstLine(a => a.StartsWith("using "), "using Microsoft.AspNetCore.Mvc;");
+                a.InsertBeforeFirstLine(a => a.StartsWith("using "), "using System.ComponentModel.DataAnnotations;");
+                a.Replace("FilesController.GetFileStreamResult", "MimeMapping.GetFileStreamResult");
             }
         });
 
@@ -410,8 +416,8 @@ class Upgrade_20230426_ProjectRevolution_MoveFiles : CodeUpgradeBase
                 "FROM mcr.microsoft.com/dotnet/sdk:7.0-bullseye-slim AS build");
 
             file.ReplaceBetween(
-                new (a => a.StartsWith("COPY")),
-                new (a => a.StartsWith("COPY")) { LastIndex = true },
+                new (a => a.StartsWith("COPY [")),
+                new (a => a.StartsWith("COPY [")) { LastIndex = true },
                 uctx.ReplaceSouthwind("""
                 COPY ["Framework.tar", "/"]
                 RUN tar -xvf /Framework.tar
@@ -430,6 +436,8 @@ class Upgrade_20230426_ProjectRevolution_MoveFiles : CodeUpgradeBase
         {
             a.InsertBeforeFirstLine(a => a.Contains("docker build"),
                 """Get-ChildItem -Path "Framework" -Recurse -Include "package.json","*.csproj" | Resolve-Path -Relative | tar -cf Framework.tar -T -""");
+
+            a.Replace(uctx.ApplicationName + ".React", uctx.ApplicationName);
         });
 
         uctx.ChangeCodeFile("Southwind/Properties/Attributes.cs", a =>

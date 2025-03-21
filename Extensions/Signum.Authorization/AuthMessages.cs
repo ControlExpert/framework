@@ -10,8 +10,8 @@ public enum LoginAuthMessage
     [Description("Username {0} is not valid")]
     Username0IsNotValid,
 
-    [Description("User {0} is disabled")]
-    User0IsDisabled,
+    [Description("User {0} is deactivated")]
+    User0IsDeactivated,
 
     IncorrectPassword,
 
@@ -103,4 +103,18 @@ public enum AuthMessage
     [Description("Not authorized to retrieve '{0}'")]
     NotAuthorizedToRetrieve0,
     OnlyActive,
+
+    IncludeTrivialMerges,
+
+    [Description("Default Authorization: ")]
+    DefaultAuthorization,
+
+    [Description("Maximum of the {0}")]
+    MaximumOfThe0,
+    [Description("Minimum of the {0}")]
+    MinumumOfThe0,
+    [Description("Same as {0}")]
+    SameAs0,
+    Nothing,
+    Everything,
 }

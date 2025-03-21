@@ -1,7 +1,7 @@
 
 import * as React from 'react'
 import { Dic } from '../Globals'
-import { FindOptionsParsed, QueryToken, getTokenParents, isFilterGroupOptionParsed } from '../FindOptions'
+import { FindOptionsParsed, QueryToken, getTokenParents, isFilterGroup } from '../FindOptions'
 import { tryGetTypeInfos, TypeReference, getTypeInfos } from '../Reflection'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { FilterOptionParsed } from '../Search';
@@ -12,29 +12,42 @@ export default function MultipliedMessage(p: { findOptions: FindOptionsParsed, m
   const fops = p.findOptions;
 
   function getFilterTokens(fop: FilterOptionParsed): (QueryToken | undefined)[] {
-    if (isFilterGroupOptionParsed(fop))
-      return [fop.token, ...fop.filters.flatMap(f => getFilterTokens(f))];
+    if (isFilterGroup(fop))
+      return fop.filters.flatMap(f => getFilterTokens(f));
     else
       return [fop.operation == undefined ? undefined : fop.token]
   }
 
-  const tokensObj = fops.columnOptions.map(a => a.token)
+
+  function getFilterRemoveElemetWarnings(fop: FilterOptionParsed): (QueryToken | undefined)[] {
+    if (isFilterGroup(fop))
+      return fop.filters.flatMap(f => getFilterTokens(f));
+    else
+      return [fop.operation == undefined || !fop.removeElementWarning ? undefined : fop.token]
+  }
+
+  function getElementsTokens(tokens: (QueryToken | null | undefined)[]): QueryToken[] {
+    return tokens.filter(a => a != undefined)
+      .flatMap(a => {
+        var parts = getTokenParents(a);
+
+        var toArrayIndex = parts.findIndex(a => a.queryTokenType == "ToArray");
+        if (toArrayIndex == -1)
+          return parts;
+
+        return parts.slice(0, toArrayIndex);
+      })
+      .filter(a => a.queryTokenType == "Element")
+      .distinctBy(a => a.fullKey);
+  }
+
+  const removeTokens = getElementsTokens(fops.filterOptions.flatMap(fo => getFilterRemoveElemetWarnings(fo)));
+
+  const candidateTokens = fops.columnOptions.map(a => a.token)
     .concat(fops.filterOptions.flatMap(fo => getFilterTokens(fo)))
-    .concat(fops.orderOptions.map(a => a.token))
-    .filter(a => a != undefined)
-    .flatMap(a => {
-      var parts = getTokenParents(a); 
+    .concat(fops.orderOptions.map(a => a.token));
 
-      var toArrayIndex = parts.findIndex(a => a.queryTokenType == "ToArray");
-      if (toArrayIndex == -1)
-        return parts;
-
-      return parts.slice(0, toArrayIndex);
-    })
-    .filter(a => a.queryTokenType == "Element")
-    .toObjectDistinct(a => a.fullKey);
-
-  const tokens = Dic.getValues(tokensObj);
+  const tokens = getElementsTokens(candidateTokens).filter(t => !removeTokens.some(r => r.fullKey == t.fullKey));
 
   if (tokens.length == 0)
     return null;

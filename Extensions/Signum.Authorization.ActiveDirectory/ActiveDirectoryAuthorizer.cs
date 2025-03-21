@@ -1,4 +1,5 @@
 using Signum.Authorization;
+using Signum.Authorization.ActiveDirectory.Azure;
 using System.DirectoryServices.AccountManagement;
 using System.Security.Claims;
 
@@ -88,12 +89,14 @@ public class AzureClaimsAutoCreateUserContext : IAutoCreateUserContext
     }
 
 
-
-    public AzureClaimsAutoCreateUserContext(ClaimsPrincipal claimsPrincipal)
+    public string AccessToken;
+    public AzureClaimsAutoCreateUserContext(ClaimsPrincipal claimsPrincipal, string accessToken)
     {
         this.ClaimsPrincipal = claimsPrincipal;
+        this.AccessToken = accessToken;
     }
 }
+
 
 public class ActiveDirectoryAuthorizer : ICustomAuthorizer
 {
@@ -106,7 +109,7 @@ public class ActiveDirectoryAuthorizer : ICustomAuthorizer
 
     public virtual UserEntity Login(string userName, string password, out string authenticationType)
     {
-        var passwordHashes = PasswordEncoding.EncodePassword(userName, password);
+        var passwordHashes = PasswordEncoding.EncodePasswordAlternatives(userName, password);
         if (AuthLogic.TryRetrieveUser(userName, passwordHashes) != null)
             return AuthLogic.Login(userName, passwordHashes, out authenticationType); //Database is faster than Active Directory
 
@@ -117,7 +120,7 @@ public class ActiveDirectoryAuthorizer : ICustomAuthorizer
             return user;
         }
 
-        return AuthLogic.Login(userName, PasswordEncoding.EncodePassword(userName, password), out authenticationType);
+        return AuthLogic.Login(userName, passwordHashes, out authenticationType);
     }
 
     public virtual UserEntity? LoginWithActiveDirectoryRegistry(string userName, string password)
@@ -137,10 +140,10 @@ public class ActiveDirectoryAuthorizer : ICustomAuthorizer
                             var localName = userName.TryBeforeLast('@') ?? userName.TryAfter('\\') ?? userName;
 
                             var dsacuCtx = new DirectoryServiceAutoCreateUserContext(pc, localName, identityValue: userName);
-                            
+
                             var sid = dsacuCtx.GetUserPrincipal().Sid;
 
-                            UserEntity? user = Database.Query<UserEntity>().SingleOrDefaultEx(a => a.Mixin<UserADMixin>().SID == sid.ToString()) ?? 
+                            UserEntity? user = Database.Query<UserEntity>().SingleOrDefaultEx(a => a.Mixin<UserADMixin>().SID == sid.ToString()) ??
                                 AuthLogic.RetrieveUser(localName);
 
                             if (user != null)
@@ -187,7 +190,7 @@ public class ActiveDirectoryAuthorizer : ICustomAuthorizer
                 }
             }
 
-            return tr.Commit(user); 
+            return tr.Commit(user);
         }
     }
 
@@ -219,7 +222,7 @@ public class ActiveDirectoryAuthorizer : ICustomAuthorizer
                 var found = groups.Any(g => g.Name == m.ADNameOrGuid || g.Guid == guid);
 
                 return found;
-            }).Select(a=>a.Role).Distinct().NotNull().ToList();
+            }).Select(a => a.Role).Distinct().NotNull().ToList();
 
             if (roles.Any())
             {
@@ -240,7 +243,9 @@ public class ActiveDirectoryAuthorizer : ICustomAuthorizer
         }
         else if (ctx.OID != null && this.GetConfig().Azure_ApplicationID.HasValue)
         {
-            var groups = AzureADLogic.CurrentADGroupsInternal(ctx.OID.Value);
+            var groups = ctx is AzureClaimsAutoCreateUserContext ac && this.GetConfig().AllowMatchUsersBySimpleUserName ? AzureADLogic.CurrentADGroupsInternal(ac.AccessToken) :
+                AzureADLogic.CurrentADGroupsInternal(ctx.OID!.Value);
+
             var roles = config.RoleMapping.Where(m =>
             {
                 Guid.TryParse(m.ADNameOrGuid, out var guid);

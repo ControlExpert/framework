@@ -3,7 +3,7 @@ import * as d3 from "d3"
 import { ChartColumn } from "../../ChartClient"
 import { Dic } from "@framework/Globals";
 import { tryGetTypeInfo } from "@framework/Reflection";
-import { isFilterGroupOptionParsed, FilterConditionOptionParsed, FilterOptionParsed, QueryToken } from "@framework/FindOptions";
+import { isFilterGroup, FilterConditionOptionParsed, FilterOptionParsed, QueryToken } from "@framework/FindOptions";
 import { MemoRepository } from "./ReactChart";
 import * as ColorUtils from "../../ColorPalette/ColorUtils"
 
@@ -194,7 +194,7 @@ export function completeValues(column: ChartColumn<unknown>, values: unknown[], 
   const columnNomalized = normalizeToken(column.token!);  
 
   const matchingFilters = column.token && (completeValues == "FromFilters" || completeValues == "Auto") ?
-    (filterOptions.filter(f => !isFilterGroupOptionParsed(f)) as FilterConditionOptionParsed[])
+    (filterOptions.filter(f => !isFilterGroup(f)) as FilterConditionOptionParsed[])
       .filter(f => f.token && withoutEntity(normalizeToken(f.token).normalized.fullKey) == withoutEntity(columnNomalized.normalized.fullKey)) :
     [];
 
@@ -280,7 +280,7 @@ export function completeValues(column: ChartColumn<unknown>, values: unknown[], 
       if (limit != null && allValues.length > limit)
         return values;
 
-      allValues.push(column.token!.type.name == "DateOnly" ? date.toISODate() : date.toISO(({ suppressMilliseconds: true })));
+      allValues.push(column.token!.type.name == "DateOnly" ? date.toISODate()! : date.toISO(({ suppressMilliseconds: true }))!);
       date = date.plus({ [unit]: 1 });
     }
 

@@ -40,7 +40,7 @@ public class SystemVersionedInfo
     public ObjectName TableName;
     public string? StartColumnName;
     public string? EndColumnName;
-    public string? PostgreeSysPeriodColumnName;
+    public string? PostgresSysPeriodColumnName;
 
     public SystemVersionedInfo(ObjectName tableName, string startColumnName, string endColumnName)
     {
@@ -52,21 +52,21 @@ public class SystemVersionedInfo
     public SystemVersionedInfo(ObjectName tableName, string postgreeSysPeriodColumnName)
     {
         TableName = tableName;
-        PostgreeSysPeriodColumnName = postgreeSysPeriodColumnName;
+        PostgresSysPeriodColumnName = postgreeSysPeriodColumnName;
     }
 
     internal IEnumerable<IColumn> Columns()
     {
-        if (PostgreeSysPeriodColumnName != null)
+        if (PostgresSysPeriodColumnName != null)
             return new[]
             {
-                    new PostgreePeriodColumn(this.PostgreeSysPeriodColumnName!),
+                    new PostgresPeriodColumn(this.PostgresSysPeriodColumnName!),
                 };
         else
             return new[]
             {
-                    new SqlServerPeriodColumn(this.StartColumnName!, ColumnType.Start),
-                    new SqlServerPeriodColumn(this.EndColumnName!, ColumnType.End)
+                    new SqlServerPeriodColumn(this.StartColumnName!, SystemVersionColumnType.Start),
+                    new SqlServerPeriodColumn(this.EndColumnName!, SystemVersionColumnType.End)
                 };
     }
 
@@ -76,11 +76,11 @@ public class SystemVersionedInfo
         return new IntervalExpression(typeof(NullableInterval<DateTime>),
             StartColumnName == null ? null : new ColumnExpression(typeof(DateTime?), tableAlias, StartColumnName).SetMetadata(ExpressionMetadata.UTC),
             EndColumnName == null ? null : new ColumnExpression(typeof(DateTime?), tableAlias, EndColumnName).SetMetadata(ExpressionMetadata.UTC),
-            PostgreeSysPeriodColumnName == null ? null : new ColumnExpression(typeof(NpgsqlRange<DateTime>), tableAlias, PostgreeSysPeriodColumnName).SetMetadata(ExpressionMetadata.UTC)
+            PostgresSysPeriodColumnName == null ? null : new ColumnExpression(typeof(NpgsqlRange<DateTime>), tableAlias, PostgresSysPeriodColumnName).SetMetadata(ExpressionMetadata.UTC)
         );
     }
 
-    public enum ColumnType
+    public enum SystemVersionColumnType
     {
         Start,
         End,
@@ -88,14 +88,14 @@ public class SystemVersionedInfo
 
     public class SqlServerPeriodColumn : IColumn
     {
-        public SqlServerPeriodColumn(string name, ColumnType systemVersionColumnType)
+        public SqlServerPeriodColumn(string name, SystemVersionColumnType systemVersionColumnType)
         {
             this.Name = name;
             this.SystemVersionColumnType = systemVersionColumnType;
         }
 
         public string Name { get; private set; }
-        public ColumnType SystemVersionColumnType { get; private set; }
+        public SystemVersionColumnType SystemVersionColumnType { get; private set; }
 
         public IsNullable Nullable => IsNullable.No;
         
@@ -106,6 +106,7 @@ public class SystemVersionedInfo
         public bool IdentityBehaviour => false;
         public bool Identity => false;
         public string? Default { get; set; }
+        public string? Check { get; set; }
         public int? Size => null;
         public byte? Precision => null;
         public byte? Scale => null;
@@ -114,11 +115,16 @@ public class SystemVersionedInfo
         public bool AvoidForeignKey => false;
 
         public DateTimeKind DateTimeKind => DateTimeKind.Utc;
+        public override string ToString()
+        {
+            return Name;
+        }
+
     }
 
-    public class PostgreePeriodColumn : IColumn
+    public class PostgresPeriodColumn : IColumn
     {
-        public PostgreePeriodColumn(string name)
+        public PostgresPeriodColumn(string name)
         {
             this.Name = name;
         }
@@ -127,12 +133,13 @@ public class SystemVersionedInfo
 
         public IsNullable Nullable => IsNullable.No;
         public AbstractDbType DbType => new AbstractDbType(NpgsqlDbType.Range | NpgsqlDbType.TimestampTz);
-        public Type Type => typeof(DateTime);
+        public Type Type => typeof(NpgsqlTypes.NpgsqlRange<DateTime>);
         public string? UserDefinedTypeName => null;
         public bool PrimaryKey => false;
         public bool IdentityBehaviour => false;
         public bool Identity => false;
         public string? Default { get; set; }
+        public string? Check { get; set; }
         public int? Size => null;
         public byte? Precision => null;
         public byte? Scale => null;
@@ -141,6 +148,11 @@ public class SystemVersionedInfo
         public bool AvoidForeignKey => false;
 
         public DateTimeKind DateTimeKind => DateTimeKind.Utc;
+
+        public override string ToString()
+        {
+            return Name;
+        }
     }
 
 }
@@ -469,6 +481,7 @@ public partial interface IColumn
     bool IdentityBehaviour { get; }
     bool Identity { get; }
     string? Default { get; }
+    string? Check { get; }
     int? Size { get; }
     byte? Precision { get; }
     byte? Scale { get; }
@@ -500,7 +513,7 @@ public static partial class ColumnExtensions
     public static GeneratedAlwaysType GetGeneratedAlwaysType(this IColumn column)
     {
         if (column is SystemVersionedInfo.SqlServerPeriodColumn svc)
-            return svc.SystemVersionColumnType == SystemVersionedInfo.ColumnType.Start ? GeneratedAlwaysType.AsRowStart : GeneratedAlwaysType.AsRowEnd;
+            return svc.SystemVersionColumnType == SystemVersionedInfo.SystemVersionColumnType.Start ? GeneratedAlwaysType.AsRowStart : GeneratedAlwaysType.AsRowEnd;
 
         return GeneratedAlwaysType.None;
     }
@@ -531,6 +544,7 @@ public partial class FieldPrimaryKey : Field, IColumn
     public Type Type { get; set; }
     public bool AvoidForeignKey => false;
     public string? Default { get; set; }
+    public string? Check { get; set; }
 
     public DateTimeKind DateTimeKind => DateTimeKind.Unspecified;
 
@@ -588,6 +602,7 @@ public partial class FieldValue : Field, IColumn
     Table? IColumn.ReferenceTable => null;
     public bool AvoidForeignKey => false;
     public string? Default { get; set; }
+    public string? Check { get; set; }
     public DateTimeKind DateTimeKind { get; set; }
 
     public FieldValue(PropertyRoute route, Type? fieldType, string name)
@@ -655,6 +670,7 @@ public partial class FieldEmbedded : Field, IFieldFinder
         Type IColumn.Type => typeof(bool);
         public bool AvoidForeignKey => false;
         public string? Default { get; set; }
+        public string? Check { get; set; }
         public DateTimeKind DateTimeKind => DateTimeKind.Unspecified;
 
         public EmbeddedHasValueColumn(string name)
@@ -933,6 +949,7 @@ public partial class FieldReference : Field, IColumn, IFieldReference
 
     public bool AvoidExpandOnRetrieving { get; set; }
     public string? Default { get; set; }
+    public string? Check { get; set; }
     public DateTimeKind DateTimeKind => DateTimeKind.Unspecified;
 
     public FieldReference(PropertyRoute route, Type? fieldType, string name, Table referenceTable) : base(route, fieldType)
@@ -1189,6 +1206,7 @@ public partial class ImplementationColumn : IColumn
     public Type Type => this.Nullable.ToBool() ? ReferenceTable.PrimaryKey.Type.Nullify() : ReferenceTable.PrimaryKey.Type;
     public bool AvoidForeignKey { get; set; }
     public string? Default { get; set; }
+    public string? Check { get; set; }
     public Type? CustomLiteModelType { get; internal set; }
     public DateTimeKind DateTimeKind => DateTimeKind.Unspecified;
 
@@ -1221,6 +1239,7 @@ public partial class ImplementedByAllIdColumn : IColumn
     public Type Type { get; private set;  }
     public bool AvoidForeignKey => false;
     public string? Default { get; set; }
+    public string? Check { get; set; }
     public DateTimeKind DateTimeKind => DateTimeKind.Unspecified;
 
     public ImplementedByAllIdColumn(string name, Type type, AbstractDbType dbType)
@@ -1322,6 +1341,7 @@ public partial class TableMList : ITable, IFieldFinder, ITablePrivate
         public Type Type { get; set; }
         public bool AvoidForeignKey => false;
         public string? Default { get; set; }
+        public string? Check { get; set; }
         public DateTimeKind DateTimeKind => DateTimeKind.Unspecified;
 
         public PrimaryKeyColumn(Type type, string name)

@@ -41,7 +41,7 @@ $@"(?<entity>{ident};(\d+|{guid}))|
 
         if (omniboxQuery == "")
         {
-            result.Add(new HelpOmniboxResult { Text = OmniboxMessage.Omnibox_OmniboxSyntaxGuide.NiceToString() });
+            result.Add(new HelpOmniboxResult { Text = OmniboxMessage.Omnibox_OmniboxSyntaxGuide.NiceToString(), IsMainTitle = true });
 
             foreach (var generator in Generators)
             {
@@ -103,9 +103,9 @@ $@"(?<entity>{ident};(\d+|{guid}))|
 
     public static string ToOmniboxPascal(this string text)
     {
-        var simple = Regex.Replace(text, OmniboxMessage.ComplementWordsRegex.NiceToString(), m => "", RegexOptions.IgnoreCase);
+        //var simple = Regex.Replace(text, OmniboxMessage.ComplementWordsRegex.NiceToString(), m => "", RegexOptions.IgnoreCase);
 
-        var result = simple.ToPascal();
+        var result = text.ToPascal();
 
         if (text.StartsWith("[") && text.EndsWith("]"))
             return "[" + result + "]";
@@ -199,6 +199,9 @@ public class HelpOmniboxResult : OmniboxResult
 
     [JsonIgnore]
     public Type ReferencedType { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsMainTitle { get; set; }
 
     public string? ReferencedTypeName => this.ReferencedType?.Name;
 

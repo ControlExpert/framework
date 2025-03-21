@@ -10,9 +10,8 @@ import { QueryString } from '@framework/QueryString';
 import { Lite, Entity, ModifiableEntity } from '@framework/Signum.Entities';
 import * as CultureClient from '@framework/Basics/CultureClient'
 import { AutomaticTranslation } from './TranslationClient';
-import { Binding, tasks } from '@framework/Lines';
+import { Binding, TextBoxLineController, TextBoxLineProps, tasks } from '@framework/Lines';
 import { LineBaseController, LineBaseProps } from '@framework/Lines/LineBase';
-import { ValueLineController, ValueLineProps } from '@framework/Lines/ValueLine';
 import { classes } from '@framework/Globals';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { getLambdaMembers } from '@framework/Reflection';
@@ -22,12 +21,11 @@ import { TranslateableRouteType } from '@framework/Signum.Basics';
 export function start(options: { routes: RouteObject[] }) {
 
   OmniboxSpecialAction.registerSpecialAction({
-    allowed: () => AuthClient.isPermissionAuthorized(TranslationPermission.TranslateInstances),
+    allowed: () => AppContext.isPermissionAuthorized(TranslationPermission.TranslateInstances),
     key: "TranslateInstances",
     onClick: () => Promise.resolve("/translatedInstance/status")
   });
 
-  tasks.push(taskSetTranslatableIcon)
 
   options.routes.push(
     { path: "/translatedInstance/status", element: <ImportComponent onImport={() => import("./Instances/TranslatedInstanceStatus")} /> },
@@ -36,16 +34,17 @@ export function start(options: { routes: RouteObject[] }) {
   );
 }
 
+tasks.push(taskSetTranslatableIcon)
 export function taskSetTranslatableIcon(lineBase: LineBaseController<any>, state: LineBaseProps) {
-  if (lineBase instanceof ValueLineController) {
-    const vProps = state as ValueLineProps;
+  if (lineBase instanceof TextBoxLineController) {
+    const vProps = state as TextBoxLineProps;
 
     if (state.ctx.propertyRoute &&
       state.ctx.propertyRoute.propertyRouteType == "Field" &&
       state.ctx.propertyRoute.member!.translatable && 
-      AuthClient.isPermissionAuthorized(TranslationPermission.TranslateInstances)) {
+      AppContext.isPermissionAuthorized(TranslationPermission.TranslateInstances)) {
       if (!vProps.extraButtons)
-        vProps.extraButtons = vlc => <TranslateButton controller={lineBase} />;
+        vProps.extraButtons = vlc => <TranslateButton controller={vlc} />;
 
       if (!vProps.helpText) {
         var binding = (vProps.ctx.binding as Binding<string>);
@@ -57,12 +56,12 @@ export function taskSetTranslatableIcon(lineBase: LineBaseController<any>, state
   }
 }
 
-function TranslateButton(p: { controller: ValueLineController }) {
+export function TranslateButton(p: { controller: TextBoxLineController }) {
 
   var ctx = p.controller.props.ctx.tryFindRootEntity();
 
   return (
-    <a href="#" className={classes("sf-line-button sf-view", "btn input-group-text")}
+    <a href="#" className={classes("sf-line-button sf-view", "btn input-group-text", "sf-translate-button")}
       onClick={e => {
         e.preventDefault();
 
@@ -117,6 +116,14 @@ export module API {
 
   export function syncTranslatedInstance(type: string, culture: string): Promise<TypeInstancesChanges> {
     return ajaxGet({ url: `/api/translatedInstance/sync/${type}?${QueryString.stringify({ culture })}` });
+  }
+
+  export function autoTranslate(type: string, culture: string): Promise<void> {
+    return ajaxGet({ url: `~/api/translatedInstance/autoTranslate/${type}?${QueryString.stringify({ culture })}` });
+  }
+
+  export function autoTranslateAll(culture: string): Promise<void> {
+    return ajaxGet({ url: `~/api/translatedInstance/autoTranslateAll?${QueryString.stringify({ culture })}` });
   }
 
   export function saveTranslatedInstanceData(records: TranslationRecord[], type: string, isSync: boolean, culture?: string | undefined): Promise<void> {

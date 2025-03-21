@@ -22,6 +22,15 @@ public class FilePathEmbedded : EmbeddedEntity, IFile, IFilePath
         this.fileName = cloneFrom.FileName;
     }
 
+    public FilePathEmbedded(FileTypeSymbol fileType, FilePathEntity cloneFrom) //Usefull for Email Attachments when combined with WeekFileReference
+    {
+        this.FileType = fileType;
+        this.Suffix = cloneFrom.Suffix;
+        this.Hash = cloneFrom.Hash;
+        this.FileLength = cloneFrom.FileLength;
+        this.fileName = cloneFrom.FileName;
+    }
+
     public FilePathEmbedded(FileTypeSymbol fileType, string readFileFrom)
         : this(fileType)
     {
@@ -104,18 +113,8 @@ public class FilePathEmbedded : EmbeddedEntity, IFile, IFilePath
 
     public PrefixPair GetPrefixPair()
     {
-        if (this._prefixPair != null)
-            return this._prefixPair;
-
-        if (CalculatePrefixPair == null)
-            throw new InvalidOperationException("OnCalculatePrefixPair not set");
-
-        this._prefixPair = CalculatePrefixPair(this);
-
-        return this._prefixPair;
+        return this._prefixPair ??= FilePathEmbeddedLogic.CalculatePrefixPair(this);
     }
-
-    public static Func<FilePathEmbedded, PrefixPair> CalculatePrefixPair;
 
     public string FullPhysicalPath()
     {
@@ -154,9 +153,6 @@ public class FilePathEmbedded : EmbeddedEntity, IFile, IFilePath
 
     protected override void PostRetrieving(PostRetrievingContext ctx)
     {
-        if (CalculatePrefixPair == null)
-            throw new InvalidOperationException("OnCalculatePrefixPair not set");
-
         this.GetPrefixPair();
     }
 

@@ -86,8 +86,7 @@ public static class DynamicTypeLogic
 
                         var pairs = newDef.Properties
                             .Join(oldDef.Properties, n => n.UID, o => o.UID, (n, o) => new { n, o })
-                            .Where(a => a.n!.Type == a.o!.Type); /*CSBUG*/
-
+                            .Where(a => a.n.Type == a.o.Type); 
                         {
                             string ColName(DynamicProperty dp) => dp.ColumnName ?? dp.Name;
 
@@ -135,6 +134,7 @@ public static class DynamicTypeLogic
 
     internal static List<DynamicTypeEntity> GetTypes()
     {
+        var cacheOldDisabled = CacheLogic.GloballyDisabled;
         CacheLogic.GloballyDisabled = true;
         try
         {
@@ -145,7 +145,7 @@ public static class DynamicTypeLogic
         }
         finally
         {
-            CacheLogic.GloballyDisabled = false;
+            CacheLogic.GloballyDisabled = cacheOldDisabled;
         }
     }
 

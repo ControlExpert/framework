@@ -17,13 +17,20 @@ export module AuthMessage {
   export const NotAuthorizedTo0The1WithId2 = new MessageKey("AuthMessage", "NotAuthorizedTo0The1WithId2");
   export const NotAuthorizedToRetrieve0 = new MessageKey("AuthMessage", "NotAuthorizedToRetrieve0");
   export const OnlyActive = new MessageKey("AuthMessage", "OnlyActive");
+  export const IncludeTrivialMerges = new MessageKey("AuthMessage", "IncludeTrivialMerges");
+  export const DefaultAuthorization = new MessageKey("AuthMessage", "DefaultAuthorization");
+  export const MaximumOfThe0 = new MessageKey("AuthMessage", "MaximumOfThe0");
+  export const MinumumOfThe0 = new MessageKey("AuthMessage", "MinumumOfThe0");
+  export const SameAs0 = new MessageKey("AuthMessage", "SameAs0");
+  export const Nothing = new MessageKey("AuthMessage", "Nothing");
+  export const Everything = new MessageKey("AuthMessage", "Everything");
 }
 
 export module LoginAuthMessage {
   export const ThePasswordMustHaveAtLeast0Characters = new MessageKey("LoginAuthMessage", "ThePasswordMustHaveAtLeast0Characters");
   export const NotUserLogged = new MessageKey("LoginAuthMessage", "NotUserLogged");
   export const Username0IsNotValid = new MessageKey("LoginAuthMessage", "Username0IsNotValid");
-  export const User0IsDisabled = new MessageKey("LoginAuthMessage", "User0IsDisabled");
+  export const User0IsDeactivated = new MessageKey("LoginAuthMessage", "User0IsDeactivated");
   export const IncorrectPassword = new MessageKey("LoginAuthMessage", "IncorrectPassword");
   export const Login = new MessageKey("LoginAuthMessage", "Login");
   export const MyProfile = new MessageKey("LoginAuthMessage", "MyProfile");
@@ -110,6 +117,7 @@ export interface UserLiteModel extends Entities.ModelEntity {
   toStringValue: string | null;
   oID: string /*Guid*/ | null;
   sID: string | null;
+  photoSuffix: string | null;
 }
 
 export module UserOperation {
