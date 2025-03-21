@@ -5,7 +5,7 @@ import { getTimeMachineIcon } from './TimeMachineIcon';
 
 export interface ValueBaseProps<C> extends LineBaseProps {
   format?: string;
-  unit?: string;
+  unit?: React.ReactNode;
   valueHtmlAttributes?: React.AllHTMLAttributes<any>;
   extraButtons?: (vl: C) => React.ReactNode;
   extraButtonsBefore?: (vl: C) => React.ReactNode;

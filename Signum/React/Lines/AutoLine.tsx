@@ -5,7 +5,7 @@ import { CheckboxLine, ColorLine, DateTimeLine, DateTimeLineController, EntityCh
 import { Entity, Lite, ModifiableEntity } from '../Signum.Entities'
 
 export interface AutoLineProps extends LineBaseProps {
-  unit?: string;
+  unit?: React.ReactNode;
   format?: string;
   extraButtons?: (vl: any) => React.ReactNode; /* Not always implemented */
   extraButtonsBefore?: (vl: any) => React.ReactNode; /* Not always implemented */
