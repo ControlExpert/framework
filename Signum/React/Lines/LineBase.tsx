@@ -13,7 +13,7 @@ export interface ChangeEvent {
 
 export interface LineBaseProps<V = unknown> extends StyleOptions {
   ctx: TypeContext<V>;
-  unit?: string;
+  unit?: React.ReactNode;
   format?: string;
   type?: TypeReference;
   label?: React.ReactNode;
