@@ -2035,12 +2035,7 @@ export interface QuerySettings {
   showContextMenu?: (fop: FindOptionsParsed) => boolean | "Basic";
   allowCreate?: boolean;
   allowSelection?: boolean;
-<<<<<<< HEAD
-  showFilters?: boolean;
-  getViewPromise?: (e: ModifiableEntity | null) => (undefined | string | Navigator.ViewPromise<ModifiableEntity>);
-=======
     getViewPromise?: (e: ModifiableEntity | null) => (undefined | string | ViewPromise<ModifiableEntity>);
->>>>>>> origin/EasyClaim_2024.08.28
   onDoubleClick?: (e: React.MouseEvent<any>, row: ResultRow, columns: string[], sc?: SearchControlLoaded) => void;
     simpleFilterBuilder?: (sfbc: SimpleFilterBuilderContext) => React.ReactElement | undefined;
   onFind?: (fo: FindOptions, mo?: ModalFindOptions) => Promise<Lite<Entity> | undefined>;
