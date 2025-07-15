@@ -18,7 +18,7 @@ public class ImageSharpConverter : IImageConverter<Image>
 
     public (int width, int height) GetSize(Image image)
     {
-        var size = image.Size();
+        var size = image.Size;
         return (size.Width, size.Height);
     }
 
@@ -72,7 +72,7 @@ public class ImageSharpConverter : IImageConverter<Image>
     {
         var encoder = EncodersDictionary.TryGetC(imagePartType);
 
-        if(encoder == null)
+        if (encoder == null)
             throw new InvalidOperationException("Unexpected {0}".FormatWith(imagePartType));
 
         return encoder;

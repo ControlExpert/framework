@@ -40,7 +40,7 @@ export default function PredictorSubQuery(p : { ctx: TypeContext<PredictorSubQue
           queryName: sq.query!.key,
           groupResults: true,
           filterOptions: filters.map(f => UserAssetClient.Converter.toFilterOption(f)),
-          columnOptions: [{ token: QueryTokenString.count() } as ColumnOption]
+          columnOptions: [{ token: QueryTokenString.count } as ColumnOption]
             .concat(sq.columns.map(mle => ({ token: mle.element.token && mle.element.token.tokenString, } as ColumnOption))),
           columnOptionsMode: "ReplaceAll",
         };

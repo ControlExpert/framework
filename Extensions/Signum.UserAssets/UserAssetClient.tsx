@@ -198,7 +198,7 @@ export namespace UserAssetClient {
       filters: QueryFilterItem[];
       entity: Lite<Entity> | undefined;
       canAggregate: boolean
-      canTimeSeries: boolean;
+      canTimeSeries?: boolean;
     }
   
   
