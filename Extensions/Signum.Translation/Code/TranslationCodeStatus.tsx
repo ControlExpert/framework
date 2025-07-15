@@ -1,29 +1,31 @@
 import * as React from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { Link, useLocation, useParams } from 'react-router-dom'
-import { Dic } from '@framework/Globals'
-import { JavascriptMessage } from '@framework/Signum.Entities'
-import { API, TranslationFileStatus } from '../TranslationClient'
+import { Dic, classes } from '@framework/Globals'
+import { JavascriptMessage, getToString } from '@framework/Signum.Entities'
+import { TranslationClient } from '../TranslationClient'
 import { TranslationMessage } from '../Signum.Translation'
 import "../Translation.css"
-import { useAPI } from '@framework/Hooks'
+import { useAPI, useAPIWithReload } from '@framework/Hooks'
 import { saveFile } from '@framework/Services'
+import { CultureClient } from '@framework/Basics/CultureClient'
+import MessageModal from '@framework/Modals/MessageModal'
 
-export default function TranslationCodeStatus() {
+export default function TranslationCodeStatus(): React.JSX.Element {
 
-  const result = useAPI(() => API.status(), []);
+  const [result, reloadResult] = useAPIWithReload(() => TranslationClient.API.status(), []);
 
   return (
     <div>
       <h2>{TranslationMessage.CodeTranslations.niceToString()}</h2>
       {result == undefined ? <strong>{JavascriptMessage.loading.niceToString()}</strong> :
-        <TranslationTable result={result} />}
+        <TranslationTable result={result} onRefreshView={reloadResult} />}
     </div>
   );
 }
 
 
-function TranslationTable({ result }: { result: TranslationFileStatus[] }) {
+function TranslationTable({ result, onRefreshView }: { result: TranslationClient.TranslationFileStatus[], onRefreshView: () => void }) {
   const tree = result.groupBy(a => a.assembly)
     .toObject(gr => gr.key, gr => gr.elements.toObject(a => a.culture));
 
@@ -42,7 +44,12 @@ function TranslationTable({ result }: { result: TranslationFileStatus[] }) {
         <tr>
           <th><label><input type="checkbox" checked={onlyNeutral} onChange={e => setOnlyNeutral(e.currentTarget.checked)} /> Only Neutral Cultures</label></th>
           <th> {TranslationMessage.All.niceToString()} </th>
-          {cultures.map(culture => <th key={culture}>{culture}</th>)}
+          {cultures.map(culture =>
+            <th key={culture}>
+              {culture}
+              {result.some(r => !r.isDefault && r.culture == culture && r.status != "Completed") &&
+                <a href="#" className={classes("auto-translate-all", culture, "ms-2")} onClick={e => handleAutoTranslateClick(e, null, culture)}>{TranslationMessage.AutoSync.niceToString()}</a>}
+            </th>)}
         </tr>
       </thead>
       <tbody>
@@ -52,31 +59,64 @@ function TranslationTable({ result }: { result: TranslationFileStatus[] }) {
             <td>
               <Link to={`/translation/view/${encodeDots(assembly)}`}>{TranslationMessage.View.niceToString()}</Link>
             </td>
-            {cultures.map(culture =>
-              <td key={culture}>
-                <Link to={`/translation/view/${encodeDots(assembly)}/${culture}`}>{TranslationMessage.View.niceToString()}</Link>
-                {tree[assembly][culture].status != "None" && <a href="#" className="ms-2" onClick={e => { e.preventDefault(); API.download(assembly, culture).then(r => saveFile(r)); }} title={TranslationMessage.Download.niceToString()}>{<FontAwesomeIcon icon="download" />}</a>}
-                <br />
-                {
-                  !tree[assembly][culture].isDefault &&
-                  <Link to={`/translation/syncNamespaces/${encodeDots(assembly)}/${culture}`} className={"status-" + tree[assembly][culture].status}>
-                    {TranslationMessage.Sync.niceToString()}
-                  </Link>
-                }
-              </td>
+            {cultures.map(culture => {
+              const fileStatus = tree[assembly][culture];
+              return (
+                <td key={culture}>
+                  <Link to={`/translation/view/${encodeDots(assembly)}/${culture}`}>{TranslationMessage.View.niceToString()}</Link>
+                  {fileStatus.status != "None" && <a href="#" className="ms-2" onClick={e => { e.preventDefault(); TranslationClient.API.download(assembly, culture).then(r => saveFile(r)); }} title={TranslationMessage.Download.niceToString()}>{<FontAwesomeIcon icon="download" />}</a>}
+                  <br />
+                  {
+                    !fileStatus.isDefault &&
+                    <Link to={`/translation/syncNamespaces/${encodeDots(assembly)}/${culture}`} className={"status-" + fileStatus.status}>
+                      {TranslationMessage.Sync.niceToString()}
+                    </Link>
+                  }
+                  {
+                    fileStatus.status != "Completed" && !fileStatus.isDefault &&
+                    <>
+                      <br />
+                      <a href="#" className={classes("auto-translate", "status-" + fileStatus.status)} onClick={e => handleAutoTranslateClick(e, assembly, culture)}>{TranslationMessage.AutoSync.niceToString()}</a>
+                    </>
+                  }
+                </td>
+              );
+            }
             )}
           </tr>
         )}
       </tbody>
     </table>
   );
+
+  function handleAutoTranslateClick(e: React.MouseEvent<any>, assembly: string | null, culture: string) {
+    e.preventDefault();
+
+    CultureClient.getCultures(null)
+      .then(cultures =>
+        MessageModal.show(
+          {
+            title: TranslationMessage.AutoSync.niceToString(),
+            message: assembly ? TranslationMessage.AreYouSureToContinueAutoTranslation0For1WithoutRevision.niceToString().formatHtml(<strong>{assembly}</strong>, <strong>{getToString(cultures[culture])}</strong>) :
+              TranslationMessage.AreYouSureToContinueAutoTranslationAllAssembliesFor0WithoutRevision.niceToString().formatHtml(<strong>{getToString(cultures[culture])}</strong>),
+            buttons: "yes_no",
+            style: "warning",
+            icon: "warning"
+          })
+          .then(mr => {
+            if (mr == "yes")
+              (assembly ? TranslationClient.API.autoTranslate(assembly, culture) : TranslationClient.API.autoTranslateAll(culture))
+                .then(() => onRefreshView());
+          })
+      );
+  }
 }
 
-export function encodeDots(value: string) {
+export function encodeDots(value: string): string {
   return value.replaceAll(".", "-");
 }
 
-export function decodeDots(value: string) {
+export function decodeDots(value: string): string {
   return value.replaceAll("-", ".");
 }
 

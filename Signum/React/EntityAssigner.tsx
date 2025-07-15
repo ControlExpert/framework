@@ -1,9 +1,9 @@
-import * as Navigator from './Navigator'
+import { Navigator } from './Navigator'
 import { getTypeName, GraphExplorer } from './Reflection'
 import { Entity, is, isEntity, isModifiableEntity, MListElement, ModifiableEntity } from './Signum.Entities';
 
 
-export function assignServerChanges<T extends ModifiableEntity>(local: T, server: T) {
+export function assignServerChanges<T extends ModifiableEntity>(local: T, server: T): void {
   
   if (!isModifiableEntity(local))
     return;

@@ -91,11 +91,6 @@ public class WriteJsonPropertyContext
     public EntityJsonConverterFactory Factory { get; set; }
 }
 
-public static class EntityJsonConverter
-{
-
-}
-
 public enum EntityJsonConverterStrategy
 {
     /// <summary>
@@ -254,7 +249,14 @@ public class EntityJsonConverter<T> : JsonConverterWithExisting<T>
                     writer.WriteBoolean("isNew", true);
                 }
 
-                if (Schema.Current.Table(entity.GetType()).Ticks != null)
+                var table = Schema.Current.Table(entity.GetType());
+
+                if (table.PartitionId != null && entity.PartitionId != null)
+                {
+                    writer.WriteNumber("partitionId", entity.PartitionId!.Value);
+                }
+
+                if (table.Ticks != null)
                 {
                     writer.WriteString("ticks", entity.Ticks.ToString());
                 }
@@ -613,7 +615,7 @@ public class EntityJsonConverter<T> : JsonConverterWithExisting<T>
                 {
                     if (identityInfo.Ticks != null)
                     {
-                        if (identityInfo.Modified == true && existingEntity.Ticks != identityInfo.Ticks.Value)
+                        if (ConcurrencyLogic.IsEnabled && identityInfo.Modified == true && existingEntity.Ticks != identityInfo.Ticks.Value)
                             throw new ConcurrencyException(type, id);
 
                         existingEntity.Ticks = identityInfo.Ticks.Value;
@@ -628,10 +630,10 @@ public class EntityJsonConverter<T> : JsonConverterWithExisting<T>
 
             if (Factory.Strategy == EntityJsonConverterStrategy.WebAPI)
             {
-                var retrievedEntity = Database.Retrieve(type, id);
+                var retrievedEntity = Database.Retrieve(type, id, identityInfo.PartitionId);
                 if (identityInfo.Ticks != null)
                 {
-                    if (identityInfo.Modified == true && retrievedEntity.Ticks != identityInfo.Ticks.Value)
+                    if (ConcurrencyLogic.IsEnabled && identityInfo.Modified == true && retrievedEntity.Ticks != identityInfo.Ticks.Value)
                         throw new ConcurrencyException(type, id);
 
                     retrievedEntity.Ticks = identityInfo.Ticks.Value;
@@ -706,6 +708,15 @@ public class EntityJsonConverter<T> : JsonConverterWithExisting<T>
                         info.Id = reader.GetLiteralValue()?.ToString();
                     }
                     break;
+                case "partitionId":
+                    {
+                        reader.Read();
+                        info.PartitionId = 
+                            reader.TokenType == JsonTokenType.Null ? null! :
+                            reader.TokenType == JsonTokenType.Number ? reader.GetInt32() :
+                            throw new UnexpectedValueException(reader.TokenType);
+                    }
+                    break;
                 case "isNew": reader.Read(); info.IsNew = reader.GetBoolean(); break;
                 case "Type": reader.Read(); info.Type = reader.GetString()!; break;
                 case "ticks": reader.Read(); info.Ticks = long.Parse(reader.GetString()!); break;
@@ -732,6 +743,7 @@ public class EntityJsonConverter<T> : JsonConverterWithExisting<T>
 public struct IdentityInfo
 {
     public string? Id;
+    public int? PartitionId;
     public bool? IsNew;
     public bool? Modified;
     public string Type;

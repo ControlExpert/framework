@@ -4,7 +4,7 @@ import * as draftjs from 'draft-js';
 import { IconProp } from "@fortawesome/fontawesome-svg-core";
 import { IContentStateConverter, HtmlEditorController, HtmlEditorPlugin } from "../HtmlEditor"
 import { HtmlEditorButton } from '../HtmlEditorButtons';
-import { decompress } from '@framework/Finder';
+import { Finder } from '@framework/Finder';
 
 function extractLinks(text: string): { from: number, to: number }[]{
   const linkRegex = /https?:\/\/([-a-zA-Z0-9@:%_\+.~#?&//=]*)/g;
@@ -77,11 +77,11 @@ export default class LinksPlugin implements HtmlEditorPlugin {
     ];
   }
 
-  getToolbarButtons(controller: HtmlEditorController) {
+  getToolbarButtons(controller: HtmlEditorController): React.JSX.Element {
     return <LinkButton controller={controller} setLink={() => this.setLink(controller)} icon="link" />;
   }
 
-  expandEditorProps(props: draftjs.EditorProps, controller: HtmlEditorController) {
+  expandEditorProps(props: draftjs.EditorProps, controller: HtmlEditorController): void {
     var prevKeyCommand = props.handleKeyCommand;
     props.handleKeyCommand = (command, state, timeStamp) => {
 
@@ -123,7 +123,7 @@ export default class LinksPlugin implements HtmlEditorPlugin {
 
 
 
-export function DraftLink({ contentState, entityKey, children }: { contentState: draftjs.ContentState, decoratedText: string, entityKey: string, children: React.ReactNode }) {
+export function DraftLink({ contentState, entityKey, children }: { contentState: draftjs.ContentState, decoratedText: string, entityKey: string, children: React.ReactNode }): React.JSX.Element {
   const { url } = contentState.getEntity(entityKey)?.getData();
 
   return (
@@ -152,7 +152,7 @@ export function DraftLink({ contentState, entityKey, children }: { contentState:
   );
 }
 
-export function AutoDraftLink({ decoratedText, children }: { contentState: draftjs.ContentState, decoratedText: string, entityKey: string, children: React.ReactNode }) {
+export function AutoDraftLink({ decoratedText, children }: { contentState: draftjs.ContentState, decoratedText: string, entityKey: string, children: React.ReactNode }): React.JSX.Element {
 
   return (
     <a
@@ -193,7 +193,7 @@ function isLinkActive(editorState: draftjs.EditorState) {
   return entity.getType() == "LINK";
 }
 
-export function LinkButton(p: { controller: HtmlEditorController, icon?: IconProp, content?: React.ReactChild, title?: string, setLink: () => void }) {
+export function LinkButton(p: { controller: HtmlEditorController, icon?: IconProp, content?: React.ReactNode, title?: string, setLink: () => void }): React.JSX.Element {
 
   const isActive = isLinkActive(p.controller.editorState);
 

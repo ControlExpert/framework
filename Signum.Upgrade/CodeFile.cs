@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Net.Http.Headers;
+using System.Reflection.Metadata.Ecma335;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Xml.Linq;
@@ -32,7 +33,8 @@ public class CodeFile
 
     public override string ToString() => FilePath;
 
-    public string FilePath { get; }
+    public string FilePath { get; private set; }
+    public string? newFilePath;
     public UpgradeContext Uctx { get; }
 
     string? _content;
@@ -57,14 +59,30 @@ public class CodeFile
 
     public void SaveIfNecessary()
     {
-        if (_content == null)
-            return;
+        if (_content != null && _content != _originalContent)
+        {
+            SafeConsole.WriteLineColor(ConsoleColor.DarkGray, "Modified " + FilePath);
+            File.WriteAllText(Uctx.AbsolutePath(FilePath), _content, encoding!);
+        }
 
-        if (_content == _originalContent)
-            return;
+        if(newFilePath != null)
+        {
+            var newPath = Uctx.AbsolutePathSouthwind(newFilePath);
+            var oldPath = Uctx.AbsolutePath(FilePath);
 
-        SafeConsole.WriteLineColor(ConsoleColor.DarkGray, "Modified " + FilePath);
-        File.WriteAllText(Path.Combine(this.Uctx.RootFolder, FilePath), _content, encoding!);
+            Directory.CreateDirectory(Path.GetDirectoryName(newPath)!);
+
+            File.Move(oldPath, newPath);
+
+            if (Directory.EnumerateFiles(Path.GetDirectoryName(oldPath)!).IsEmpty())
+                Directory.Delete(Path.GetDirectoryName(oldPath)!);
+
+            SafeConsole.WriteLineColor(ConsoleColor.DarkMagenta, "Moved " + FilePath + " to " + newFilePath);
+
+
+            FilePath = newFilePath;
+            newFilePath = null;
+        }
     }
 
     internal static Encoding GetEncoding(string filePath, byte[]? bytes)
@@ -271,7 +289,7 @@ public class CodeFile
     public void ReplaceMethod(Expression<Predicate<string>> methodLine, string text) =>
         ReplaceBetween(
             new(methodLine, 0),
-            new(s => s.Contains("}"), 0) { SameIdentation = true }, 
+            new(s => s.Contains("}"), 0) { SameIdentation = true },
             text);
 
 
@@ -403,6 +421,81 @@ public class CodeFile
             throw new InvalidOperationException("");
     }
 
+    internal void ReplacPartsInTypeScriptImport(Expression<Func<string, bool>> pathPredicate, Func<string /*path*/, HashSet<string> /*parts*/, HashSet<string>?> importedPartsSelector)
+    {
+        AssertExtension(".ts", ".tsx");
+
+        var compiled = pathPredicate.Compile();
+        ProcessLines(lines =>
+        {
+            bool changed = false;
+            int pos = 0;
+            while ((pos = lines.FindIndex(pos, a => a.StartsWith("import ") && !a.StartsWith("import type") && a.Contains(" from ") && compiled(a.After("from").Trim(' ', '\'', '\"', ';')))) != -1)
+            {
+                var line = lines[pos];
+                var importPart = line.After("import").Before("from").Trim();
+                string after = line.After("from");
+
+                var parts = importPart.StartsWith('*') ? new[] { importPart.Trim() }.ToHashSet() : importPart.Between("{", "}").SplitNoEmpty(",").Select(a => a.Trim()).ToHashSet();
+                var newParts = importedPartsSelector(after.Trim(' ', '\'', '\"', ';'), parts);
+
+                if (newParts != null) {
+
+                    if (newParts.Count == 1 && newParts.SingleEx().StartsWith("*"))
+                        lines[pos] = "import " + newParts.SingleEx() + " from" + after;
+                    else
+                        lines[pos] = "import { " + newParts.ToString(", ") + " } from" + after;
+                    changed = true;
+                }
+                pos++;
+            }
+
+            return changed;
+
+        });
+    }
+
+    internal void ReplaceAndCombineTypeScriptImports(Expression<Func<string, bool>> pathPredicate, Func<HashSet<string>, HashSet<string>?> importedPartsSelector)
+    {
+        AssertExtension(".ts", ".tsx");
+
+        var compiled = pathPredicate.Compile();
+        ProcessLines(lines =>
+        {
+            var parts = new HashSet<string>();
+            int pos = 0;
+            var initialPos = -1;
+            var after = (string?)null;
+            while ((pos = lines.FindIndex(pos, a => a.StartsWith("import ") && !a.StartsWith("import type") && a.Contains(" from ") && compiled(a.After("from").Trim(' ', '\'', '\"', ';')))) != -1)
+            {
+                if (initialPos == -1)
+                    initialPos = pos;
+
+                var line = lines[pos];
+                var importPart = line.After("import").Before("from").Trim();
+                if (after == null)
+                    after = line.After("from");
+
+                lines.RemoveAt(pos);
+
+                parts.AddRange(importPart.StartsWith('*') ? new[] { importPart.Trim() } : importPart.Between("{", "}").SplitNoEmpty(",").Select(a => a.Trim()));
+            }
+
+            if (initialPos == -1)
+            {
+                Warning($"Unable to find import with path where {pathPredicate}");
+                return false;
+            }
+
+            var newImports = importedPartsSelector(parts);
+
+            if (newImports != null)
+                lines.Insert(initialPos, "import { " + newImports.ToString(", ") + " } from" + after);
+
+            return true;
+        });
+    }
+
     public void UpdateNpmPackages(string packageJsonBlock)
     {
         var packages = packageJsonBlock.Lines().Select(a => a.Trim()).Where(a => a.HasText()).Select(a => new
@@ -416,6 +509,7 @@ public class CodeFile
             UpdateNpmPackage(v.PackageName, v.Version);
         }
     }
+
 
     public void UpdateNpmPackage(string packageName, string version)
     {
@@ -555,7 +649,7 @@ public class CodeFile
 
     static Regex GuidRegex = new Regex(@"(?<id>[\w]{8}-[\w]{4}-[\w]{4}-[\w]{4}-[\w]{12})");
 
-    public void Solution_AddProject(string projectFile, string? parentFolder, WarningLevel showWarning = WarningLevel.Error)
+    public void Solution_AddProject(string projectFile, string? parentFolder, string projecTypeId = "9A19103F-16F7-4668-BE54-9A1E7A4F7556", WarningLevel showWarning = WarningLevel.Error)
     {
         var prjRegex = new Regex(@"[\\]?(?<project>[\.\w]*).csproj");
 
@@ -563,10 +657,10 @@ public class CodeFile
 
         var projectId = Guid.NewGuid().ToString().ToUpper();
 
-        var projectTypeId = Guid.Parse("9A19103F-16F7-4668-BE54-9A1E7A4F7556").ToString().ToUpper();
+        var projectTypeIdUpper = Guid.Parse(projecTypeId).ToString().ToUpper();
 
         InsertAfterLastLine(l => l.StartsWith("EndProject"), $$"""
-                Project("{{{projectTypeId}}}") = "{{prjName}}", "{{projectFile}}", "{{{projectId}}}"
+                Project("{{{projectTypeIdUpper}}}") = "{{prjName}}", "{{projectFile}}", "{{{projectId}}}"
                 EndProject
                 """);
         var configs = GetLinesBetweenExcluded(
@@ -628,6 +722,11 @@ public class CodeFile
         var oldLevel = this.WarningLevel;
         this.WarningLevel = none;
         return new Disposable(() => this.WarningLevel = oldLevel);
+    }
+
+    internal void MoveFile(string newFilePath)
+    {
+        this.newFilePath = newFilePath;
     }
 }
 

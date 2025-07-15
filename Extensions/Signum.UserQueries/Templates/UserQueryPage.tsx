@@ -1,14 +1,14 @@
 import * as React from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { Dic } from '@framework/Globals'
-import * as Finder from '@framework/Finder'
-import * as Navigator from '@framework/Navigator'
+import { Finder } from '@framework/Finder'
+import { Navigator } from '@framework/Navigator'
 import { ResultTable, FindOptions, FilterOption, QueryDescription } from '@framework/FindOptions'
 import { SearchMessage, JavascriptMessage, parseLite, toLite } from '@framework/Signum.Entities'
 import { getQueryNiceName, newLite } from '@framework/Reflection'
 import SearchControl, { SearchControlHandler } from '@framework/SearchControl/SearchControl'
 import { UserQueryEntity } from '../Signum.UserQueries'
-import * as UserQueryClient from '../UserQueryClient'
+import { UserQueryClient } from '../UserQueryClient'
 import { useParams } from "react-router";
 import { useAPI, useForceUpdate } from '@framework/Hooks'
 import { useState } from 'react'
@@ -17,7 +17,7 @@ import { useTitle } from '@framework/AppContext'
 
 
 
-export default function UserQueryPage() {
+export default function UserQueryPage(): React.JSX.Element | null {
   const params = useParams() as { userQueryId: string; entity?: string };
 
   const [currentUserQuery, setCurrentUserQuery] = useState<UserQueryEntity | null>(null);
@@ -94,7 +94,10 @@ export default function UserQueryPage() {
         showSystemTimeButton={true}
         showFooter={true}
         view={qs?.inPlaceNavigation ? "InPlace" : undefined}
-        extraOptions={{ userQuery: newLite(UserQueryEntity, userQueryId) }}
+        extraOptions={{
+          userQuery: newLite(UserQueryEntity, userQueryId),
+          entity: entity == undefined ? undefined : parseLite(entity),
+        }}
         defaultRefreshMode={currentUserQuery.refreshMode}
         searchOnLoad={currentUserQuery.refreshMode == "Auto"}
         onHeighChanged={onResize}

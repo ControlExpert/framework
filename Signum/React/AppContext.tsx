@@ -7,22 +7,21 @@ import { Dic, classes, } from './Globals';
 import { clearContextHeaders, ajaxGet, ajaxPost, RetryFilter } from "./Services";
 import { PseudoType, Type, getTypeName, tryGetTypeInfo } from "./Reflection";
 import { Entity, EntityPack, Lite, ModifiableEntity } from "./Signum.Entities";
-import { navigateRoute } from "./Navigator";
 
 Dic.skipClasses.push(React.Component);
 
 export let currentCulture: string | undefined;
-export function setCurrentCulture(culture: string | undefined) {
+export function setCurrentCulture(culture: string | undefined): void {
   currentCulture = culture;
 }
 
 export let currentUser: IUserEntity | undefined;
-export function setCurrentUser(user: IUserEntity | undefined) {
+export function setCurrentUser(user: IUserEntity | undefined): void {
   currentUser = user;
 }
 
 export let _internalRouter: Router;
-export function setRouter(r: Router) {
+export function setRouter(r: Router): void {
   _internalRouter = r
 }
 
@@ -45,13 +44,13 @@ export function location(): typeof _internalRouter.state.location {
   };
 }
 
-export function assertPermissionAuthorized(permission: PermissionSymbol | string) {
+export function assertPermissionAuthorized(permission: PermissionSymbol | string): void {
   var key = (permission as PermissionSymbol).key ?? permission as string;
   if (!isPermissionAuthorized(key))
     throw new Error(`Permission ${key} is denied`);
 }
 
-export function isPermissionAuthorized(permission: PermissionSymbol | string) {
+export function isPermissionAuthorized(permission: PermissionSymbol | string): boolean {
   var key = (permission as PermissionSymbol).key ?? permission as string;
   const type = tryGetTypeInfo(key.before("."));
 
@@ -82,11 +81,11 @@ export function navigate(to: To | number, options?: NavigateOptions): void {
 
 
 export let setTitle: (pageTitle?: string) => void;
-export function setTitleFunction(titleFunction: (pageTitle?: string) => void) {
+export function setTitleFunction(titleFunction: (pageTitle?: string) => void): void {
   setTitle = titleFunction;
 }
 
-export function useTitle(title: string, deps?: readonly any[]) {
+export function useTitle(title: string, deps?: readonly any[]): void {
   React.useEffect(() => {
     setTitle(title);
     return () => setTitle();
@@ -94,11 +93,11 @@ export function useTitle(title: string, deps?: readonly any[]) {
 }
 
 let rtl = false;
-export function isRtl() {
+export function isRtl(): boolean {
   return rtl;
 }
 
-export function setRtl(isRtl: boolean) {
+export function setRtl(isRtl: boolean): void {
   rtl = isRtl;
 }
 
@@ -106,14 +105,14 @@ export const clearSettingsActions: Array<() => void> = [
   clearContextHeaders,
 ];
 
-export function clearAllSettings() {
+export function clearAllSettings(): void {
   clearSettingsActions.forEach(a => a());
   clearSettingsActions.clear();
   clearSettingsActions.push(clearContextHeaders);
 }
 
 export let resetUI: () => void = () => { };
-export function setResetUI(reset: () => void) {
+export function setResetUI(reset: () => void): void {
   resetUI = reset;
 }
 
@@ -130,7 +129,7 @@ export namespace Expander {
   }
 }
 
-export function useExpand() {
+export function useExpand(): void {
   React.useEffect(() => {
     const wasExpanded = Expander.setExpanded(true);
     return () => { Expander.setExpanded(wasExpanded); }
@@ -138,7 +137,7 @@ export function useExpand() {
 
 }
 
-export function pushOrOpenInTab(path: string, e: React.MouseEvent<any> | React.KeyboardEvent<any>) {
+export function pushOrOpenInTab(path: string, e: React.MouseEvent<any> | React.KeyboardEvent<any>): void {
   if ((e as React.MouseEvent<any>).button == 2)
     return;
 
@@ -172,12 +171,12 @@ export function toAbsoluteUrl(appRelativeUrl: string): string {
 
 declare global {
   interface String {
-    formatHtml(...parameters: any[]): React.ReactElement<any>;
+    formatHtml(...parameters: any[]): React.ReactElement;
   }
 
   interface Array<T> {
-    joinCommaHtml(this: Array<T>, lastSeparator: string): React.ReactElement<any>;
-    joinHtml(this: Array<T>, separator: string | React.ReactElement<any>): React.ReactElement<any>;
+    joinCommaHtml(this: Array<T>, lastSeparator: string): React.ReactElement;
+    joinHtml(this: Array<T>, separator: string | React.ReactElement): React.ReactElement;
   }
 }
 
@@ -188,7 +187,7 @@ String.prototype.formatHtml = function (this: string) {
 
   const parts = this.split(regex);
 
-  const result: (string | React.ReactElement<any>)[] = [];
+  const result: (string | React.ReactElement)[] = [];
   for (let i = 0; i < parts.length - 4; i += 4) {
     result.push(parts[i]);
     result.push(args[parseInt(parts[i + 1])]);
@@ -201,7 +200,7 @@ String.prototype.formatHtml = function (this: string) {
 Array.prototype.joinCommaHtml = function (this: any[], lastSeparator: string) {
   const args = arguments;
 
-  const result: (string | React.ReactElement<any>)[] = [];
+  const result: (string | React.ReactElement)[] = [];
   for (let i = 0; i < this.length - 2; i++) {
     result.push(this[i]);
     result.push(", ");
@@ -219,10 +218,10 @@ Array.prototype.joinCommaHtml = function (this: any[], lastSeparator: string) {
   return React.createElement("span", undefined, ...result);
 }
 
-Array.prototype.joinHtml = function (this: any[], separator: string | React.ReactElement<any>) {
+Array.prototype.joinHtml = function (this: any[], separator: string | React.ReactElement) {
   const args = arguments;
 
-  const result: (string | React.ReactElement<any>)[] = [];
+  const result: (string | React.ReactElement)[] = [];
   for (let i = 0; i < this.length -1; i++) {
     result.push(this[i]);
     result.push(separator);

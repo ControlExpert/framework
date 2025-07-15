@@ -1,15 +1,15 @@
 import * as React from 'react'
-import { TypeHelpMode } from './TypeHelpClient';
+import { TypeHelpClient } from './TypeHelpClient';
 import { TypeContext } from '@framework/Lines';
 
 interface TypeHelpButtonBarComponentProps {
   typeName: string;
-  mode: TypeHelpMode;
+  mode: TypeHelpClient.TypeHelpMode;
   extraButtons?: React.ReactNode;
   ctx?: TypeContext<any>;
 }
 
-export default function TypeHelpButtonBarComponent(p : TypeHelpButtonBarComponentProps){
+export function TypeHelpButtonBarComponent(p : TypeHelpButtonBarComponentProps): React.JSX.Element {
   return (
     <div className="btn-toolbar">
       {p.extraButtons}
@@ -23,4 +23,8 @@ export default function TypeHelpButtonBarComponent(p : TypeHelpButtonBarComponen
   );
 }
 
-TypeHelpButtonBarComponent.getTypeHelpButtons = [] as Array<(props: TypeHelpButtonBarComponentProps) => ({ element: React.ReactElement<any>, order: number })[]>;
+export namespace TypeHelpButtonBarComponent {
+  export let getTypeHelpButtons: Array<(props: TypeHelpButtonBarComponentProps) => ({ element: React.ReactElement<any>, order: number })[]> = [];
+}
+
+export default TypeHelpButtonBarComponent

@@ -2,11 +2,11 @@ import * as React from 'react'
 import { DateTime } from 'luxon'
 import { useLocation, useParams } from 'react-router'
 import { RenderEntity, TypeContext } from '@framework/Lines'
-import * as Finder from '@framework/Finder'
+import { Finder } from '@framework/Finder'
 import EntityLink from '@framework/SearchControl/EntityLink'
 import { SearchControl, SearchControlLoaded } from '@framework/Search'
 import { Entity, EntityControlMessage, getToString, JavascriptMessage } from '@framework/Signum.Entities'
-import * as Navigator from '@framework/Navigator'
+import { Navigator } from '@framework/Navigator'
 import { Lite } from '@framework/Signum.Entities'
 import { newLite, QueryTokenString, toFormatWithFixes, toLuxonFormat } from '@framework/Reflection'
 import { getTypeInfo } from '@framework/Reflection'
@@ -19,12 +19,12 @@ import MessageModal from '@framework/Modals/MessageModal'
 import { ResultRow } from '@framework/FindOptions'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { classes } from '@framework/Globals'
-import { EntityDump, API } from './TimeMachineClient'
+import { TimeMachineClient } from './TimeMachineClient'
 import { TimeMachineMessage } from './Signum.TimeMachine'
 import { OperationLogEntity } from '@framework/Signum.Operations'
 
 
-export default function TimeMachinePage() {
+export default function TimeMachinePage(): React.JSX.Element {
   const params = useParams() as { type: string; id: string };
 
   const lite = useAPI(() => {
@@ -42,7 +42,7 @@ export default function TimeMachinePage() {
 }
 
 
-export function TimeMachine(p: {lite: Lite<Entity>, isModal?: boolean }) {
+export function TimeMachine(p: { lite: Lite<Entity>, isModal?: boolean }): React.JSX.Element {
 
   const searchControl = React.useRef<SearchControlHandler>(null);
   const forceUpdate = useForceUpdate();
@@ -139,13 +139,13 @@ export function TimeMachine(p: {lite: Lite<Entity>, isModal?: boolean }) {
 }
 
 interface RenderEntityVersionProps {
-  current: ()=> Promise<EntityDump>;
-  previous: (() => Promise<EntityDump>) | undefined;
+  current: () => Promise<TimeMachineClient.EntityDump>;
+  previous: (() => Promise<TimeMachineClient.EntityDump>) | undefined;
   currentDate?: string;
   previousDate?: string;
 }
 
-export function RenderEntityVersion(p: RenderEntityVersionProps) {
+export function RenderEntityVersion(p: RenderEntityVersionProps): React.JSX.Element {
   var pair = useAPI(async signal => {
     var curr = p.current();
     var prev = p.previous == null ? Promise.resolve(null) : p.previous();
@@ -170,11 +170,11 @@ export function RenderEntityVersion(p: RenderEntityVersionProps) {
 }
 
 interface DiffEntityVersionProps {
-  previous?: () => Promise<EntityDump>;
-  current: () => Promise<EntityDump>;
+  previous?: () => Promise<TimeMachineClient.EntityDump>;
+  current: () => Promise<TimeMachineClient.EntityDump>;
 }
 
-export function DiffEntityVersion(p: DiffEntityVersionProps) {
+export function DiffEntityVersion(p: DiffEntityVersionProps): React.JSX.Element {
 
   var pair = useAPI(async signal => {
     var curr = p.current();
@@ -191,21 +191,21 @@ export function DiffEntityVersion(p: DiffEntityVersionProps) {
   return <DiffDocument first={pair.prev.dump} second={pair.curr.dump} />;
 }
 
-export function TimeMachineTabs(p: { lite: Lite<Entity>, versionDatesUTC: string[] }) {
+export function TimeMachineTabs(p: { lite: Lite<Entity>, versionDatesUTC: string[] }): React.JSX.Element | null {
 
   if (p.versionDatesUTC == null || p.versionDatesUTC.length < 1)
     return null;
 
-  function memoized(dateUtc: string): () => Promise<EntityDump> {
+  function memoized(dateUtc: string): () => Promise<TimeMachineClient.EntityDump> {
 
-    var memo: Promise<EntityDump>;
+    var memo: Promise<TimeMachineClient.EntityDump>;
 
-    return () => (memo ??= API.getEntityDump(p.lite, dateUtc));
+    return () => (memo ??= TimeMachineClient.API.getEntityDump(p.lite, dateUtc));
   }
 
   var hasPrevious = p.versionDatesUTC.length > 1;
 
-  var refs = React.useRef<{ [versionDateUTC: string]: () => Promise<EntityDump> }>({});
+  var refs = React.useRef<{ [versionDateUTC: string]: () => Promise<TimeMachineClient.EntityDump> }>({});
 
   refs.current = p.versionDatesUTC.toObject(a => a, a => refs.current[a] ?? memoized(a));
   var dates = p.versionDatesUTC.orderBy(a => a);
@@ -217,8 +217,8 @@ export function TimeMachineTabs(p: { lite: Lite<Entity>, versionDatesUTC: string
       <Tab title={<span>
         {hasPrevious ? TimeMachineMessage.UIDifferences.niceToString() : TimeMachineMessage.UISnapshot.niceToString()}
         <span className="ms-2">
-        <FontAwesomeIcon icon="eye" color="lightblue"/>
-        {hasPrevious && <FontAwesomeIcon icon="circle" transform="shrink-10 left-25 up-5" color="red" />}
+          <FontAwesomeIcon icon="eye" color="lightblue" />
+          {hasPrevious && <FontAwesomeIcon icon="circle" transform="shrink-10 left-25 up-5" color="red" />}
         </span>
       </span>}
         key={"ui"} eventKey={"ui"}>
@@ -228,17 +228,17 @@ export function TimeMachineTabs(p: { lite: Lite<Entity>, versionDatesUTC: string
           currentDate={hasPrevious ? dates[1] : dates[0]}
           previousDate={hasPrevious ? dates[0] : undefined}
         />
-        </Tab>
+      </Tab>
       <Tab title={hasPrevious ?
         <span>{TimeMachineMessage.DataDifferences.niceToString()}
-          <FontAwesomeIcon icon="plus" color="green" transform="up-5 right-7"/>
+          <FontAwesomeIcon icon="plus" color="green" transform="up-5 right-7" />
           <FontAwesomeIcon icon="minus" color="red" transform="down-5 left-7" />
         </span> : <span>{TimeMachineMessage.DataSnapshot.niceToString()}
           <FontAwesomeIcon className="ms-2" icon="align-left" color="lightblue" />
         </span>}
         key={"data"} eventKey={"data"}>
         <DiffEntityVersion previous={previous} current={current} />
-      </Tab>      
+      </Tab>
     </Tabs>
   );
 }
@@ -248,7 +248,7 @@ interface TimeMachineModalProps extends IModalProps<boolean | undefined> {
   lite: Lite<Entity>
 }
 
-export function TimeMachineModal(p: TimeMachineModalProps) {
+export function TimeMachineModal(p: TimeMachineModalProps): React.JSX.Element {
 
   const [show, setShow] = React.useState(true);
   const answerRef = React.useRef<boolean | undefined>(undefined);
@@ -271,7 +271,7 @@ export function TimeMachineModal(p: TimeMachineModalProps) {
             <span style={{ color: "#aaa" }}>{getToString(p.lite)}</span>
           </small>
         </h4>
-        <button type="button" className="btn-close" data-dismiss="modal" aria-label="Close" onClick={handleCloseClicked}/>
+        <button type="button" className="btn-close" data-dismiss="modal" aria-label="Close" onClick={handleCloseClicked} />
       </div>
       <div className="modal-body">
         <TimeMachine lite={p.lite} isModal={true} />
@@ -279,17 +279,18 @@ export function TimeMachineModal(p: TimeMachineModalProps) {
     </Modal>
   );
 }
-
-TimeMachineModal.show = (lite: Lite<Entity>): Promise<boolean | undefined> => {
-  return openModal<boolean | undefined>(<TimeMachineModal lite={lite} />);
-};
+export namespace TimeMachineModal {
+  export function show(lite: Lite<Entity>): Promise<boolean | undefined> {
+    return openModal<boolean | undefined>(<TimeMachineModal lite={lite} />);
+  };
+}
 
 interface TimeMachineModalCompareProps extends IModalProps<boolean | undefined> {
   lite: Lite<Entity>;
   versionDatesUTC: string[];
 }
 
-export function TimeMachineCompareModal(p: TimeMachineModalCompareProps) {
+export function TimeMachineCompareModal(p: TimeMachineModalCompareProps): React.JSX.Element {
 
   const [show, setShow] = React.useState(true);
   const answerRef = React.useRef<boolean | undefined>(undefined);
@@ -314,7 +315,8 @@ export function TimeMachineCompareModal(p: TimeMachineModalCompareProps) {
     </Modal>
   );
 }
-
-TimeMachineCompareModal.show = (lite: Lite<Entity>, versionDatesUTC: string[]): Promise<boolean | undefined> => {
-  return openModal<boolean | undefined>(<TimeMachineCompareModal lite={lite} versionDatesUTC={versionDatesUTC} />);
-};
+export namespace TimeMachineCompareModal {
+  export function show(lite: Lite<Entity>, versionDatesUTC: string[]): Promise<boolean | undefined> {
+    return openModal<boolean | undefined>(<TimeMachineCompareModal lite={lite} versionDatesUTC={versionDatesUTC} />);
+  }
+}

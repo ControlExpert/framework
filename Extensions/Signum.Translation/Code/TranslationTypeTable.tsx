@@ -1,14 +1,14 @@
 import * as React from 'react'
 import { TranslationMessage } from '../Signum.Translation'
-import { API, AssemblyResult, LocalizedType, LocalizableType, LocalizedMember } from '../TranslationClient'
+import { TranslationClient } from '../TranslationClient'
 import { Dic } from '@framework/Globals'
 import TextArea from '@framework/Components/TextArea';
 import { useForceUpdate } from '@framework/Hooks';
 import { KeyNames } from '@framework/Components';
 
-export function TranslationTypeTable(p : { type: LocalizableType, result: AssemblyResult, currentCulture: string }){
+export function TranslationTypeTable(p: { type: TranslationClient.LocalizableType, result: TranslationClient.AssemblyResult, currentCulture: string }): React.JSX.Element{
 
-  function renderMembers(type: LocalizableType): React.ReactElement<any>[] {
+  function renderMembers(type: TranslationClient.LocalizableType): React.ReactElement<any>[] {
 
     const members = Dic.getKeys(Dic.getValues(type.cultures).first().members);
 
@@ -28,7 +28,7 @@ export function TranslationTypeTable(p : { type: LocalizableType, result: Assemb
 
   }
 
-  function editCulture(loc: LocalizedType) {
+  function editCulture(loc: TranslationClient.LocalizedType) {
     return p.currentCulture == undefined || p.currentCulture == loc.culture;
   }
 
@@ -59,7 +59,7 @@ export function TranslationTypeTable(p : { type: LocalizableType, result: Assemb
   );
 }
 
-export function TranslationMember({ type, member, loc, edit }: { type: LocalizableType, loc: LocalizedType; member: LocalizedMember; edit: boolean }) {
+export function TranslationMember({ type, member, loc, edit }: { type: TranslationClient.LocalizableType, loc: TranslationClient.LocalizedType; member: TranslationClient.LocalizedMember; edit: boolean }): React.JSX.Element {
 
   const [avoidCombo, setAvoidCombo] = React.useState(false);
   const forceUpdate = useForceUpdate();
@@ -120,22 +120,24 @@ export function TranslationMember({ type, member, loc, edit }: { type: Localizab
   }
 }
 
-TranslationMember.normalizeString = (str: string | undefined): string | undefined => {
-  return str;
-};
+export namespace TranslationMember {
+  export function normalizeString(str: string | undefined): string | undefined {
+    return str;
+  };
+}
 
-export function initialElementIf(condition: boolean) {
+export function initialElementIf(condition: boolean): React.JSX.Element[] {
   return condition ? [<option key={""} value={""}>{" - "}</option>] : []
 }
 
 export interface TranslationTypeDescriptionProps {
-  type: LocalizableType,
-  loc: LocalizedType,
+  type: TranslationClient.LocalizableType,
+  loc: TranslationClient.LocalizedType,
   edit: boolean,
-  result: AssemblyResult
+  result: TranslationClient.AssemblyResult
 };
 
-export function TranslationTypeDescription(p: TranslationTypeDescriptionProps) {
+export function TranslationTypeDescription(p: TranslationTypeDescriptionProps): React.JSX.Element {
 
   const [avoidCombo, setAvoidCombo] = React.useState(false);
 
@@ -156,12 +158,12 @@ export function TranslationTypeDescription(p: TranslationTypeDescriptionProps) {
     const td = loc.typeDescription!;
     td.description = TranslationMember.normalizeString(e.currentTarget.value);
 
-    API.pluralize(loc.culture, td.description!).then(plural => {
+    TranslationClient.API.pluralize(loc.culture, td.description!).then(plural => {
       td.pluralDescription = plural;
       forceUpdate();
     });
 
-    API.gender(loc.culture, td.description!).then(gender => {
+    TranslationClient.API.gender(loc.culture, td.description!).then(gender => {
       td.gender = gender;
       forceUpdate();
     });

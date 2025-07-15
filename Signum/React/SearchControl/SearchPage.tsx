@@ -1,10 +1,10 @@
 import * as React from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { useLocation, useParams } from 'react-router'
-import * as Finder from '../Finder'
+import { Finder } from '../Finder'
 import { FindOptions, FilterOption, QueryDescription, isFilterGroup } from '../FindOptions'
 import { getQueryNiceName } from '../Reflection'
-import * as Navigator from '../Navigator'
+import { Navigator } from '../Navigator'
 import * as AppContext from '../AppContext';
 import SearchControl, { SearchControlHandler } from './SearchControl'
 import { namespace } from 'd3'
@@ -13,7 +13,7 @@ import { QueryString } from '../QueryString'
 import { useAPI, useForceUpdate, useUpdatedRef } from '../Hooks'
 
 
-function SearchPage() {
+function SearchPage(): React.JSX.Element {
 
   const params = useParams<{ queryName: string }>();
   const location = useLocation();

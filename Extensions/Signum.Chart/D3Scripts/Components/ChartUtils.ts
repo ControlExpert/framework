@@ -1,6 +1,6 @@
 import { DateTime, DurationUnit, DateTimeUnit } from "luxon"
 import * as d3 from "d3"
-import { ChartColumn } from "../../ChartClient"
+import { ChartClient, ChartColumn } from "../../ChartClient"
 import { Dic } from "@framework/Globals";
 import { tryGetTypeInfo } from "@framework/Reflection";
 import { isFilterGroup, FilterConditionOptionParsed, FilterOptionParsed, QueryToken } from "@framework/FindOptions";
@@ -9,14 +9,14 @@ import * as ColorUtils from "../../ColorPalette/ColorUtils"
 
 
 
-export function translate(x: number, y: number) {
+export function translate(x: number, y: number): string {
   if (y == undefined)
     return 'translate(' + x + ')';
 
   return 'translate(' + x + ',' + y + ')';
 }
 
-export function scale(x: number, y: number) {
+export function scale(x: number, y: number): string {
   if (y == undefined)
     return 'scale(' + x + ')';
 
@@ -57,7 +57,7 @@ export function scaleFor(column: ChartColumn<any>, values: number[], minRange: n
 
   }
 
-  if (scaleName == "MinMax") {
+  if (scaleName == "MinMax" || scaleName == "MinZeroMax") {
     if (column.type == "DateOnly" || column.type == "DateTime") {
       var dates = values.map(d => new Date(d));
 

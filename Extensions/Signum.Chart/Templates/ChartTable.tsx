@@ -1,11 +1,9 @@
 import * as React from 'react'
-import * as Finder from '@framework/Finder'
-import * as Navigator from '@framework/Navigator'
+import { Finder } from '@framework/Finder'
+import { Navigator } from '@framework/Navigator'
 import { ResultTable, ColumnOptionParsed, OrderOptionParsed, OrderType, ResultRow, hasAggregate, ColumnOption, FilterOptionParsed, withoutAggregate } from '@framework/FindOptions'
 import { ChartRequestModel, ChartColumnEmbedded } from '../Signum.Chart'
-import * as ChartClient from '../ChartClient'
-import { toFilterOptions } from '@framework/Finder';
-import { ChartRow } from '../ChartClient';
+import { ChartClient, ChartRow } from '../ChartClient';
 import { ChartColumn } from './ChartColumn';
 import { TypeInfo } from '@framework/Reflection'
 import { toAbsoluteUrl } from '@framework/AppContext'
@@ -19,7 +17,7 @@ interface ChartTableProps {
   onReload?: (e: React.MouseEvent<any>) => void;
 }
 
-export default function ChartTableComponent(p: ChartTableProps) {
+export default function ChartTableComponent(p: ChartTableProps): React.JSX.Element {
   function handleHeaderClick(e: React.MouseEvent<any>, col: ColumnOptionParsed) {
     var chartCol = p.chartRequest.columns.map(mle => mle.element)
       .firstOrNull(a => a.token != null && a.token.token != null && a.token.token.fullKey == col.token!.fullKey);
@@ -73,7 +71,7 @@ export default function ChartTableComponent(p: ChartTableProps) {
 
       window.open(toAbsoluteUrl(Finder.findOptionsPath({
         queryName: lcr.queryKey,
-        filterOptions: toFilterOptions(filters),
+        filterOptions: Finder.toFilterOptions(filters),
         columnOptions: columns,
         columnOptionsMode: "ReplaceOrAdd"
       })));

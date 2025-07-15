@@ -2,28 +2,30 @@ import * as React from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { AutoLine, EntityLine, TextAreaLine, TypeContext } from '@framework/Lines'
 import { PropertyRoute, Binding } from '@framework/Reflection'
-import * as Navigator from '@framework/Navigator'
+import { Navigator } from '@framework/Navigator'
 import CSharpCodeMirror from '../../Signum.CodeMirror/CSharpCodeMirror'
 import { Entity } from '@framework/Signum.Entities'
-import { DynamicTypeConditionTestResponse, API } from '../DynamicTypeConditionClient'
+import { DynamicTypeConditionClient } from '../DynamicTypeConditionClient'
 import TypeHelpComponent from '../../Signum.Eval/TypeHelp/TypeHelpComponent'
 import AutoLineModal from '@framework/AutoLineModal'
 import { useForceUpdate } from '@framework/Hooks'
 import { DynamicTypeConditionEntity } from '../Signum.Dynamic.Types'
+import { DynamicClient } from '../DynamicClient'
+import { DynamicTypeClient } from '../DynamicTypeClient'
 
 interface DynamicTypeConditionComponentProps {
   ctx: TypeContext<DynamicTypeConditionEntity>;
 }
 
-export default function DynamicTypeConditionComponent(p: DynamicTypeConditionComponentProps) {
+export default function DynamicTypeConditionComponent(p: DynamicTypeConditionComponentProps): React.JSX.Element {
 
 
-  const [response, setResponse] = React.useState<DynamicTypeConditionTestResponse | undefined>(undefined);
-  const exampleEntityRef = React.useRef<Entity | undefined>(undefined);
+  const [response, setResponse] = React.useState<DynamicTypeConditionClient.DynamicTypeConditionTestResponse | undefined>(undefined);
+  const exampleEntityRef = React.useRef<Entity | null>(null);
   const forceUpdate = useForceUpdate();
 
   function handleEntityTypeChange() {
-    exampleEntityRef.current = undefined;
+    exampleEntityRef.current = null;
     setResponse(undefined);
     handleCodeChange("");
   }
@@ -81,7 +83,7 @@ export default function DynamicTypeConditionComponent(p: DynamicTypeConditionCom
     if (exampleEntityRef == undefined)
       setResponse(undefined);
     else {
-      API.typeConditionTest({
+      DynamicTypeConditionClient.API.typeConditionTest({
         dynamicTypeCondition: p.ctx.value,
         exampleEntity: exampleEntityRef.current!,
       })
@@ -102,7 +104,7 @@ export default function DynamicTypeConditionComponent(p: DynamicTypeConditionCom
   }
 
   function renderExampleEntity(typeName: string) {
-    const exampleCtx = new TypeContext<Entity | undefined>(undefined, undefined, PropertyRoute.root(typeName), Binding.create(exampleEntityRef, e => e.current));
+    const exampleCtx = new TypeContext<Entity | null>(undefined, undefined, PropertyRoute.root(typeName), Binding.create(exampleEntityRef, e => e.current));
 
     return (
       <EntityLine ctx={exampleCtx} create={true} find={true} remove={true} view={true} onView={handleOnView} onChange={handleEvaluate}
@@ -114,7 +116,7 @@ export default function DynamicTypeConditionComponent(p: DynamicTypeConditionCom
     return Navigator.view(exampleEntity, { requiresSaveOperation: false, isOperationVisible: eoc => false });
   }
 
-  function renderMessage(res: DynamicTypeConditionTestResponse) {
+  function renderMessage(res: DynamicTypeConditionClient.DynamicTypeConditionTestResponse) {
     if (res.compileError)
       return <div className="alert alert-danger">COMPILE ERROR: {res.compileError}</div >;
 

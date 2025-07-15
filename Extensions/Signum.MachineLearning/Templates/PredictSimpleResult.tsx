@@ -1,17 +1,17 @@
 import * as React from 'react'
-import * as Navigator from '@framework/Navigator'
+import { Navigator } from '@framework/Navigator'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { AutoLine, EntityLine, IRenderButtons } from '@framework/Lines'
 import { TypeContext, ButtonsContext, ButtonBarElement } from '@framework/TypeContext'
 import { PredictSimpleResultEntity, PredictorMessage } from '../Signum.MachineLearning'
-import { predict } from '../PredictorClient';
+import { PredictorClient } from '../PredictorClient';
 
 export default class PredictSimpleResult extends React.Component<{ ctx: TypeContext<PredictSimpleResultEntity> }> implements IRenderButtons {
-  handleClick = () => {
+  handleClick = () : void => {
     var psr = this.props.ctx.value;
     Navigator.API.fetch(psr.predictor!).then(p => {
       if (!p.mainQuery.groupResults) {
-        predict(p, { "Entity": psr.target });
+        PredictorClient.predict(p, { "Entity": psr.target });
       } else {
 
         var fullKeys = p.mainQuery.columns.map(mle => mle.element.token!.tokenString!);
@@ -20,12 +20,12 @@ export default class PredictSimpleResult extends React.Component<{ ctx: TypeCont
 
         var obj = fullKeys.map((fk, i) => ({ tokenString: fk, value: values[i] })).toObject(a => a.tokenString, a => a.value);
 
-        predict(p, obj);
+        PredictorClient.predict(p, obj);
       };
     });
   }
 
-  render() {
+  render(): React.ReactElement {
     const ctx = this.props.ctx;
 
     return (

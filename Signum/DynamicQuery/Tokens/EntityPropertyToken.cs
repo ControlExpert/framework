@@ -10,10 +10,15 @@ public class EntityPropertyToken : QueryToken
     public PropertyRoute PropertyRoute { get; private set; }
 
     static readonly PropertyInfo piId = ReflectionTools.GetPropertyInfo((Entity e) => e.Id);
-
     public static QueryToken IdProperty(QueryToken parent)
     {
         return new EntityPropertyToken(parent, piId, PropertyRoute.Root(parent.Type.CleanType()).Add(piId)) { Priority = 10 };
+    }
+
+    static readonly PropertyInfo partitionId = ReflectionTools.GetPropertyInfo((Entity e) => e.PartitionId);
+    public static QueryToken PartitionIdProperty(QueryToken parent)
+    {
+        return new EntityPropertyToken(parent, partitionId, PropertyRoute.Root(parent.Type.CleanType()).Add(partitionId)) { Priority = 9 };
     }
 
     QueryToken parent;
@@ -183,16 +188,19 @@ public class EntityPropertyToken : QueryToken
         get { return PropertyInfo.GetCustomAttribute<UnitAttribute>()?.UnitName; }
     }
 
+    public static Func<PropertyRoute, string?>? CustomIsAllowed;
+
     public override string? IsAllowed()
     {
         string? parent = this.parent.IsAllowed();
 
-        string? route = GetPropertyRoute()?.IsAllowed();
+        var pr = GetPropertyRoute();
 
-        if (parent.HasText() && route.HasText())
-            return QueryTokenMessage.And.NiceToString().Combine(parent!, route!);
+        string? route = pr?.IsAllowed();
 
-        return parent ?? route;
+        string? custom = pr == null ? null : CustomIsAllowed?.GetInvocationListTyped().CommaAnd(a => a(pr)).DefaultToNull();
+
+        return QueryTokenMessage.And.NiceToString().Combine(parent!, route!, custom).DefaultToNull();
     }
 
     public override PropertyRoute? GetPropertyRoute()

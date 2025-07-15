@@ -1,77 +1,80 @@
 import * as React from 'react';
-import { addClass, classes } from '../Globals';
+import { classes } from '../Globals';
 import { timeToString, timePlaceholder, toLuxonDurationFormat } from '../Reflection';
-import { LineBaseController, useController } from '../Lines/LineBase';
+import { LineBaseController, genericForwardRef, useController } from '../Lines/LineBase';
 import { FormGroup } from '../Lines/FormGroup';
 import { FormControlReadonly } from '../Lines/FormControlReadonly';
 import { ValueBaseController, ValueBaseProps } from './ValueBase';
 import { Duration } from 'luxon';
 import { isNumberKey } from './NumberLine';
 
-export interface TimeLineProps extends ValueBaseProps<TimeLineController> {
+export interface TimeLineProps extends ValueBaseProps<string | null> {
 
 }
 
-export class TimeLineController extends ValueBaseController<TimeLineProps>{
-  init(p: TimeLineProps) {
+export class TimeLineController extends ValueBaseController<TimeLineProps, string | null>{
+  init(p: TimeLineProps): void {
     super.init(p);
     this.assertType("TimeLine", ["TimeOnly", "TimeSpan"]);
   }
 }
-export const TimeLine = React.memo(React.forwardRef(function TimeLine(props: TimeLineProps, ref: React.Ref<TimeLineController>) {
 
-    const c = useController(TimeLineController, props, ref);
 
-    if (c.isHidden)
-        return null;
+export const TimeLine: React.MemoExoticComponent<React.ForwardRefExoticComponent<TimeLineProps & React.RefAttributes<TimeLineController>>> =
+  React.memo(React.forwardRef(function TimeLine(props: TimeLineProps, ref: React.Ref<TimeLineController>) {
 
-    const s = c.props;
+  const c = useController(TimeLineController, props, ref);
 
-    if (s.ctx.readOnly) {
-        return (
-            <FormGroup ctx={s.ctx} label={s.label} labelIcon={s.labelIcon} helpText={s.helpText} htmlAttributes={{ ...c.baseHtmlAttributes(), ...s.formGroupHtmlAttributes }} labelHtmlAttributes={s.labelHtmlAttributes}>
-                {inputId => c.withItemGroup(
-                    <FormControlReadonly id={inputId} htmlAttributes={c.props.valueHtmlAttributes} ctx={s.ctx} className={addClass(c.props.valueHtmlAttributes, "numeric")} innerRef={c.setRefs}>
-                        {timeToString(s.ctx.value, s.format)}
-                    </FormControlReadonly>
-                )}
-            </FormGroup>
-        );
-    }
+  if (c.isHidden)
+    return null;
 
-    const handleOnChange = (newValue: string | null) => {
-        c.setValue(newValue);
-    };
+  const s = c.props;
 
-    const htmlAttributes = {
-        placeholder: c.getPlaceholder(),
-        ...c.props.valueHtmlAttributes
-    } as React.AllHTMLAttributes<any>;
-
-    const durationFormat = toLuxonDurationFormat(s.format) ?? "hh:mm:ss";
-
-    if (htmlAttributes.placeholder == undefined)
-        htmlAttributes.placeholder = timePlaceholder(durationFormat);
-
+  if (s.ctx.readOnly) {
     return (
-        <FormGroup ctx={s.ctx} label={s.label} labelIcon={s.labelIcon} helpText={s.helpText} htmlAttributes={{ ...c.baseHtmlAttributes(), ...s.formGroupHtmlAttributes }} labelHtmlAttributes={s.labelHtmlAttributes}>
-            {inputId => c.withItemGroup(
-                <TimeTextBox htmlAttributes={htmlAttributes}
-                    id={inputId}
-                    value={s.ctx.value}
-                    onChange={handleOnChange}
-                    validateKey={isDurationKey}
-                    formControlClass={classes(s.ctx.formControlClass, c.mandatoryClass)}
-                    durationFormat={durationFormat}
-                    innerRef={c.setRefs} />
-            )}
-        </FormGroup>
+      <FormGroup ctx={s.ctx} label={s.label} labelIcon={s.labelIcon} helpText={s.helpText} htmlAttributes={{ ...c.baseHtmlAttributes(), ...s.formGroupHtmlAttributes }} labelHtmlAttributes={s.labelHtmlAttributes}>
+        {inputId => c.withItemGroup(
+          <FormControlReadonly id={inputId} htmlAttributes={c.props.valueHtmlAttributes} ctx={s.ctx} className={classes(c.props.valueHtmlAttributes?.className, "numeric")} innerRef={c.setRefs}>
+            {timeToString(s.ctx.value, s.format)}
+          </FormControlReadonly>
+        )}
+      </FormGroup>
     );
-}), (prev, next) => {
-    if (next.extraButtons || prev.extraButtons)
-        return false;
+  }
 
-    return LineBaseController.propEquals(prev, next);
+  const handleOnChange = (newValue: string | null) => {
+    c.setValue(newValue);
+  };
+
+  const htmlAttributes = {
+    placeholder: c.getPlaceholder(),
+    ...c.props.valueHtmlAttributes
+  } as React.AllHTMLAttributes<any>;
+
+  const durationFormat = toLuxonDurationFormat(s.format) ?? "hh:mm:ss";
+
+  if (htmlAttributes.placeholder == undefined)
+    htmlAttributes.placeholder = timePlaceholder(durationFormat);
+
+  return (
+    <FormGroup ctx={s.ctx} label={s.label} labelIcon={s.labelIcon} helpText={s.helpText} htmlAttributes={{ ...c.baseHtmlAttributes(), ...s.formGroupHtmlAttributes }} labelHtmlAttributes={s.labelHtmlAttributes}>
+      {inputId => c.withItemGroup(
+        <TimeTextBox htmlAttributes={htmlAttributes}
+          id={inputId}
+          value={s.ctx.value}
+          onChange={handleOnChange}
+          validateKey={isDurationKey}
+          formControlClass={classes(s.ctx.formControlClass, c.mandatoryClass)}
+          durationFormat={durationFormat}
+          innerRef={c.setRefs} />
+      )}
+    </FormGroup>
+  );
+}), (prev, next) => {
+  if (next.extraButtons || prev.extraButtons)
+    return false;
+
+  return LineBaseController.propEquals(prev, next);
 });
 
 
@@ -82,12 +85,12 @@ export interface TimeTextBoxProps {
   validateKey: (e: React.KeyboardEvent<any>) => boolean;
   formControlClass?: string;
   durationFormat?: string;
-  htmlAttributes?: React.HTMLAttributes<HTMLInputElement>;
+  htmlAttributes?: React.InputHTMLAttributes<HTMLInputElement>;
   innerRef?: React.Ref<HTMLInputElement>;
   id?: string;
 }
 
-export function TimeTextBox(p: TimeTextBoxProps) {
+export function TimeTextBox(p: TimeTextBoxProps): React.JSX.Element {
 
   const [text, setText] = React.useState<string | undefined>(undefined);
 
@@ -98,10 +101,10 @@ export function TimeTextBox(p: TimeTextBoxProps) {
   return <input
     id={p.id}
     ref={p.innerRef}
+    autoComplete="off"
     {...p.htmlAttributes}
     type="text"
-    autoComplete="asdfasf" /*Not in https://html.spec.whatwg.org/multipage/form-control-infrastructure.html#autofill*/
-    className={addClass(p.htmlAttributes, classes(p.formControlClass, "numeric"))}
+    className={classes(p.htmlAttributes?.className, p.formControlClass, "numeric")}
     value={value}
     onBlur={handleOnBlur}
     onChange={handleOnChange}
@@ -162,9 +165,11 @@ export function TimeTextBox(p: TimeTextBoxProps) {
 
 }
 
-TimeTextBox.defaultProps = {
-  durationFormat: "hh:mm:ss"
-};
+export namespace TimeTextBox {
+  export const defaultProps = {
+    durationFormat: "hh:mm:ss"
+  };
+}
 
 export function isDurationKey(e: React.KeyboardEvent<any>): boolean {
   return isNumberKey(e) || e.key == ":";

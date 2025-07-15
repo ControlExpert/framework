@@ -5,7 +5,7 @@ import "./Widgets.css"
 import { ErrorBoundary } from '../Components';
 import { WidgetContext, EmbeddedWidget, onEmbeddedWidgets } from './Widgets'
 import { Tabs, Tab } from 'react-bootstrap';
-import * as Navigator from "../Navigator"
+import { Navigator } from "../Navigator"
 
 
 export interface WidgetEmbeddedProps {
@@ -22,19 +22,19 @@ function toTab(e: EmbeddedWidget) {
   );
 }
 
-export function addAdditionalTabs(frame: EntityFrame | undefined) {
+export function addAdditionalTabs(frame: EntityFrame | undefined): React.JSX.Element[] | undefined {
   if (frame === undefined || frame.tabs === undefined)
     return undefined;
 
   return frame.tabs.map(e => toTab(e)); 
 }
 
-export default function WidgetEmbedded(p: WidgetEmbeddedProps) {
+function WidgetEmbedded(p: WidgetEmbeddedProps): React.JSX.Element {
  
   const widgets = onEmbeddedWidgets.map(a => a(p.widgetContext)).filter(a => a !== undefined).map(a => a!).flatMap(a => a);
 
-  const top = widgets.filter(ew => ew.position === "Top").map((ew, i) => React.cloneElement(ew.embeddedWidget, { key: i }));
-  const bottom = widgets.filter(ew => ew.position === "Bottom").map((ew, i) => React.cloneElement(ew.embeddedWidget, { key: i }));
+  const top = widgets.filter(ew => ew.position === "Top").map((ew, i) => React.cloneElement(WidgetEmbedded.customPanel(ew), { key: i }));
+  const bottom = widgets.filter(ew => ew.position === "Bottom").map((ew, i) => React.cloneElement(WidgetEmbedded.customPanel(ew), { key: i }));
 
   const tab = widgets.filter(ew => ew.position === "Tab");
   const es = Navigator.getSettings(p.widgetContext.frame.pack.entity.Type);
@@ -62,3 +62,16 @@ export default function WidgetEmbedded(p: WidgetEmbeddedProps) {
       </>);
   }
 }
+
+namespace WidgetEmbedded {
+  export function customPanel(ew: EmbeddedWidget): React.JSX.Element {
+    return (
+      <fieldset>
+        <legend>{ew.title}</legend >
+        {ew.embeddedWidget}
+      </fieldset >
+    );
+  }
+}
+
+export default WidgetEmbedded;

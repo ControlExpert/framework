@@ -5,21 +5,13 @@ import { Dic } from '@framework/Globals'
 import * as AppContext from '@framework/AppContext'
 import { FrameMessage, JavascriptMessage } from '@framework/Signum.Entities'
 import { MapMessage } from '../Signum.Map'
-import * as MapClient from '../MapClient'
+import { MapClient } from '../MapClient'
 import { OperationMapInfo, OperationMapD3, ForceNode, ForceLink, Transition } from './OperationMap'
 import "./operationMap.css"
 import { useAPI, useSize } from '@framework/Hooks'
 import { useExpand } from '@framework/AppContext'
 import { QueryString } from '@framework/QueryString'
 
-
-interface OperationMapPropsState {
-  operationMapInfo?: OperationMapInfo;
-  width?: number;
-  height?: number;
-  parsedQuery?: ParsedQueryString;
-  color?: string;
-}
 
 interface ParsedQueryString {
   color?: string;
@@ -53,7 +45,7 @@ function getParsedQuery(loc: Location): ParsedQueryString {
   return result;
 }
 
-export default function OperationMapPage() {
+export default function OperationMapPage(): React.JSX.Element | null {
   const params = useParams() as { type: string };
   const location = useLocation();
 
@@ -148,7 +140,7 @@ export interface OperationMapRendererProps {
   color: string;
 }
 
-export function OperationMapRenderer(p: OperationMapRendererProps) {
+export function OperationMapRenderer(p: OperationMapRendererProps): React.JSX.Element {
 
   const svgRef = React.useRef<SVGSVGElement>(null);
   const mapD3 = React.useRef<OperationMapD3 | null>(null);

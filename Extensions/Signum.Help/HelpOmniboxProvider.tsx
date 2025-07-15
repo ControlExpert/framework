@@ -1,7 +1,7 @@
 import * as React from 'react'
-import { OmniboxResult, OmniboxMatch } from '../Signum.Omnibox/OmniboxClient'
+import { OmniboxClient, OmniboxResult, OmniboxMatch } from '../Signum.Omnibox/OmniboxClient'
 import { OmniboxProvider } from '../Signum.Omnibox/OmniboxProvider'
-import { Urls } from './HelpClient';
+import { HelpClient } from './HelpClient';
 
 export default class HelpOmniboxProvider extends OmniboxProvider<HelpModuleOmniboxResult>
 {
@@ -9,7 +9,7 @@ export default class HelpOmniboxProvider extends OmniboxProvider<HelpModuleOmnib
     return "HelpModuleOmniboxResult";
   }
 
-  icon() {
+   icon(): React.ReactElement<any, string | React.JSXElementConstructor<any>> {
     return this.coloredIcon("book", "darkviolet");
   }
 
@@ -31,21 +31,21 @@ export default class HelpOmniboxProvider extends OmniboxProvider<HelpModuleOmnib
     return array;
   }
 
-  navigateTo(result: HelpModuleOmniboxResult) {
+  navigateTo(result: HelpModuleOmniboxResult): Promise<string> | undefined {
 
     if (result.typeName != null)
-      return Promise.resolve(Urls.typeUrl(result.typeName));
+      return Promise.resolve(HelpClient.Urls.typeUrl(result.typeName));
 
     if (result.searchString != null)
-      return Promise.resolve(Urls.searchUrl(result.searchString));
+      return Promise.resolve(HelpClient.Urls.searchUrl(result.searchString));
 
     if (result.keywordMatch == undefined)
       return undefined;
 
-    return Promise.resolve(Urls.indexUrl());
+    return Promise.resolve(HelpClient.Urls.indexUrl());
   }
 
-  toString(result: HelpModuleOmniboxResult) {
+  toString(result: HelpModuleOmniboxResult): string {
     if (result.secondMatch)
       return "{0} {1}".formatWith(result.keywordMatch.text, result.secondMatch.text);
 

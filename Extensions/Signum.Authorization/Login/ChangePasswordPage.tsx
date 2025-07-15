@@ -1,14 +1,14 @@
 import * as React from 'react'
 import { classes, Dic, ifError } from '@framework/Globals'
 import * as AppContext from '@framework/AppContext'
-import * as Navigator from '@framework/Navigator'
+import { Navigator } from '@framework/Navigator'
 import { ModelState } from '@framework/Signum.Entities'
 import { ValidationError } from '@framework/Services'
 import { LoginAuthMessage } from '../Signum.Authorization'
-import * as AuthClient from '../AuthClient'
+import { AuthClient } from '../AuthClient'
 import { useStateWithPromise } from '@framework/Hooks'
 
-export default function ChangePasswordPage() {
+export default function ChangePasswordPage(): React.JSX.Element {
   const [modelState, setModelState] = useStateWithPromise<ModelState | undefined>(undefined);
 
 

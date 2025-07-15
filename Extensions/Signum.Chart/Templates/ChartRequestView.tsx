@@ -3,28 +3,28 @@ import { Tab, Tabs } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { ifError, classes } from '@framework/Globals'
 import * as AppContext from '@framework/AppContext'
-import * as Finder from '@framework/Finder'
+import { Finder } from '@framework/Finder'
 import { ValidationError, AbortableRequest } from '@framework/Services'
 import { FrameMessage, Lite } from '@framework/Signum.Entities'
 import { SubTokensOptions, QueryToken, FilterOptionParsed } from '@framework/FindOptions'
 import { StyleContext, TypeContext } from '@framework/TypeContext'
-import { SearchMessage } from '@framework/Signum.Entities'
-import { PropertyRoute, getQueryNiceName, getTypeInfo, ReadonlyBinding, GraphExplorer } from '@framework/Reflection'
-import * as Navigator from '@framework/Navigator'
+import { PropertyRoute, getQueryNiceName, getTypeInfo, ReadonlyBinding, GraphExplorer, getTypeInfos } from '@framework/Reflection'
+import { Navigator } from '@framework/Navigator'
 import FilterBuilder from '@framework/SearchControl/FilterBuilder'
 import { ValidationErrors } from '@framework/Frames/ValidationErrors'
-import { ChartRequestModel, ChartMessage } from '../Signum.Chart'
-import * as ChartClient from '../ChartClient'
+import { ChartRequestModel, ChartMessage, ChartTimeSeriesEmbedded } from '../Signum.Chart'
 import ChartBuilder from './ChartBuilder'
 import ChartTableComponent from './ChartTable'
 import ChartRenderer from './ChartRenderer'
 import "@framework/SearchControl/Search.css"
 import "../Chart.css"
-import { ChartScript, cleanedChartRequest } from '../ChartClient';
+import { ChartClient } from '../ChartClient';
 import { useForceUpdate, useAPI } from '@framework/Hooks'
 import { AutoFocus } from '@framework/Components/AutoFocus';
 import PinnedFilterBuilder from '@framework/SearchControl/PinnedFilterBuilder';
 import { UserChartEntity } from '../UserChart/Signum.Chart.UserChart';
+import ChartTimeSeries from './ChartTimeSeries';
+import { DateTime } from 'luxon';
 
 interface ChartRequestViewProps {
   chartRequest: ChartRequestModel;
@@ -43,7 +43,7 @@ export interface ChartRequestViewHandle {
   hideFiltersAndSettings: () => void;
 }
 
-export default function ChartRequestView(p: ChartRequestViewProps) {
+export default function ChartRequestView(p: ChartRequestViewProps): React.JSX.Element | null {
   const forceUpdate = useForceUpdate();
   const lastToken = React.useRef<QueryToken | undefined>(undefined);
 
@@ -61,8 +61,8 @@ export default function ChartRequestView(p: ChartRequestViewProps) {
   const queryDescription = useAPI(signal => p.chartRequest ? Finder.getQueryDescription(p.chartRequest.queryKey) : Promise.resolve(undefined),
     [p.chartRequest.queryKey]);
 
-  const abortableQuery = React.useRef(new AbortableRequest<{ cr: ChartRequestModel; cs: ChartScript }, ChartClient.API.ExecuteChartResult>(
-    (signal, request) => Navigator.API.validateEntity(cleanedChartRequest(request.cr)).then(() => ChartClient.API.executeChart(request.cr, request.cs, signal))));
+  const abortableQuery = React.useRef(new AbortableRequest<{ cr: ChartRequestModel; cs: ChartClient.ChartScript }, ChartClient.API.ExecuteChartResult>(
+    (signal, request) => Navigator.API.validateEntity(ChartClient.cleanedChartRequest(request.cr)).then(() => ChartClient.API.executeChart(request.cr, request.cs, signal))));
 
   React.useEffect(() => {
     if (p.searchOnLoad)
@@ -167,6 +167,7 @@ export default function ChartRequestView(p: ChartRequestViewProps) {
 
   const titleLabels = StyleContext.default.titleLabels;
   const maxRowsReached = result && result.chartRequest.maxRows == result.chartResult.resultTable.rows.length;
+  const canTimeSeries = cr.chartTimeSeries != null ? SubTokensOptions.CanTimeSeries : 0;
   return (
     <div style={{ display: "flex", flexDirection: "column", flexGrow: 1 }}>
       <h2>
@@ -179,7 +180,7 @@ export default function ChartRequestView(p: ChartRequestViewProps) {
       <div>
         {showChartSettings ?
           <FilterBuilder filterOptions={cr.filterOptions} queryDescription={queryDescription!}
-            subTokensOptions={SubTokensOptions.CanAggregate | SubTokensOptions.CanAnyAll | SubTokensOptions.CanElement}
+            subTokensOptions={SubTokensOptions.CanAggregate | SubTokensOptions.CanAnyAll | SubTokensOptions.CanElement | canTimeSeries}
             onFiltersChanged={handleFiltersChanged}
             lastToken={lastToken.current} onTokenChanged={t => lastToken.current = t} showPinnedFiltersOptionsButton={true} /> :
           <AutoFocus>
@@ -194,6 +195,7 @@ export default function ChartRequestView(p: ChartRequestViewProps) {
           <ChartBuilder queryKey={cr.queryKey} ctx={tc}
             maxRowsReached={maxRowsReached}
             onInvalidate={handleInvalidate}
+            queryDescription={qd}
             onRedraw={handleOnRedraw}
             onTokenChange={() => { handleTokenChange(); forceUpdate(); }}
             onOrderChanged={() => {

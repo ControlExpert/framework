@@ -16,12 +16,13 @@ import "./FilterBuilder.css"
 import { useForceUpdate, useForceUpdatePromise } from '../Hooks'
 import { Dropdown, OverlayTrigger, Popover } from 'react-bootstrap'
 import PinnedFilterBuilder from './PinnedFilterBuilder'
-import { renderFilterValue } from '../Finder'
+import { Finder } from '../Finder'
 import { trimDateToFormat } from '../Lines/DateTimeLine'
 import { isNumberKey, NumberBox } from '../Lines/NumberLine'
 import { VisualTipIcon } from '../Basics/VisualTipIcon'
 import { SearchVisualTip } from '../Signum.Basics'
 import { FilterHelp } from './SearchControlVisualTips'
+import { GroupHeader, HeaderType } from '../Lines/GroupHeader'
 
 interface FilterBuilderProps {
   filterOptions: FilterOptionParsed[];
@@ -33,14 +34,15 @@ interface FilterBuilderProps {
   onHeightChanged?: () => void;
   readOnly?: boolean;
   title?: React.ReactNode;
-  renderValue?: (rvc: RenderValueContext) => React.ReactElement<any> | undefined;
+  avoidFieldSet?: boolean | HeaderType;
+  renderValue?: (rvc: RenderValueContext) => React.ReactElement | undefined;
   showPinnedFiltersOptions?: boolean;
   showPinnedFiltersOptionsButton?: boolean;
   showDashboardBehaviour?: boolean;
   avoidPreview?: boolean;
 }
 
-export default function FilterBuilder(p: FilterBuilderProps) {
+export default function FilterBuilder(p: FilterBuilderProps): React.JSX.Element {
 
   const [showPinnedFiltersOptionsState, setShowPinnedFiltersOptions] = React.useState<boolean>(p.showPinnedFiltersOptions ?? false)
 
@@ -99,7 +101,7 @@ export default function FilterBuilder(p: FilterBuilderProps) {
     if (p.onFiltersChanged)
       p.onFiltersChanged(p.filterOptions);
 
-      forceUpdate();
+    forceUpdate();
   };
 
   function handleHeightChanged() {
@@ -117,9 +119,7 @@ export default function FilterBuilder(p: FilterBuilderProps) {
         <PinnedFilterBuilder filterOptions={p.filterOptions} onFiltersChanged={handleFilterChanged} highlightFilter={highlightFilter} showGrid={true} />
       </div>
       }
-      <fieldset className="form-xs">
-
-        {p.title && <legend>{p.title}</legend>}
+      <GroupHeader label={p.title} avoidFieldSet={p.avoidFieldSet}>
         <div className="sf-filters-list table-responsive" style={{ overflowX: "visible" }}>
           <table className="table-sm">
             <thead>
@@ -159,7 +159,7 @@ export default function FilterBuilder(p: FilterBuilderProps) {
                   showDashboardBehaviour={showDashboardBehaviour}
                   disableValue={false}
                   setHighlightFilter={showPinnedFiltersOptions ? setHighlightFilter : undefined}
-                  
+
                   level={0}
                 /> :
                 <FilterConditionComponent key={keyGenerator.getKey(f)} filter={f} readOnly={Boolean(p.readOnly)} onDeleteFilter={handlerDeleteFilter}
@@ -200,7 +200,7 @@ export default function FilterBuilder(p: FilterBuilderProps) {
             </tbody>
           </table>
         </div>
-      </fieldset>
+      </GroupHeader>
     </>
   );
 }
@@ -223,7 +223,7 @@ export interface FilterGroupComponentsProps {
   onFilterChanged: () => void;
   onHeightChanged: () => void;
   lastToken: QueryToken | undefined;
-  renderValue?: (rvc: RenderValueContext) => React.ReactElement<any> | undefined;
+  renderValue?: (rvc: RenderValueContext) => React.ReactElement | undefined;
   showPinnedFiltersOptions: boolean;
   showDashboardBehaviour: boolean;
   disableValue: boolean;
@@ -231,7 +231,7 @@ export interface FilterGroupComponentsProps {
   level: number;
 }
 
-export function FilterGroupComponent(p: FilterGroupComponentsProps) {
+export function FilterGroupComponent(p: FilterGroupComponentsProps): React.JSX.Element | null {
 
   const forceUpdate = useForceUpdate();
   const forceUpdatePromise = useForceUpdatePromise();
@@ -325,13 +325,11 @@ export function FilterGroupComponent(p: FilterGroupComponentsProps) {
       >
         <td style={{ paddingLeft: paddingLeft }} colSpan={2}>
           <div className="d-flex">
-            {!readOnly &&
-              <a href="#"
-                className="sf-line-button sf-remove sf-remove-filter-icon"
-                onClick={handleDeleteFilter}>
-                <FontAwesomeIcon icon="xmark" title={StyleContext.default.titleLabels ? SearchMessage.DeleteFilter.niceToString() : undefined} />
-              </a>}
-
+            <a href={!readOnly ? "#" : undefined}
+              className={classes("sf-line-button sf-remove sf-remove-filter-icon", readOnly && "disabled")}
+              onClick={!readOnly ? handleDeleteFilter : undefined}>
+              <FontAwesomeIcon icon="xmark" title={StyleContext.default.titleLabels ? SearchMessage.DeleteFilter.niceToString() : undefined} />
+            </a>
 
             <div className="align-items-center d-flex">
               <select className="form-select form-select-xs sf-group-selector fw-bold me-2 w-auto" value={fg.groupOperation as any} disabled={readOnly} onChange={handleChangeOperation}>
@@ -439,7 +437,7 @@ export function FilterGroupComponent(p: FilterGroupComponentsProps) {
 
     const ctx = new TypeContext<any>(undefined, { formGroupStyle: "None", readOnly: readOnly, formSize: "xs" }, undefined, Binding.create(f, a => a.value));
 
-    return renderFilterValue(f, { ctx, filterOptions: p.allFilterOptions, handleValueChange: handleValueChange });
+    return Finder.renderFilterValue(f, { ctx, filterOptions: p.allFilterOptions, handleValueChange: handleValueChange });
   }
 
   function handleValueChange() {
@@ -478,7 +476,7 @@ export interface FilterConditionComponentProps {
   subTokensOptions: SubTokensOptions;
   onTokenChanged?: (token: QueryToken | undefined) => void;
   onFilterChanged: () => void;
-  renderValue?: (rvc: RenderValueContext) => React.ReactElement<any> | undefined;
+  renderValue?: (rvc: RenderValueContext) => React.ReactElement | undefined;
   showPinnedFiltersOptions: boolean;
   showDashboardBehaviour: boolean;
   setHighlightFilter?: (fo: FilterOptionParsed | undefined) => void;
@@ -486,7 +484,7 @@ export interface FilterConditionComponentProps {
   level: number;
 }
 
-export function FilterConditionComponent(p: FilterConditionComponentProps) {
+export function FilterConditionComponent(p: FilterConditionComponentProps): React.JSX.Element | null {
 
   const forceUpdate = useForceUpdate();
 
@@ -551,7 +549,7 @@ export function FilterConditionComponent(p: FilterConditionComponentProps) {
     if (isList(operation) != isList(p.filter.operation!))
       p.filter.value = isList(operation) && p.filter.token?.filterType == "Lite" ? [p.filter.value].notNull() :
         isList(operation) ? [p.filter.value] :
-        p.filter.value[0];
+          p.filter.value[0];
 
     p.filter.operation = operation;
     if (p.filter.pinned?.splitValue && !canSplitValue(p.filter))
@@ -577,12 +575,11 @@ export function FilterConditionComponent(p: FilterConditionComponentProps) {
       >
         <td style={{ paddingLeft: (25 * p.level) }}>
           <div className="d-flex">
-            {!readOnly &&
-              <a href="#" title={StyleContext.default.titleLabels ? SearchMessage.DeleteFilter.niceToString() : undefined}
-                className="sf-line-button sf-remove sf-remove-filter-icon"
-                onClick={handleDeleteFilter}>
-                <FontAwesomeIcon icon="xmark" />
-              </a>}
+            <a href={!readOnly ? "#" : undefined} title={StyleContext.default.titleLabels ? SearchMessage.DeleteFilter.niceToString() : undefined}
+              className={classes("sf-line-button sf-remove sf-remove-filter-icon", readOnly && "disabled")}
+              onClick={!readOnly ? handleDeleteFilter : undefined}>
+              <FontAwesomeIcon icon="xmark" />
+            </a>
             <div className="rw-widget-xs">
               <QueryTokenBuilder
                 prefixQueryToken={p.prefixToken}
@@ -645,7 +642,7 @@ export function FilterConditionComponent(p: FilterConditionComponentProps) {
 
     const ctx = new TypeContext<any>(undefined, { formGroupStyle: "None", readOnly: readOnly, formSize: "xs" }, undefined, Binding.create(f, a => a.value));
 
-    return renderFilterValue(f, { ctx: ctx, filterOptions: p.allFilterOptions, handleValueChange });
+    return Finder.renderFilterValue(f, { ctx: ctx, filterOptions: p.allFilterOptions, handleValueChange });
   }
 
   function handleValueChange() {
@@ -662,7 +659,7 @@ interface PinnedFilterEditorProps {
 }
 
 
-export function PinnedFilterEditor(p: PinnedFilterEditorProps) {
+export function PinnedFilterEditor(p: PinnedFilterEditorProps): React.JSX.Element {
 
   var pinned = p.fo.pinned!;
 
@@ -715,7 +712,7 @@ export function PinnedFilterEditor(p: PinnedFilterEditorProps) {
     return (
       <NumberBox readonly={p.readonly} value={val == undefined ? null : val}
         format={numberFormat}
-        
+
         onChange={n => { binding.setValue(n == null ? undefined : n); p.onChange(); }}
         validateKey={isNumberKey} formControlClass="form-control form-control-xs" htmlAttributes={{ placeholder: placeholder.toString(), title: title, style: { width: "60px" } }} />
     );
@@ -780,10 +777,6 @@ function DashboardBehaviourComponent(p: { filter: FilterOptionParsed, readonly: 
   );
 }
 
-
-
-
-
 function fixDashboardBehaviour(fop: FilterOptionParsed) {
   if (fop.dashboardBehaviour == "PromoteToDasboardPinnedFilter" && fop.pinned == null)
     fop.dashboardBehaviour = undefined;
@@ -791,9 +784,6 @@ function fixDashboardBehaviour(fop: FilterOptionParsed) {
   if ((fop.dashboardBehaviour == "UseWhenNoFilters" || fop.dashboardBehaviour == "UseAsInitialSelection") && fop.pinned != null)
     fop.dashboardBehaviour = undefined;
 }
-
-
-
 
 function niceNameOrSymbol(fo: FilterOperation) {
   switch (fo) {

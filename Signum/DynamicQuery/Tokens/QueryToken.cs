@@ -10,6 +10,7 @@ using System.Xml.Linq;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using static Npgsql.Replication.PgOutput.Messages.RelationMessage;
 using System.Linq.Expressions;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Signum.DynamicQuery.Tokens;
 
@@ -137,8 +138,11 @@ public abstract class QueryToken : IEquatable<QueryToken>
     {
         if (this is ManualContainerToken mc)
             return new ManualToken(mc, key, mc.Parent!.Type);
-        
-        var result = CachedSubTokensOverride(options).TryGetC(key) ?? OnDynamicEntityExtension(this).SingleOrDefaultEx(a => a.Key == key);
+
+        var result = CachedSubTokensOverride(options).TryGetC(key);
+
+        if (result == null)
+            result = QueryLogic.Expressions.GetExtensionsWithParameterTokens(this).SingleOrDefaultEx(a => a.Key == key);
 
         if (result == null)
             return null;
@@ -153,7 +157,7 @@ public abstract class QueryToken : IEquatable<QueryToken>
     public List<QueryToken> SubTokensInternal(SubTokensOptions options)
     {
         return CachedSubTokensOverride(options).Values
-            .Concat(OnDynamicEntityExtension(this))
+            .Concat(QueryLogic.Expressions.GetExtensionsWithParameterTokens(this))
             .Where(t => t.IsAllowed() == null)
             .OrderByDescending(a => a.Priority)
             .ThenBy(a => a.ToString())
@@ -166,7 +170,7 @@ public abstract class QueryToken : IEquatable<QueryToken>
         {
             var dictionary = tup.token.SubTokensOverride(tup.options).ToDictionaryEx(a => a.Key, "subtokens for " + Key);
 
-            foreach (var item in OnStaticEntityExtension(tup.Item1))
+            foreach (var item in QueryLogic.Expressions.GetExtensionsTokens(tup.Item1))
             {
                 if (!dictionary.ContainsKey(item.Key)) //Prevent interface extensions overriding normal members
                 {
@@ -177,10 +181,6 @@ public abstract class QueryToken : IEquatable<QueryToken>
             return dictionary;
         });
     }
-
-    public static Func<QueryToken, Type, SubTokensOptions, List<QueryToken>> ImplementedByAllSubTokens = (quetyToken, type, options) => throw new NotImplementedException("QueryToken.ImplementedByAllSubTokens not set");
-
-    public static Func<Type, bool> IsSystemVersioned = t => false;
 
     protected List<QueryToken> SubTokensBase(Type type, SubTokensOptions options, Implementations? implementations)
     {
@@ -213,21 +213,27 @@ public abstract class QueryToken : IEquatable<QueryToken>
         if (cleanType.IsIEntity())
         {
             if (implementations!.Value.IsByAll)
-                return ImplementedByAllSubTokens(this, type, options).PreAnd(new EntityTypeToken(this)).ToList().AndHasValue(this); // new[] { EntityPropertyToken.IdProperty(this) };
+                return QueryLogic.GetImplementedByAllSubTokens(this, type, options).PreAnd(new EntityTypeToken(this)).ToList().AndHasValue(this); // new[] { EntityPropertyToken.IdProperty(this) };
 
             var onlyType = implementations.Value.Types.Only();
 
             if (onlyType != null && onlyType == cleanType)
+            {
+                var sv = QueryLogic.IsSystemVersioned(onlyType);
+                var pid = QueryLogic.HasPartitionId(onlyType);
+
                 return new[] {
                     EntityPropertyToken.IdProperty(this),
                     new EntityToStringToken(this),
-                    IsSystemVersioned(onlyType) ? new SystemTimeToken(this, SystemTimeProperty.SystemValidFrom): null,
-                    IsSystemVersioned(onlyType) ? new SystemTimeToken(this, SystemTimeProperty.SystemValidTo): null,
+                    pid ? EntityPropertyToken.PartitionIdProperty(this) : null,
+                    sv ? new SystemTimeToken(this, SystemTimeProperty.SystemValidFrom): null,
+                    sv  ? new SystemTimeToken(this, SystemTimeProperty.SystemValidTo): null,
                     (options & SubTokensOptions.CanOperation) != 0 ? new OperationsToken(this) : null,
                     (options & SubTokensOptions.CanManual) != 0 ? new QuickLinksToken(this) : null,
                 }
                 .NotNull()
                 .Concat(EntityProperties(onlyType)).ToList().AndHasValue(this);
+            }
 
             return implementations.Value.Types.Select(t => (QueryToken)new AsTypeToken(this, t)).PreAnd(new EntityTypeToken(this)).ToList().AndHasValue(this);
         }
@@ -253,24 +259,10 @@ public abstract class QueryToken : IEquatable<QueryToken>
         };
     }
 
-    public static Func<QueryToken, IEnumerable<QueryToken>>? StaticEntityExtensions;
-    public static IEnumerable<QueryToken> OnStaticEntityExtension(QueryToken parent)
-    {
-        if (StaticEntityExtensions == null)
-            throw new InvalidOperationException("QuertToken.StaticEntityExtensions function not set");
-
-        return StaticEntityExtensions(parent);
-    }
 
 
-    public static Func<QueryToken, IEnumerable<QueryToken>>? DynamicEntityExtensions;
-    public static IEnumerable<QueryToken> OnDynamicEntityExtension(QueryToken parent)
-    {
-        if (DynamicEntityExtensions == null)
-            throw new InvalidOperationException("QuertToken.DynamicEntityExtensions function not set");
 
-        return DynamicEntityExtensions(parent);
-    }
+
 
 
     public static List<QueryToken> DateTimeProperties(QueryToken parent, DateTimePrecision precision)
@@ -485,6 +477,11 @@ public abstract class QueryToken : IEquatable<QueryToken>
     public virtual bool HasElement()
     {
         return Parent != null && Parent.HasElement();
+    }
+
+    public virtual CollectionToArrayToken? HasCollectionToArray()
+    {
+        return Parent == null ? null : Parent.HasCollectionToArray();
     }
 
     IEnumerable<QueryToken> EntityProperties(Type type)
@@ -799,6 +796,7 @@ public enum QueryTokenMessage
 
     [Description("Snippet for {0}")]
     SnippetOf0,
+    PartitionId,
 }
 
 //The order of the elemens matters!
@@ -855,6 +853,11 @@ public enum QueryTokenDateMessage
     [Description("Every {0} Milliseconds")]
     Every0Milliseconds,
 
+    [Description("Every {0} {1}")]
+    Every01,
+
+    [Description("{0} steps x {1} rows = {2} total rows (aprox)")]
+    _0Steps1Rows2TotalRowsAprox
 }
 
 [InTypeScript(true), DescriptionOptions(DescriptionOptions.All)]

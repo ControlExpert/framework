@@ -1,11 +1,11 @@
 import * as React from 'react'
 import { Button } from 'react-bootstrap'
-import { notifySuccess } from '@framework/Operations'
+import { Operations } from '@framework/Operations'
 import { TypeContext, ButtonsContext, IRenderButtons } from '@framework/TypeContext'
 import { EntityLine, AutoLine } from '@framework/Lines'
-import * as Finder from '@framework/Finder'
+import { Finder } from '@framework/Finder'
 
-import { API } from '../AuthAdminClient'
+import { AuthAdminClient } from '../AuthAdminClient'
 import { PermissionRulePack, PermissionAllowedRule, AuthAdminMessage } from './Signum.Authorization.Rules'
 import { ColorRadio, GrayCheckbox } from './ColoredRadios'
 
@@ -13,7 +13,7 @@ import "./AuthAdmin.css"
 import { GraphExplorer } from '@framework/Reflection'
 import { RoleEntity } from '../Signum.Authorization'
 
-export default React.forwardRef(function PermissionRulesPackControl(p: { ctx: TypeContext<PermissionRulePack> }, ref: React.Ref<IRenderButtons>) {
+export default function PermissionRulesPackControl(p: { ctx: TypeContext<PermissionRulePack>, innerRef: React.Ref<IRenderButtons> }): React.JSX.Element {
 
   function renderButtons(bc: ButtonsContext) {
 
@@ -31,10 +31,10 @@ export default React.forwardRef(function PermissionRulesPackControl(p: { ctx: Ty
   function handleSaveClick(bc: ButtonsContext) {
     let pack = p.ctx.value;
 
-    API.savePermissionRulePack(pack)
-      .then(() => API.fetchPermissionRulePack(pack.role.id!))
+    AuthAdminClient.API.savePermissionRulePack(pack)
+      .then(() => AuthAdminClient.API.fetchPermissionRulePack(pack.role.id!))
       .then(newPack => {
-        notifySuccess();
+        Operations.notifySuccess();
         bc.frame.onReload({ entity: newPack, canExecute: {} });
       });
   }
@@ -42,7 +42,7 @@ export default React.forwardRef(function PermissionRulesPackControl(p: { ctx: Ty
   function handleResetChangesClick(bc: ButtonsContext) {
     let pack = ctx.value;
 
-    API.fetchPermissionRulePack(pack.role.id!)
+    AuthAdminClient.API.fetchPermissionRulePack(pack.role.id!)
       .then(newPack => { bc.frame.onReload({ entity: newPack, canExecute: {} }); });
   }
 
@@ -52,14 +52,14 @@ export default React.forwardRef(function PermissionRulesPackControl(p: { ctx: Ty
       if (!r)
         return;
 
-      API.fetchPermissionRulePack(r.id!)
+      AuthAdminClient.API.fetchPermissionRulePack(r.id!)
         .then(newPack => bc.frame.onReload({ entity: newPack, canExecute: {} }));
     });
   }
 
   const [filter, setFilter] = React.useState("");
 
-  React.useImperativeHandle(ref, () => ({ renderButtons }), [p.ctx.value])
+  React.useImperativeHandle(p.innerRef, () => ({ renderButtons }), [p.ctx.value])
 
   function updateFrame() {
     ctx.frame!.frameComponent.forceUpdate();
@@ -150,4 +150,4 @@ export default React.forwardRef(function PermissionRulesPackControl(p: { ctx: Ty
   function renderRadio(c: PermissionAllowedRule, allowed: boolean, color: string) {
     return <ColorRadio readOnly={ctx.readOnly} checked={c.allowed == allowed} color={color} onClicked={a => { c.allowed = allowed; c.modified = true; updateFrame() }} />;
   }
-});
+}

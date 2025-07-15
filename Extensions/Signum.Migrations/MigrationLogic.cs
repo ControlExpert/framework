@@ -96,7 +96,7 @@ public static class MigrationLogic
 
                 sqlBuilder.CreateTableSql(table).ExecuteLeaves();
 
-                foreach (var i in table.GeneratAllIndexes().Where(i => !(i is PrimaryKeyIndex)))
+                foreach (var i in table.AllIndexes().Where(i => !i.PrimaryKey))
                 {
                     sqlBuilder.CreateIndex(i, checkUnique: null).ExecuteLeaves();
                 }
@@ -139,7 +139,7 @@ public static class MigrationLogic
 
             SafeConsole.WriteColor(ConsoleColor.Red, e.GetType() + ": ");
             SafeConsole.WriteLineColor(ConsoleColor.DarkRed, e.Message);
-            SafeConsole.WriteSameLineColor(ConsoleColor.DarkRed, e.StackTrace);
+            SafeConsole.WriteLineColor(ConsoleColor.DarkRed, e.StackTrace);
             if (log != null)
             {
                 var exLog = e.LogException();

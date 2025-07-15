@@ -3,18 +3,18 @@ import { DateTime } from 'luxon'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { Link } from 'react-router-dom'
 import { Entity, parseLite, getToString, JavascriptMessage, EntityPack, translated } from '@framework/Signum.Entities'
-import * as Navigator from '@framework/Navigator'
+import { Navigator } from '@framework/Navigator'
 import { DashboardEntity, DashboardMessage } from '../Signum.Dashboard'
 import DashboardView from './DashboardView'
 import { useLocation, useParams } from "react-router";
 import "../Dashboard.css"
 import { useAPI, useAPIWithReload, useInterval } from '@framework/Hooks'
 import { QueryString } from '@framework/QueryString'
-import * as DashboardClient from "../DashboardClient"
+import { DashboardClient } from "../DashboardClient"
 import { newLite } from '@framework/Reflection'
 import { OverlayTrigger, Popover } from "react-bootstrap";
 
-export default function DashboardPage() {
+export default function DashboardPage(): React.JSX.Element {
   const location = useLocation();
   const params = useParams() as { dashboardId: string };
 
@@ -41,7 +41,7 @@ export default function DashboardPage() {
     <div>
       {!dashboard ? <h2 className="display-5">{JavascriptMessage.loading.niceToString()}</h2> :
         <div className="d-flex">
-          {!dashboard.hideDisplayName && <h2 className="display-5">{translated(dashboard, d => d.displayName)}</h2>}
+          {<h2 className="display-5">{DashboardClient.Options.customTitle(dashboard)}</h2>}
           {!Navigator.isReadOnly(DashboardEntity) &&
             <div className="ms-auto">
               {dashboardWithQueries.cachedQueries.length ? <span className="mx-4" title={DashboardMessage.ForPerformanceReasonsThisDashboardMayShowOutdatedInformation.niceToString() + "\n" +
@@ -74,7 +74,7 @@ export default function DashboardPage() {
   );
 }
 
-export function HelpIcon() {
+export function HelpIcon(): React.JSX.Element {
   const popover = (
     <Popover id="popover-basic" style={{ "--bs-popover-max-width": "unset" } as React.CSSProperties}>
       <Popover.Header as="h3">Interactive Dashboard</Popover.Header>

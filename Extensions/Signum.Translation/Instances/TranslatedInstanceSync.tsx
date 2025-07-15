@@ -2,9 +2,9 @@ import * as React from 'react'
 import { Link } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { Dic, softCast } from '@framework/Globals'
-import { notifySuccess } from '@framework/Operations'
-import * as CultureClient from '@framework/Basics/CultureClient'
-import { API, TypeInstancesChanges, TranslationRecord, PropertyChange } from '../TranslatedInstanceClient'
+import { Operations } from '@framework/Operations'
+import { CultureClient } from '@framework/Basics/CultureClient'
+import { TranslatedInstanceClient } from '../TranslatedInstanceClient'
 import { TranslationMessage } from '../Signum.Translation'
 import { useParams } from "react-router";
 import "../Translation.css"
@@ -21,7 +21,7 @@ import { CultureInfoEntity } from '@framework/Signum.Basics'
 
 
 
-export default function TranslatedInstanceSync() {
+export default function TranslatedInstanceSync(): React.JSX.Element {
   const params = useParams() as { type: string; culture: string; };
 
   const type = params.type;
@@ -30,7 +30,7 @@ export default function TranslatedInstanceSync() {
   const cultures = useAPI(() => CultureClient.getCultures(null), []);
   const [isLocked, lock] = useLock();
 
-  const [result, reloadResult] = useAPIWithReload(() => API.syncTranslatedInstance(type, culture), [type, culture]);
+  const [result, reloadResult] = useAPIWithReload(() => TranslatedInstanceClient.API.syncTranslatedInstance(type, culture), [type, culture]);
 
   function renderTable() {
     if (result == undefined || cultures == undefined)
@@ -56,7 +56,7 @@ export default function TranslatedInstanceSync() {
       if (propChange.translatedText == null)
         return;
 
-      return softCast<TranslationRecord>({
+      return softCast<TranslatedInstanceClient.TranslationRecord>({
         lite: ins.instance,
         propertyRoute: pr,
         rowId: rowId,
@@ -66,8 +66,8 @@ export default function TranslatedInstanceSync() {
       });
     }).notNull());
 
-    lock(() => API.saveTranslatedInstanceData(records, type, true, culture)
-      .then(() => { reloadResult(); notifySuccess(); }));
+    lock(() => TranslatedInstanceClient.API.saveTranslatedInstanceData(records, type, true, culture)
+      .then(() => { reloadResult(); Operations.notifySuccess(); }));
   }
 
   const message = result && result.totalInstances == 0 ? TranslationMessage._0AlreadySynchronized.niceToString(getTypeInfo(type).niceName) :
@@ -104,7 +104,7 @@ export default function TranslatedInstanceSync() {
   );
 }
 
-export function TranslateSearchBox(p: { filter: string, setFilter: (newFilter: string) => void }) {
+export function TranslateSearchBox(p: { filter: string, setFilter: (newFilter: string) => void }): React.JSX.Element {
 
   const [tmpFilter, setTmpFilter] = React.useState(p.filter);
 
@@ -131,7 +131,7 @@ export function TranslateSearchBox(p: { filter: string, setFilter: (newFilter: s
   );
 }
 
-export function TranslatedInstances(p: { data: TypeInstancesChanges, cultures: { [culture: string]: Lite<CultureInfoEntity> }, currentCulture: string }) {
+export function TranslatedInstances(p: { data: TranslatedInstanceClient.TypeInstancesChanges, cultures: { [culture: string]: Lite<CultureInfoEntity> }, currentCulture: string }): React.JSX.Element {
 
   return (
     <table id="results" style={{ width: "100%", margin: "0px" }} className="st">
@@ -192,7 +192,7 @@ export function TranslatedInstances(p: { data: TypeInstancesChanges, cultures: {
 }
 
 
-export function TranslationProperty({ property }: { property: PropertyChange }) {
+export function TranslationProperty({ property }: { property: TranslatedInstanceClient.PropertyChange }): React.JSX.Element {
 
   const [avoidCombo, setAvoidCombo] = React.useState(false);
   const forceUpdate = useForceUpdate();

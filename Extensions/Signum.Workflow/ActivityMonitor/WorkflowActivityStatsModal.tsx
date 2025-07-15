@@ -2,26 +2,25 @@ import { DateTime, Duration } from 'luxon'
 import * as React from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { openModal, IModalProps } from '@framework/Modals';
-import * as Navigator from '@framework/Navigator';
+import { Navigator } from '@framework/Navigator';
 import { getToString, JavascriptMessage, toLite } from '@framework/Signum.Entities'
-import { WorkflowActivityStats } from "../WorkflowClient";
+import { WorkflowClient } from "../WorkflowClient";
 import { FormGroup, StyleContext, FormControlReadonly } from "@framework/Lines";
 import { WorkflowActivityEntity, WorkflowActivityModel, WorkflowActivityMonitorMessage, CaseActivityEntity } from "../Signum.Workflow";
 import { SearchControl, ColumnOption } from "@framework/Search";
-import * as WorkflowClient from '../WorkflowClient';
 import { WorkflowActivityMonitorConfig } from './WorkflowActivityMonitorPage';
 import { Modal } from 'react-bootstrap';
 import { ModalHeaderButtons } from '@framework/Components/ModalHeaderButtons';
-import { toFilterOptions, isAggregate } from '@framework/Finder';
+import { Finder } from '@framework/Finder';
 import { toAbsoluteUrl } from '@framework/AppContext';
 
 interface WorkflowActivityStatsModalProps extends IModalProps<undefined> {
-  stats: WorkflowActivityStats;
+  stats: WorkflowClient.WorkflowActivityStats;
   config: WorkflowActivityMonitorConfig;
   activity: WorkflowActivityModel;
 }
 
-export default function WorkflowActivityStatsModal(p: WorkflowActivityStatsModalProps) {
+function WorkflowActivityStatsModal(p: WorkflowActivityStatsModalProps): React.JSX.Element {
 
 const [show, setShow] = React.useState<boolean>(true);
 
@@ -46,7 +45,7 @@ const [show, setShow] = React.useState<boolean>(true);
             queryName: CaseActivityEntity,
             filterOptions: [
               { token: CaseActivityEntity.token(e => e.entity.workflowActivity), value: stats.workflowActivity },
-              ...toFilterOptions(p.config.filters.filter(f => !isAggregate(f)))
+              ...Finder.toFilterOptions(p.config.filters.filter(f => !Finder.isAggregate(f)))
             ],
             columnOptionsMode: "Add",
             columnOptions: p.config.columns
@@ -110,6 +109,10 @@ const [show, setShow] = React.useState<boolean>(true);
   </Modal>;
 }
 
-WorkflowActivityStatsModal.show = (stats: WorkflowActivityStats, config: WorkflowActivityMonitorConfig, activity: WorkflowActivityModel): Promise<any> => {
-  return openModal<any>(<WorkflowActivityStatsModal stats={stats} config={config} activity={activity} />);
+namespace WorkflowActivityStatsModal {
+  export function show(stats: WorkflowClient.WorkflowActivityStats, config: WorkflowActivityMonitorConfig, activity: WorkflowActivityModel): Promise<any> {
+    return openModal<any>(<WorkflowActivityStatsModal stats={stats} config={config} activity={activity} />);
+  }
 }
+
+export default WorkflowActivityStatsModal;

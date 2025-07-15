@@ -171,6 +171,7 @@ public enum SearchMessage
 {
     ChooseTheDisplayNameOfTheNewColumn,
     Field,
+    ColumnField,
     [Description("Add column")]
     AddColumn,
     CollectionsCanNotBeAddedAsColumns,
@@ -465,6 +466,8 @@ public enum JavascriptMessage
     removeColumn,
     [Description("Group by this column")]
     groupByThisColumn,
+    [Description("Remove other columns")]
+    removeOtherColumns,
     [Description("Restore default columns")]
     restoreDefaultColumns,
     [Description("Saved")]

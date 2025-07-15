@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { openModal, IModalProps } from '../Modals';
-import { API } from '../Operations';
+import { Operations } from '../Operations';
 import { Modal, ProgressBar } from 'react-bootstrap';
 import { Entity, JavascriptMessage, Lite, liteKey, OperationMessage } from '../Signum.Entities';
 import { useForceUpdate, useThrottle } from '../Hooks';
@@ -12,17 +12,17 @@ import { ServiceError } from '../Services';
 import MessageModal from '../Modals/MessageModal';
 
 
-interface ProgressModalProps<T> extends IModalProps<API.ProgressStep<T> | undefined> {
+interface ProgressModalProps<T> extends IModalProps<Operations.API.ProgressStep<T> | undefined> {
   abortController: AbortController;
   options: ProgressModalOptions;
   makeRequest: () => Promise<Response>;
 }
 
-export function ProgressModal<T>(p: ProgressModalProps<T>) {
+export function ProgressModal<T>(p: ProgressModalProps<T>): React.JSX.Element {
 
   const [show, setShow] = React.useState(true);
   const forceUpdate = useForceUpdate();
-  const lastStepRef = React.useRef<API.ProgressStep<T> | undefined>(undefined);
+  const lastStepRef = React.useRef<Operations.API.ProgressStep<T> | undefined>(undefined);
 
 
   const [requestStarted, setRequestStarted] = React.useState<boolean>(false)
@@ -33,7 +33,7 @@ export function ProgressModal<T>(p: ProgressModalProps<T>) {
     setRequestStarted(true);
     var resp = await p.makeRequest();
 
-    var generator = jsonObjectStream<API.ProgressStep<T>>(resp.body!.getReader());
+    var generator = jsonObjectStream<Operations.API.ProgressStep<T>>(resp.body!.getReader());
     for await (const val of generator) {
       lastStepRef.current = val;
       forceUpdate();
@@ -99,32 +99,35 @@ export function ProgressModal<T>(p: ProgressModalProps<T>) {
   );
 }
 
-ProgressModal.show = <T,>(abortController: AbortController, modalOptions: ProgressModalOptions | undefined, makeRequest: () => Promise<Response>): Promise<T> => {
+export namespace ProgressModal {
+  export function show<T>(abortController: AbortController, modalOptions: ProgressModalOptions | undefined, makeRequest: () => Promise<Response>): Promise<T> {
 
-  if (modalOptions) {
+    if (modalOptions) {
 
-    return openModal<API.ProgressStep<T> | undefined>(<ProgressModal options={modalOptions} makeRequest={makeRequest} abortController={abortController} />)
-      .then(r => {
-        if (r == null)
-          throw new Error("Operation cancelled");
+      return openModal<Operations.API.ProgressStep<T> | undefined>(<ProgressModal options={modalOptions} makeRequest={makeRequest} abortController={abortController} />)
+        .then(r => {
+          if (r == null)
+            throw new Error("Operation cancelled");
 
-        if (r.error)
-          throw new ServiceError(r.error);
-        return r.result!;
+          if (r.error)
+            throw new ServiceError(r.error);
+          return r.result!;
+        });
+
+    } else {
+
+      return makeRequest().then(r => r.json()).then(obj => {
+        var results = obj as Operations.API.ProgressStep<T>[];
+        var last = results.last();
+        if (last.error)
+          throw new ServiceError(last.error);
+        return last.result!;
       });
 
-  } else {
+    }
+  };
+}
 
-    return makeRequest().then(r => r.json()).then(obj => {
-      var results = obj as API.ProgressStep<T>[];
-      var last = results.last();
-      if (last.error)
-        throw new ServiceError(last.error);
-      return last.result!;
-    });
-
-  }
-};
 
 export interface ProgressModalOptions {
   title: React.ReactNode;

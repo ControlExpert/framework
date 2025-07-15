@@ -6,6 +6,7 @@ using System.Text.Json;
 using Signum.API.Controllers;
 using Signum.API;
 using Signum.API.Filters;
+using Signum.DynamicQuery;
 
 namespace Signum.UserAssets;
 
@@ -16,6 +17,7 @@ public class UserAssetController : ControllerBase
     {
         public string queryKey;
         public bool canAggregate;
+        public bool canTimeSeries;
         public List<QueryFilterItem> filters;
         public Lite<Entity> entity;
     }
@@ -25,7 +27,7 @@ public class UserAssetController : ControllerBase
     {
         var queryName = QueryLogic.ToQueryName(request.queryKey);
         var qd = QueryLogic.Queries.QueryDescription(queryName);
-        var options = SubTokensOptions.CanAnyAll | SubTokensOptions.CanElement | (request.canAggregate ? SubTokensOptions.CanAggregate : 0);
+        var options = SubTokensOptions.CanAnyAll | SubTokensOptions.CanElement | (request.canAggregate ? SubTokensOptions.CanAggregate : 0) | (request.canTimeSeries ? SubTokensOptions.CanTimeSeries : 0);
 
         using (request.entity != null ? CurrentEntityConverter.SetCurrentEntity(request.entity.RetrieveAndRemember()) : null)
         {
@@ -34,6 +36,19 @@ public class UserAssetController : ControllerBase
             return result;
         }
     }
+
+    [HttpPost("api/userAssets/parseDate")]
+    public DateTime ParseDate([Required, FromBody] string dateExpression)
+    {
+        return (DateTime)FilterValueConverter.Parse(dateExpression, typeof(DateTime), false)!;
+    }
+
+    [HttpPost("api/userAssets/stringifyDate")]
+    public string StringifyDate([Required, FromBody] DateTime dateValue)
+    {
+        return FilterValueConverter.ToString(dateValue, typeof(DateTime))!;
+    }
+
 
     static List<FilterNode> ParseFilterInternal(IEnumerable<QueryFilterItem> filters, QueryDescription qd, SubTokensOptions options, int indent)
     {
@@ -83,6 +98,7 @@ public class UserAssetController : ControllerBase
     {
         public string queryKey;
         public bool canAggregate;
+        public bool canTimeSeries;
         public List<FilterNode> filters;
     }
 
@@ -91,7 +107,7 @@ public class UserAssetController : ControllerBase
     {
         var queryName = QueryLogic.ToQueryName(request.queryKey);
         var qd = QueryLogic.Queries.QueryDescription(queryName);
-        var options = SubTokensOptions.CanAnyAll | SubTokensOptions.CanElement | (request.canAggregate ? SubTokensOptions.CanAggregate : 0);
+        var options = SubTokensOptions.CanAnyAll | SubTokensOptions.CanElement | (request.canAggregate ? SubTokensOptions.CanAggregate : 0) | (request.canTimeSeries ? SubTokensOptions.CanTimeSeries : 0);
 
         List<QueryFilterItem> result = new List<QueryFilterItem>();
         foreach (var f in request.filters)

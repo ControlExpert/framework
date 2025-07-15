@@ -1,14 +1,14 @@
 import * as React from 'react'
 import { classes } from '../Globals'
 import * as AppContext from '../AppContext'
-import * as Navigator from '../Navigator'
+import { Navigator } from '../Navigator'
 import { ErrorBoundary } from "../Components/ErrorBoundary";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useForceUpdate, useUpdatedRef } from '../Hooks';
 import { useLocation } from 'react-router';
 import { ContainerToggleMessage } from '../Signum.Entities';
 
-export default function ContainerToggleComponent(p: { children: React.ReactNode }) {
+export default function ContainerToggleComponent(p: { children: React.ReactNode }): React.JSX.Element {
 
   const [fluid, setFluid] = React.useState(false);
   const fluidRef = useUpdatedRef(fluid);

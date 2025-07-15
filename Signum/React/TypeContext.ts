@@ -194,7 +194,7 @@ export class StyleContext {
   }
 
 
-  static bsColumnsCss(bsColumns: BsColumns) {
+  static bsColumnsCss(bsColumns: BsColumns): string {
     return [
       (bsColumns.xs ? "col-xs-" + bsColumns.xs : ""),
       (bsColumns.sm ? "col-sm-" + bsColumns.sm : ""),
@@ -451,7 +451,7 @@ export class TypeContext<T> extends StyleContext {
     return mlistItemContext(this.subCtx(property, styleOptions));
   }
 
-  get propertyPath() {
+  get propertyPath(): string | undefined {
     return this.propertyRoute && this.propertyRoute.propertyRouteType != "Root" ? this.propertyRoute.propertyPath() : undefined;
   }
 
@@ -477,7 +477,7 @@ export class TypeContext<T> extends StyleContext {
 
 export interface ButtonsContext {
   pack: EntityPack<ModifiableEntity>;
-  frame: EntityFrame;
+  frame: EntityFrame<ModifiableEntity>;
   isOperationVisible?: (eoc: EntityOperationContext<any /*Entity*/>) => boolean;
   tag?: string;
 }
@@ -497,7 +497,7 @@ export interface IOperationVisible {
 }
 
 export interface IHasChanges {
-  entityHasChanges?: () => boolean;
+  entityHasChanges?: () => boolean | undefined;
 }
 
 export interface FunctionalFrameComponent {
@@ -505,22 +505,22 @@ export interface FunctionalFrameComponent {
   type: Function;
 }
 
-export interface EntityFrame {
+export interface EntityFrame<T extends ModifiableEntity = ModifiableEntity> {
   frameComponent: FunctionalFrameComponent | React.Component;
   tabs: EmbeddedWidget[] | undefined;
   entityComponent: React.Component | null | undefined;
-  pack: EntityPack<ModifiableEntity>;
-  onReload: (pack?: EntityPack<ModifiableEntity>, reloadComponent?: boolean | string | ViewPromise<ModifiableEntity>, callback?: () => void) => void;
+  pack: EntityPack<T>;
+  onReload: (pack?: EntityPack<T>, reloadComponent?: boolean | string | ViewPromise<T>, callback?: () => void) => void;
   setError: (modelState: ModelState, initialPrefix?: string) => void;
   revalidate: () => void;
-  onClose: (pack?: EntityPack<ModifiableEntity>) => void;
+  onClose: (pack?: EntityPack<T>) => void;
   refreshCount: number;
   allowExchangeEntity: boolean;
 
   isExecuting(): boolean; 
   execute: (action: () => Promise<void>) => Promise<void>;
 
-  createNew?: (oldPack: EntityPack<ModifiableEntity>) => (Promise<EntityPack<ModifiableEntity> | undefined>) | undefined;
+  createNew?: (oldPack: EntityPack<T>) => (Promise<EntityPack<T> | undefined>) | undefined;
   prefix: string;
 
   currentDate?: string;

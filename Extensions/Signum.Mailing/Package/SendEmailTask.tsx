@@ -1,6 +1,6 @@
 import * as React from 'react'
-import * as Navigator from '@framework/Navigator'
-import * as Finder from '@framework/Finder'
+import { Navigator } from '@framework/Navigator'
+import { Finder } from '@framework/Finder'
 import { AutoLine, EntityLine, EnumLine } from '@framework/Lines'
 import { Lite, is } from '@framework/Signum.Entities'
 import { TypeContext } from '@framework/TypeContext'
@@ -8,7 +8,7 @@ import { useAPI, useForceUpdate } from '@framework/Hooks'
 import { EmaiTemplateTargetFrom, SendEmailTaskEntity } from './Signum.Mailing.Package'
 import { UserQueryEntity } from '../../Signum.UserQueries/Signum.UserQueries'
 
-export default function SendEmailTask(p: { ctx: TypeContext<SendEmailTaskEntity> }) {
+export default function SendEmailTask(p: { ctx: TypeContext<SendEmailTaskEntity> }): React.JSX.Element {
 
   const forceUpdate = useForceUpdate();
 

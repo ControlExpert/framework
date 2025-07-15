@@ -2,7 +2,7 @@ import * as React from 'react'
 import { DateTime, Duration } from 'luxon'
 import { CalendarProps } from 'react-widgets/cjs/Calendar'
 import { DatePicker, DropdownList, Combobox } from 'react-widgets'
-import { addClass, classes } from '../Globals'
+import { classes } from '../Globals'
 import { MemberInfo, TypeReference, toLuxonFormat, toNumberFormat, isTypeEnum, tryGetTypeInfo, toFormatWithFixes, splitLuxonFormat, dateTimePlaceholder, timePlaceholder } from '../Reflection'
 import { LineBaseController, LineBaseProps, tasks, useController } from '../Lines/LineBase'
 import { FormGroup } from '../Lines/FormGroup'
@@ -14,23 +14,23 @@ import { defaultRenderDay, trimDateToFormat } from './DateTimeLine'
 import { TimeTextBox, isDurationKey } from './TimeLine'
 import { TypeContext } from '../TypeContext'
 
-export interface DateTimeSplittedLineProps extends ValueBaseProps<DateTimeSplittedLineController> {
-  ctx: TypeContext<string /*Date or DateTime*/ | undefined | null>;
+export interface DateTimeSplittedLineProps extends ValueBaseProps<string /*Date or DateTime*/ | null> {
   minDate?: Date;
   maxDate?: Date;
   calendarProps?: Partial<CalendarProps>;
   initiallyShowOnly?: "Date" | "Time";
 }
 
-export class DateTimeSplittedLineController extends ValueBaseController<DateTimeSplittedLineProps>{
-  init(p: DateTimeSplittedLineProps) {
+export class DateTimeSplittedLineController extends ValueBaseController<DateTimeSplittedLineProps, string /*Date or DateTime*/ | null >{
+  init(p: DateTimeSplittedLineProps): void {
     super.init(p);
     this.assertType("DateTimeSplittedLine", ["DateOnly", "DateTime"]);
   }
 }
 
 
-export const DateTimeSplittedLine = React.memo(React.forwardRef(function DateTimeSplittedLine(props: DateTimeSplittedLineProps, ref: React.Ref<DateTimeSplittedLineController>) {
+export const DateTimeSplittedLine: React.MemoExoticComponent<React.ForwardRefExoticComponent<DateTimeSplittedLineProps & React.RefAttributes<DateTimeSplittedLineController>>> =
+  React.memo(React.forwardRef(function DateTimeSplittedLine(props: DateTimeSplittedLineProps, ref: React.Ref<DateTimeSplittedLineController>) {
 
   const c = useController(DateTimeSplittedLineController, props, ref);
 
@@ -46,7 +46,7 @@ export const DateTimeSplittedLine = React.memo(React.forwardRef(function DateTim
   if (s.ctx.readOnly)
     return (
       <FormGroup ctx={s.ctx} label={s.label} labelIcon={s.labelIcon} helpText={s.helpText} htmlAttributes={{ ...c.baseHtmlAttributes(), ...s.formGroupHtmlAttributes }} labelHtmlAttributes={s.labelHtmlAttributes}>
-        {inputId => c.withItemGroup(<FormControlReadonly id={inputId} htmlAttributes={c.props.valueHtmlAttributes} className={addClass(c.props.valueHtmlAttributes, "sf-readonly-date")} ctx={s.ctx} innerRef={c.setRefs}>
+        {inputId => c.withItemGroup(<FormControlReadonly id={inputId} htmlAttributes={c.props.valueHtmlAttributes} className={classes(c.props.valueHtmlAttributes?.className, "sf-readonly-date")} ctx={s.ctx} innerRef={c.setRefs}>
           {dt && toFormatWithFixes(dt, luxonFormat)}
         </FormControlReadonly>)}
       </FormGroup>

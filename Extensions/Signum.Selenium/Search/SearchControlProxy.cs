@@ -8,7 +8,9 @@ public class SearchControlProxy
 
     public IWebElement Element { get; private set; }
 
-    public FiltersProxy Filters => new FiltersProxy(this.FiltersPanel.Find());
+    public object QueryName => QueryLogic.ToQueryName(this.Element.GetAttribute("data-query-key"));
+
+    public FiltersProxy Filters => new FiltersProxy(this.FiltersPanel.Find(), QueryName);
     public ColumnEditorProxy ColumnEditor() => new ColumnEditorProxy(this.Element.FindElement(By.CssSelector(".sf-column-editor")));
 
     public PaginationSelectorProxy Pagination => new PaginationSelectorProxy(this);
@@ -67,7 +69,7 @@ public class SearchControlProxy
 
     public WebElementLocator ToggleFiltersButton
     {
-        get { return this.Element.WithLocator(By.ClassName("sf-filters-header")); }
+        get { return this.Element.WithLocator(By.ClassName("sf-filter-button")); }
     }
 
     public WebElementLocator FiltersPanel

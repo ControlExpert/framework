@@ -1,11 +1,11 @@
 import * as React from 'react'
 import { classes } from '../Globals'
-import * as Finder from '../Finder'
-import * as Constructor from '../Constructor'
+import { Finder } from '../Finder'
+import { Constructor } from '../Constructor'
 import { FindOptions, FindOptionsParsed, QueryDescription, QueryToken, QueryValueRequest } from '../FindOptions'
 import { Lite, Entity, isEntity, EntityControlMessage, isLite } from '../Signum.Entities'
 import { getQueryKey, getQueryNiceName, QueryTokenString, tryGetTypeInfos, getTypeInfos } from '../Reflection'
-import * as Navigator from '../Navigator'
+import { Navigator, ViewPromise } from '../Navigator'
 import { StyleContext, TypeContext } from '../TypeContext'
 import SearchValue, { renderTimeMachineIcon, SearchValueController } from './SearchValue'
 import { FormGroup } from '../Lines/FormGroup'
@@ -19,7 +19,7 @@ import { toAbsoluteUrl } from '../AppContext'
 
 export interface SearchValueLineProps {
   ctx: StyleContext;
-  findOptions?: FindOptions;
+  findOptions?: FindOptions | Lite<Entity> | Entity;
   valueToken?: string | QueryTokenString<any>;
   multipleValues?: { vertical?: boolean, showType?: boolean };
   label?: React.ReactChild | (() => React.ReactChild);
@@ -42,7 +42,7 @@ export interface SearchValueLineProps {
   extraButtons?: (vscc: SearchValueController) => React.ReactNode;
   create?: boolean | "ifNull" ;
   onCreate?: () => Promise<any>;
-  getViewPromise?: (e: any /*Entity*/) => undefined | string | Navigator.ViewPromise<any /*Entity*/>;
+  getViewPromise?: (e: any /*Entity*/) => undefined | string | ViewPromise<any /*Entity*/>;
   searchControlProps?: Partial<SearchControlProps>;
   modalSize?: BsSize;
   onExplored?: () => void;
@@ -58,7 +58,8 @@ export interface SearchValueLineController {
   refreshValue(): void;
 }
 
-const SearchValueLine = React.forwardRef(function SearchValueLine(p: SearchValueLineProps, ref?: React.Ref<SearchValueLineController>) {
+const SearchValueLine: React.ForwardRefExoticComponent<SearchValueLineProps & React.RefAttributes<SearchValueLineController>> =
+  React.forwardRef(function SearchValueLine(p: SearchValueLineProps, ref?: React.Ref<SearchValueLineController>) {
 
   var svRef = React.useRef<SearchValueController | null>();
 
@@ -78,8 +79,22 @@ const SearchValueLine = React.forwardRef(function SearchValueLine(p: SearchValue
   }, []);
 
   function getFindOptions(props: SearchValueLineProps): FindOptions {
-    if (props.findOptions)
-      return props.findOptions;
+    if (props.findOptions) {
+      const fo = props.findOptions;
+      if (isEntity(fo))
+        return {
+          queryName: fo.Type,
+          filterOptions: [{ token: QueryTokenString.entity(), value: fo }]
+        };
+
+      if (isLite(fo))
+        return {
+          queryName: fo.EntityType,
+          filterOptions: [{ token: QueryTokenString.entity(), value: fo }]
+        };
+
+      return fo;
+    }
 
     var ctx = props.ctx as TypeContext<any>;
 
@@ -223,7 +238,7 @@ const SearchValueLine = React.forwardRef(function SearchValueLine(p: SearchValue
       });
     } else {
 
-      var fo = p.findOptions!;
+      var fo = p.findOptions as FindOptions;
       const isWindowsOpen = e.button == 1 || e.ctrlKey;
       Finder.getQueryDescription(fo.queryName).then(qd => {
         chooseType(qd).then(tn => {

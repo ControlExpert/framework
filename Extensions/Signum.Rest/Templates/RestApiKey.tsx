@@ -3,16 +3,16 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { RestApiKeyEntity, RestApiKeyMessage } from '../Signum.Rest'
 import { TypeContext, AutoLine, EntityLine, TextBoxLine } from "@framework/Lines";
 import { classes } from "@framework/Globals";
-import { API } from "../RestClient";
+import { RestApiKeyClient } from "../RestApiKeyClient";
 import { useForceUpdate } from '@framework/Hooks';
 
-export default function RestApiKeyComponent(p : { ctx: TypeContext<RestApiKeyEntity> }){
+export default function RestApiKeyComponent(p : { ctx: TypeContext<RestApiKeyEntity> }): React.JSX.Element {
 
   const forceUpdate = useForceUpdate();
 
   function generateApiKey(e: React.MouseEvent<any>) {
     e.preventDefault();
-    API.generateRestApiKey()
+    RestApiKeyClient.API.generateRestApiKey()
       .then(key => {
         p.ctx.value.apiKey = key;
         p.ctx.value.modified = true;

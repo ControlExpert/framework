@@ -229,7 +229,7 @@ public static class PackageLogic
     {
         return package.OperationArguments == null ? null :
             JsonExtensions.FromJsonBytes<object[]>(package.OperationArguments, EntityJsonContext.FullJsonSerializerOptions)
-            .Select(a => a is JsonElement jse ? OperationController.BaseOperationRequest.ConvertObject(jse, null) : (object?)a).ToArray();
+            .Select(a => a is JsonElement jse ? OperationController.BaseOperationRequest.ConvertObject(jse, EntityJsonContext.FullJsonSerializerOptions, null) : (object?)a).ToArray();
     }
 
     public static PackageEntity SetOperationArgs(this PackageEntity package, object?[]? args)
@@ -249,6 +249,21 @@ public class PackageOperationAlgorithm : IProcessAlgorithm
 
         var args = package.GetOperationArgs();
 
+        if (package.ConfigString.HasText())
+        {
+            var lo = new List<object>();
+
+            if (!args.IsNullOrEmpty())
+                lo.AddRange(args!);
+
+            lo.Add(package);
+
+            args=lo.ToArray();  
+        }
+
+
+
+
         executingProcess.ForEachLine(package.Lines().Where(a => a.FinishTime == null), line =>
         {
             OperationType operationType = OperationLogic.GetOperationInfo(line.Target.GetType(), operationSymbol).OperationType;
@@ -264,7 +279,7 @@ public class PackageOperationAlgorithm : IProcessAlgorithm
                 case OperationType.ConstructorFrom:
                     {
                         var result = OperationLogic.ServiceConstructFrom(line.Target, operationSymbol, args);
-                        line.Result = result.ToLite();
+                        line.Result = result?.ToLite();
                     }
                     break;
                 default:

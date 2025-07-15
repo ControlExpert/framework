@@ -4,7 +4,7 @@ import { configurations } from "./FileDownloader";
 import { Entity, isLite, isModifiableEntity, Lite, ModifiableEntity } from '@framework/Signum.Entities';
 import * as Services from '@framework/Services'
 import { PropertyRoute } from '@framework/Lines';
-import { useFetchInState } from '@framework/Navigator';
+import {  } from '@framework/Navigator';
 
 interface FileImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   file?: IFile & ModifiableEntity | Lite<IFile & Entity> | null;
@@ -12,7 +12,7 @@ interface FileImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   ajaxOptions?: Omit<Services.AjaxOptions, "url">;
 }
 
-export function FileImage(p: FileImageProps) {
+export function FileImage(p: FileImageProps): React.JSX.Element {
 
   var [objectUrl, setObjectUrl] = React.useState<string | undefined>(undefined);
   var { file, ajaxOptions, placeholderSrc, ...rest } = p;

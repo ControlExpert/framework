@@ -2,14 +2,14 @@
 import * as React from 'react'
 import { getToString, ModifiableEntity, tryGetMixin } from '@framework/Signum.Entities'
 import { IsolationMessage, IsolationMixin } from './Signum.Isolation';
-import * as IsolationClient from './IsolationClient';
+import { IsolationClient } from './IsolationClient';
 import { WidgetContext } from '@framework/Frames/Widgets';
 
 export interface IsolationWidgetProps {
   wc: WidgetContext<ModifiableEntity>
 }
 
-export function IsolationWidget(p: IsolationWidgetProps) {
+export function IsolationWidget(p: IsolationWidgetProps): React.JSX.Element | null {
 
   const entity = p.wc.ctx.value;
 

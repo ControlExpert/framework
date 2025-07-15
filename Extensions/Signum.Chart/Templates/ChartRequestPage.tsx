@@ -3,7 +3,7 @@ import { Lite, JavascriptMessage } from '@framework/Signum.Entities'
 import { parseLite } from '@framework/Signum.Entities'
 import * as AppContext from '@framework/AppContext'
 import { ChartRequestModel } from '../Signum.Chart'
-import * as ChartClient from '../ChartClient'
+import { ChartClient } from '../ChartClient'
 import ChartRequestView from './ChartRequestView'
 import { useLocation, useParams } from 'react-router'
 import { useStateWithPromise } from '@framework/Hooks'
@@ -14,7 +14,7 @@ import { UserChartEntity } from '../UserChart/Signum.Chart.UserChart'
 
 
 
-export default function ChartRequestPage() {
+export default function ChartRequestPage(): React.JSX.Element | null {
   const params = useParams() as { queryName: string; };
   const location = useLocation();
   const [pair, setPair] = useStateWithPromise<{ chartRequest: ChartRequestModel; userChart?: Lite<UserChartEntity>; } | undefined>(undefined);

@@ -256,7 +256,7 @@ internal class CachedTableConstructor
                         var modelType = customLiteModelType ?? Lite.DefaultModelType(type);
 
                         lite = Expression.Call(retriever, miRequestLite.MakeGenericMethod(type),
-                            Expression.New(Lite.GetLiteConstructorFromCache(type, modelType), NewPrimaryKey(id.UnNullify()), Expression.Constant(null, modelType)));
+                            Expression.New(Lite.GetLiteConstructorFromCache(type, modelType), NewPrimaryKey(id.UnNullify()), Expression.Constant(null, modelType), Expression.Constant(null, typeof(int?))));
 
                         lite = Expression.Call(retriever, miModifiablePostRetrieving.MakeGenericMethod(typeof(LiteImp)), lite.TryConvert(typeof(LiteImp))).TryConvert(lite.Type);
 
@@ -264,16 +264,20 @@ internal class CachedTableConstructor
                     }
                 case CacheType.Semi:
                     {
-                        string lastPartialJoin = CreatePartialInnerJoin(column);
+                        CachedTableBase ctb = cachedTable.subTables?.SingleOrDefaultEx(a => a.ParentColumn == column)!;
+                        if (ctb == null)
+                        {
+                            string lastPartialJoin = CreatePartialInnerJoin(column);
 
-                        CachedTableBase ctb = ciCachedSemiTable.GetInvoker(type)(cachedTable.controller, aliasGenerator!, lastPartialJoin, remainingJoins);
+                            ctb = ciCachedSemiTable.GetInvoker(type)(cachedTable.controller, aliasGenerator!, lastPartialJoin, remainingJoins);
 
-                        if (cachedTable.subTables == null)
-                            cachedTable.subTables = new List<CachedTableBase>();
+                            if (cachedTable.subTables == null)
+                                cachedTable.subTables = new List<CachedTableBase>();
 
-                        cachedTable.subTables.Add(ctb);
+                            cachedTable.subTables.Add(ctb);
 
-                        ctb.ParentColumn = column;
+                            ctb.ParentColumn = column;
+                        }
 
                         var modelType = customLiteModelType ?? Lite.DefaultModelType(type);
 

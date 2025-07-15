@@ -47,6 +47,9 @@ public enum TranslationMessage
     [Description("edit")]
     Edit,
 
+    [Description("auto-sync")]
+    AutoSync,
+
     Member,
     Type,
 
@@ -76,13 +79,17 @@ public enum TranslationMessage
     DownloadSync,
     Download,
 
-    AutoTranslate,
+
+
 
     [Description("Are you sure to continue auto translation {0} for {1} without revision?")]
     AreYouSureToContinueAutoTranslation0For1WithoutRevision,
 
     [Description("Are you sure to continue auto translation all types for {0} without revision?")]
     AreYouSureToContinueAutoTranslationAllTypesFor0WithoutRevision,
+
+    [Description("Are you sure to continue auto translation all assemblies for {0} without revision?")]
+    AreYouSureToContinueAutoTranslationAllAssembliesFor0WithoutRevision,
 }
 
 public enum TranslationJavascriptMessage

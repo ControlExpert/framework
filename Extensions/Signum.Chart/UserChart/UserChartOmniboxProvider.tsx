@@ -1,10 +1,10 @@
 import * as React from 'react'
 import { Lite } from '@framework/Signum.Entities'
-import { OmniboxResult, OmniboxMatch } from '../../Signum.Omnibox/OmniboxClient'
+import { OmniboxClient, OmniboxResult, OmniboxMatch } from '../../Signum.Omnibox/OmniboxClient'
 import { OmniboxProvider } from '../../Signum.Omnibox/OmniboxProvider'
-import * as Navigator from '@framework/Navigator'
-import * as ChartClient from '../ChartClient'
-import * as UserChartClient from '../UserChart/UserChartClient'
+import { Navigator } from '@framework/Navigator'
+import { ChartClient } from '../ChartClient'
+import { UserChartClient } from '../UserChart/UserChartClient'
 import { UserChartEntity } from './Signum.Chart.UserChart'
 
 export default class UserChartOmniboxProvider extends OmniboxProvider<UserChartOmniboxResult>
@@ -13,7 +13,7 @@ export default class UserChartOmniboxProvider extends OmniboxProvider<UserChartO
     return "UserChartOmniboxResult";
   }
 
-  icon() {
+  icon(): React.ReactElement {
     return this.coloredIcon("chart-bar", "darkviolet");
   }
 
@@ -28,7 +28,7 @@ export default class UserChartOmniboxProvider extends OmniboxProvider<UserChartO
     return array;
   }
 
-  navigateTo(result: UserChartOmniboxResult) {
+  navigateTo(result: UserChartOmniboxResult): Promise<string> | undefined {
 
     if (result.userChart == undefined)
       return undefined;
@@ -38,7 +38,7 @@ export default class UserChartOmniboxProvider extends OmniboxProvider<UserChartO
       .then(cr => ChartClient.Encoder.chartPathPromise(cr, result.userChart));
   }
 
-  toString(result: UserChartOmniboxResult) {
+  toString(result: UserChartOmniboxResult): string {
     return "\"{0}\"".formatWith(result.toStrMatch.text);
   }
 }

@@ -1,6 +1,6 @@
 import * as React from 'react'
 import * as d3 from 'd3'
-import {  ChartTable } from '../../ChartClient';
+import { ChartClient, ChartTable } from '../../ChartClient';
 import { Rule } from './Rule';
 import { JavascriptMessage, SearchMessage } from '@framework/Signum.Entities';
 import { SearchControl } from '@framework/Search';
@@ -13,7 +13,7 @@ interface InitialMessageProps {
   data?: ChartTable;
 }
 
-export default function InitialMessage(p: InitialMessageProps) {
+export default function InitialMessage(p: InitialMessageProps): React.JSX.Element | null {
 
   var dots = useInterval(p.loading ? 1000 : null, 0, d => (d + 1) % 4);
 

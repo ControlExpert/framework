@@ -1,5 +1,7 @@
+using Microsoft.Extensions.FileSystemGlobbing.Internal.PathSegments;
 using Signum.Entities;
 using Signum.Security;
+using Signum.Utilities.Reflection;
 using System.Collections;
 
 namespace Signum.Operations;
@@ -145,6 +147,8 @@ public class Graph<T>
         {
             return "{0} Construct {1}".FormatWith(operationSymbol, typeof(T));
         }
+
+        public LambdaExpression? CanExecuteExpression() => null;
     }
 
     public class ConstructFrom<F> : IConstructorFromOperation
@@ -170,6 +174,8 @@ public class Graph<T>
         bool IEntityOperation.HasCanExecute { get { return CanConstruct != null; } }
 
         public bool CanBeNew { get; set; }
+        public bool ResultIsSaved { get; set; }
+
 
         public Func<F, string?>? CanConstruct { get; set; }
 
@@ -209,7 +215,7 @@ public class Graph<T>
             return new ConstructFrom<F>(symbol.Symbol, symbol.BaseType);
         }
 
-        LambdaExpression? IEntityOperation.CanExecuteExpression()
+        LambdaExpression? IOperation.CanExecuteExpression()
         {
             return CanConstructExpression;
         }
@@ -319,6 +325,8 @@ public class Graph<T>
 
         protected virtual void AssertEntity(T entity)
         {
+            if (ResultIsSaved && entity.IsNew)
+                throw new InvalidOperationException("After executing {0} the entity should be saved".FormatWith(this.operationSymbol));
         }
 
         public virtual void AssertIsValid()
@@ -356,6 +364,15 @@ public class Graph<T>
 
         public bool LogAlsoIfNotSaved { get; set; }
 
+        public Expression<Func<F, string?>>? CanConstructExpression { get; set; }
+
+        LambdaExpression? IOperation.CanExecuteExpression()
+        {
+            return CanConstructExpression;
+        }
+
+
+
         public Func<List<Lite<F>>, object?[]?, T?> Construct { get; set; } = null!;
 
         public void OverrideConstruct(Overrider<Func<List<Lite<F>>, object?[]?, T?>> overrider)
@@ -385,6 +402,22 @@ public class Graph<T>
             return new ConstructFromMany<F>(symbol.Symbol, symbol.BaseType);
         }
 
+        string? OnCanConstruct(IEnumerable<Lite<IEntity>> lites)
+        {
+            if (CanConstructExpression != null)
+            {
+                var errors = lites.GroupBy(a => a.EntityType)
+                    .SelectMany(gr => gr.Chunk(100).SelectMany(ch => OperationLogic.giGetCanExecute.GetInvoker(gr.Key)(this, ch).Values))
+                    .Distinct().ToList();
+
+                if (errors.Any())
+                    return errors.ToString("\n");
+
+                return null;
+            }
+
+            return null;
+        }
 
         IEntity IConstructorFromManyOperation.Construct(IEnumerable<Lite<IEntity>> lites, params object?[]? args)
         {
@@ -412,6 +445,10 @@ public class Graph<T>
                         using (OperationLogic.AllowSave<T>())
                             OperationLogic.OnSuroundOperation(this, log, null, args).EndUsing(_ =>
                             {
+                                string? error = OnCanConstruct(lites);
+                                if (error != null)
+                                    throw new ApplicationException(error);
+
                                 result = OnConstruct(lites.Cast<Lite<F>>().ToList(), args);
 
                                 if (result != null)
@@ -516,6 +553,11 @@ public class Graph<T>
 
         public Expression<Func<T, string?>>? CanExecuteExpression { get; set; }
 
+        LambdaExpression? IOperation.CanExecuteExpression()
+        {
+            return CanExecuteExpression;
+        }
+
         public Execute OverrideCanExecute(Overrider<Func<T, string?>> overrider)
         {
             CanExecute = overrider(CanExecute ?? (t => null));
@@ -532,10 +574,6 @@ public class Graph<T>
             Symbol = symbol ?? throw AutoInitAttribute.ArgumentNullException(typeof(ExecuteSymbol<T>), nameof(symbol));
         }
 
-        LambdaExpression? IEntityOperation.CanExecuteExpression()
-        {
-            return CanExecuteExpression;
-        }
 
         string? IEntityOperation.CanExecute(IEntity entity)
         {
@@ -706,7 +744,7 @@ public class Graph<T>
             Symbol = symbol ?? throw AutoInitAttribute.ArgumentNullException(typeof(DeleteSymbol<T>), nameof(symbol));
         }
 
-        LambdaExpression? IEntityOperation.CanExecuteExpression()
+        LambdaExpression? IOperation.CanExecuteExpression()
         {
             return CanDeleteExpression;
         }

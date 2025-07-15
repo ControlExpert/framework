@@ -4,6 +4,8 @@ using DocumentFormat.OpenXml.Packaging;
 using System.IO;
 using Signum.Utilities.DataStructures;
 using Signum.Utilities.Reflection;
+using Signum.DynamicQuery.Tokens;
+using System.Collections;
 
 namespace Signum.Excel;
 
@@ -51,6 +53,7 @@ public static class PlainExcelGenerator
                     { DefaultStyle.Decimal, worksheet.FindCell("G3").StyleIndex! },
                     { DefaultStyle.Percentage, worksheet.FindCell("H3").StyleIndex! },
                     { DefaultStyle.Time, worksheet.FindCell("I3").StyleIndex! },
+                    { DefaultStyle.Multiline, worksheet.FindCell("K3").StyleIndex! },
                 }
             };
         }
@@ -135,9 +138,16 @@ public static class PlainExcelGenerator
                 select CellBuilder.Cell(c.Column.DisplayName, DefaultStyle.Header, forImport)).ToRow(),
 
                 from r in results.Rows
-                select (from c in results.Columns
-                        let t = indexes.GetOrThrow(c)
-                        select CellBuilder.Cell(r[c], t.defaultStyle, t.styleIndex, forImport)).ToRow()
+                select results.Columns.Select(c =>
+                {
+                    var t = indexes.GetOrThrow(c);
+                    var cta = c.Column.Token.HasCollectionToArray();
+                    var value = cta != null ?
+                        ((IEnumerable?)r[c])?.Cast<object>().ToString(cta.ToArrayType is CollectionToArrayType.SeparatedByComma or CollectionToArrayType.SeparatedByCommaDistinct? ", " : "\n"):
+                        r[c];
+
+                    return CellBuilder.Cell(value, t.defaultStyle, t.styleIndex, forImport);
+                }).ToRow()
             }.ToSheetDataWithIndexes());
 
             workbookPart.Workbook.Save();

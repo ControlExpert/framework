@@ -22,7 +22,8 @@ export default function HtmlCodeMirror(p: {
   ctx: TypeContext<string | null | undefined>,
   onChange?: (newValue: string) => void;
   innerRef?: React.Ref<CodeMirrorComponentHandler>;
-}) {
+  options?: Partial<CodeMirror.EditorConfiguration>;
+}): React.JSX.Element {
 
   const { ctx, onChange, innerRef } = p;
 
@@ -47,7 +48,8 @@ export default function HtmlCodeMirror(p: {
           cm.setOption("fullScreen", false);
       }
     },
-    readOnly: ctx.readOnly
+    readOnly: ctx.readOnly,
+    ...p.options
   } as CodeMirror.EditorConfiguration;
 
   (options as any).highlightSelectionMatches = true;

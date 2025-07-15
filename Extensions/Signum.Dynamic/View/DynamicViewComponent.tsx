@@ -4,13 +4,13 @@ import { AutoLine } from '@framework/Lines'
 import { ModifiableEntity, JavascriptMessage, SaveChangesMessage } from '@framework/Signum.Entities'
 import { classes } from '@framework/Globals'
 import { getTypeInfo } from '@framework/Reflection'
-import * as Navigator from '@framework/Navigator'
+import { Navigator, ViewOverride } from '@framework/Navigator'
 import MessageModal from '@framework/Modals/MessageModal'
 import { TypeContext } from '@framework/TypeContext'
-import * as Operations from '@framework/Operations'
+import { Operations } from '@framework/Operations'
 import { BaseNode } from './Nodes'
 import { DesignerContext, DesignerNode, RenderWithViewOverrides } from './NodeUtils'
-import * as DynamicViewClient from '../DynamicViewClient'
+import { DynamicViewClient } from '../DynamicViewClient'
 import { DynamicViewTabs } from './DynamicViewTabs'
 import { CollapsableTypeHelp } from './Designer'
 import ShowCodeModal from './ShowCodeModal'
@@ -30,11 +30,11 @@ export interface DynamicViewComponentState {
   rootNode: BaseNode;
   selectedNode: DesignerNode<BaseNode>;
   dynamicView: DynamicViewEntity;
-  viewOverrides?: Navigator.ViewOverride<ModifiableEntity>[];
+  viewOverrides?: ViewOverride<ModifiableEntity>[];
   
 }
 
-export default function DynamicViewComponent(p: DynamicViewComponentProps) {
+export default function DynamicViewComponent(p: DynamicViewComponentProps): React.JSX.Element | null {
 
   const [isDesignerOpen, setIsDesignerOpen] = React.useState<boolean>(false);
   const rootNodeMemo = React.useMemo(() => JSON.parse(p.initialDynamicView.viewContent!) as BaseNode, []);

@@ -5,11 +5,11 @@ import { SMSTemplateEntity, SMSCharactersMessage, SMSTemplateMessageEmbedded, SM
 import { useForceUpdate, useAPI, useThrottle } from '@framework/Hooks';
 import AutoLineModal from '@framework/AutoLineModal';
 import TemplateControls from '../../Signum.Templating/TemplateControls';
-import * as SMSClient from '../SMSClient';
+import { SMSClient } from '../SMSClient';
 import QueryTokenEmbeddedBuilder from '../../Signum.UserAssets/Templates/QueryTokenEmbeddedBuilder'
 import { SubTokensOptions } from '@framework/FindOptions';
 
-export default function SMSTemplate(p: { ctx: TypeContext<SMSTemplateEntity> }) {
+export default function SMSTemplate(p: { ctx: TypeContext<SMSTemplateEntity> }): React.JSX.Element {
   var forceUpdate = useForceUpdate();
   var ctx = p.ctx.subCtx({ labelColumns: 3 });
   var ctx8 = p.ctx.subCtx({ labelColumns: 8 });
@@ -39,7 +39,7 @@ export default function SMSTemplate(p: { ctx: TypeContext<SMSTemplateEntity> }) 
       </div>
 
       {ctx.value.query &&
-        <EntityTabRepeater ctx={ctx.subCtx(a => a.messages)} onChange={() => forceUpdate()} getComponent={(sc: TypeContext<SMSTemplateMessageEmbedded>) =>
+        <EntityTabRepeater ctx={ctx.subCtx(a => a.messages)} onChange={() => forceUpdate()} getComponent={sc =>
         <SMSTemplateMessageComponent ctx={sc} queryKey={ctx.value.query!.key!} removeNoSMSCharacters={ctx.value.removeNoSMSCharacters} invalidate={() => forceUpdate()} />
       }/>
       }
@@ -55,7 +55,7 @@ export interface SMSTemplateMessageComponentProps {
   invalidate: () => void;
 }
 
-export function SMSTemplateMessageComponent(p: SMSTemplateMessageComponentProps) {
+export function SMSTemplateMessageComponent(p: SMSTemplateMessageComponentProps): React.JSX.Element {
   const forceUpdate = useForceUpdate();
 
   var throttleText = useThrottle(p.ctx.value.message ?? "", 1000);

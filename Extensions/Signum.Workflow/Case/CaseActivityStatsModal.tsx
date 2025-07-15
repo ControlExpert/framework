@@ -3,10 +3,10 @@ import * as React from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { openModal, IModalProps } from '@framework/Modals';
 import { timeToString, toNumberFormat } from '@framework/Reflection';
-import * as Finder from '@framework/Finder';
-import * as Navigator from '@framework/Navigator';
+import { Finder } from '@framework/Finder';
+import { Navigator } from '@framework/Navigator';
 import { getToString, JavascriptMessage } from '@framework/Signum.Entities'
-import { CaseActivityStats, formatDuration } from "../WorkflowClient";
+import { WorkflowClient } from "../WorkflowClient";
 import { FormGroup, StyleContext } from "@framework/Lines";
 import { CaseActivityEntity, WorkflowActivityEntity, WorkflowActivityMessage, DoneType, CaseNotificationEntity, CaseActivityMessage, WorkflowActivityType, CaseEntity, WorkflowEventType } from "../Signum.Workflow";
 import { EntityLink, SearchControl } from "@framework/Search";
@@ -15,10 +15,10 @@ import { OperationLogEntity } from '@framework/Signum.Operations';
 
 interface CaseActivityStatsModalProps extends IModalProps<undefined> {
   case: CaseEntity;
-  caseActivityStats: CaseActivityStats[];
+  caseActivityStats: WorkflowClient.CaseActivityStats[];
 }
 
-export default function CaseActivityStatsModal(p: CaseActivityStatsModalProps) {
+function CaseActivityStatsModal(p: CaseActivityStatsModalProps): React.JSX.Element {
 
   const [show, setShow] = React.useState<boolean>(true);
 
@@ -63,16 +63,20 @@ export default function CaseActivityStatsModal(p: CaseActivityStatsModalProps) {
   );
 }
 
-CaseActivityStatsModal.show = (caseEntity: CaseEntity, caseActivityStats: CaseActivityStats[]): Promise<any> => {
-  return openModal<any>(<CaseActivityStatsModal case={caseEntity} caseActivityStats={caseActivityStats} />);
-};
+namespace CaseActivityStatsModal{
+  export function show(caseEntity: CaseEntity, caseActivityStats: WorkflowClient.CaseActivityStats[]): Promise<any> {
+    return openModal<any>(<CaseActivityStatsModal case={caseEntity} caseActivityStats={caseActivityStats} />);
+  };
+}
+
+export default CaseActivityStatsModal;
 
 interface CaseActivityStatsComponentProps {
   caseEntity: CaseEntity;
-  stats: CaseActivityStats;
+  stats: WorkflowClient.CaseActivityStats;
 }
 
-export function CaseActivityStatsComponent(p : CaseActivityStatsComponentProps){
+export function CaseActivityStatsComponent(p : CaseActivityStatsComponentProps): React.JSX.Element {
 
   function renderTaskExtra() {
     return (
@@ -178,5 +182,5 @@ function formatMinutes(duration: number | undefined) {
 
   var formatNumber = toNumberFormat("0.00");
 
-  return <span>{formatNumber.format(duration)} {unit} <mark>({formatDuration(Duration.fromObject({ minute: duration }))})</mark></span>
+  return <span>{formatNumber.format(duration)} {unit} <mark>({WorkflowClient.formatDuration(Duration.fromObject({ minute: duration }))})</mark></span>
 }

@@ -1,10 +1,10 @@
 import * as React from 'react'
 import { Lite, liteKey } from '@framework/Signum.Entities'
-import { OmniboxResult, OmniboxMatch } from '../Signum.Omnibox/OmniboxClient'
+import { OmniboxClient, OmniboxResult, OmniboxMatch } from '../Signum.Omnibox/OmniboxClient'
 import { OmniboxProvider } from '../Signum.Omnibox/OmniboxProvider'
-import * as Navigator from '@framework/Navigator'
-import * as Finder from '@framework/Finder'
-import * as UserQueryClient from './UserQueryClient'
+import { Navigator } from '@framework/Navigator'
+import { Finder } from '@framework/Finder'
+import { UserQueryClient } from './UserQueryClient'
 import { UserQueryEntity } from './Signum.UserQueries'
 
 export default class UserQueryOmniboxProvider extends OmniboxProvider<UserQueryOmniboxResult>
@@ -13,13 +13,13 @@ export default class UserQueryOmniboxProvider extends OmniboxProvider<UserQueryO
     return "UserQueryOmniboxResult";
   }
 
-  icon() {
+  icon(): React.ReactElement {
     return this.coloredIcon( "list-alt", "dodgerblue");
   }
 
-  renderItem(result: UserQueryOmniboxResult): React.ReactChild[] {
+  renderItem(result: UserQueryOmniboxResult): React.ReactNode[] {
 
-    const array: React.ReactChild[] = [];
+    const array: React.ReactNode[] = [];
 
     array.push(this.icon());
 
@@ -28,7 +28,7 @@ export default class UserQueryOmniboxProvider extends OmniboxProvider<UserQueryO
     return array;
   }
 
-  navigateTo(result: UserQueryOmniboxResult) {
+  navigateTo(result: UserQueryOmniboxResult): Promise<string> | undefined {
 
     if (result.userQuery == undefined)
       return undefined;
@@ -38,7 +38,7 @@ export default class UserQueryOmniboxProvider extends OmniboxProvider<UserQueryO
         .then(fo => Finder.findOptionsPath(fo, { userQuery: liteKey(result.userQuery) })));
   }
 
-  toString(result: UserQueryOmniboxResult) {
+  toString(result: UserQueryOmniboxResult): string {
     return "\"{0}\"".formatWith(result.toStrMatch.text);
   }
 }

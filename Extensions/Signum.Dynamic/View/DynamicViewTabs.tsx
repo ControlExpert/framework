@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { classes, Dic } from '@framework/Globals'
-import * as Finder from '@framework/Finder'
+import { Finder } from '@framework/Finder'
 import {PropertyRoute, Binding } from '@framework/Reflection'
 import { Expression, DesignerNode } from './NodeUtils'
 import { BaseNode } from './Nodes'
@@ -13,7 +13,7 @@ import { ModulesHelp } from "./ModulesHelp";
 import JavascriptCodeMirror from '../../Signum.CodeMirror/JavascriptCodeMirror';
 import { DynamicViewEntity, DynamicViewPropEmbedded } from '../Signum.Dynamic.Views'
 
-export function DynamicViewTabs({ ctx, rootNode }: { ctx: TypeContext<DynamicViewEntity>, rootNode: DesignerNode<BaseNode> }) {
+export function DynamicViewTabs({ ctx, rootNode }: { ctx: TypeContext<DynamicViewEntity>, rootNode: DesignerNode<BaseNode> }): React.JSX.Element {
 
   const typeName = rootNode.route!.typeReference().name;
   const handleChange = () => rootNode.context.refreshView();
@@ -26,10 +26,10 @@ export function DynamicViewTabs({ ctx, rootNode }: { ctx: TypeContext<DynamicVie
       </Tab>
       <Tab eventKey="props" title="Props">
         <EntityTable ctx={ctx.subCtx(a => a.props)} onChange={handleChange}
-          columns={EntityTable.typedColumns<DynamicViewPropEmbedded>([
+          columns={[
             { property: a => a.name, template: sctx => <AutoLine ctx={sctx.subCtx(a => a.name)} onChange={handleChange} /> },
             { property: a => a.type, template: sctx => <AutoLine ctx={sctx.subCtx(a => a.type)} onChange={handleChange} /> },
-          ])} />
+          ]} />
       </Tab>
       <Tab eventKey="locals" title="Locals">
         <div className="code-container">

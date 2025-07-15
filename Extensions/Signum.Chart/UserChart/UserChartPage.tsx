@@ -1,17 +1,17 @@
 import * as React from 'react'
 import { toLite } from '@framework/Signum.Entities'
 import { JavascriptMessage, parseLite } from '@framework/Signum.Entities'
-import * as Navigator from '@framework/Navigator'
+import { Navigator } from '@framework/Navigator'
 import * as AppContext from '@framework/AppContext'
-import * as ChartClient from '../ChartClient'
-import * as UserChartClient from './UserChartClient'
+import { ChartClient } from '../ChartClient'
+import { UserChartClient } from './UserChartClient'
 import { useLocation, useParams } from "react-router";
 import { useForceUpdate } from '@framework/Hooks'
 import { UserChartEntity } from './Signum.Chart.UserChart'
 
 
 
-export default function UserChartPage() {
+export default function UserChartPage(): React.JSX.Element {
   const params = useParams() as { userChartId: string; entity?: string };
 
   React.useEffect(() => {

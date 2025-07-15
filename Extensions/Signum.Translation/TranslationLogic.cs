@@ -38,19 +38,23 @@ public static class TranslationLogic
         throw new InvalidOperationException("Unexpected file with name " + fi.Name);
     }
 
+    public static ITranslator[] Translators;
+
     public static void Start(SchemaBuilder sb, bool countLocalizationHits, params ITranslator[] translators)
     {
-        if(sb.WebServerBuilder != null)
-            TranslationServer.Start(sb.WebServerBuilder.WebApplication, translators);
-
         if (sb.NotDefined(MethodInfo.GetCurrentMethod()))
         {
+            Translators = translators;
+
             CultureInfoLogic.AssertStarted(sb);
             
             PermissionLogic.RegisterTypes(typeof(TranslationPermission));
             
             if (countLocalizationHits)
                 DescriptionManager.NotLocalizedMember += DescriptionManager_NotLocalizedMemeber;
+
+            if (sb.WebServerBuilder != null)
+                TranslationServer.Start(sb.WebServerBuilder.WebApplication);
         }
     }
 
@@ -173,7 +177,7 @@ public static class TranslationLogic
         var appName = rootDir.AfterLast(@"\");
         rootDir = rootDir.BeforeLast(@"\");
 
-        var parentDir = $@"{rootDir}\{appName}\bin\";
+        var parentDir = $@"{rootDir}\{appName}.Server\bin\";
 
         var reactDirs = new DirectoryInfo(parentDir).GetDirectories("Translations", SearchOption.AllDirectories).ToList();
 

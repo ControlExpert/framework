@@ -3,7 +3,7 @@ import NavigatedViewer from "bpmn-js/lib/NavigatedViewer"
 import { DateTime, Duration } from 'luxon'
 import { CaseActivityEntity, CaseNotificationEntity, DoneType, CaseFlowColor } from '../Signum.Workflow'
 import { CustomRenderer } from './CustomRenderer'
-import { CaseFlow, CaseActivityStats, formatDuration } from '../WorkflowClient'
+import { WorkflowClient } from '../WorkflowClient'
 import * as BpmnUtils from './BpmnUtils'
 import { calculatePoint } from "../../Signum.Map/Utils"
 import { getToString } from "@framework/Signum.Entities"
@@ -11,17 +11,17 @@ import { Color, Gradient } from "@framework/Basics/Color"
 import { Rectangle } from "../../Signum.Map/Schema/ClientColorProvider"
 
 export class CaseFlowRenderer extends CustomRenderer {
-  static $inject = ['config.bpmnRenderer', 'eventBus', 'styles', 'pathMap', 'canvas', 'textRenderer'];
+  static $inject: string[] = ['config.bpmnRenderer', 'eventBus', 'styles', 'pathMap', 'canvas', 'textRenderer'];
   constructor(config: any, eventBus: BPMN.EventBus, styles: any, pathMap: any, canvas: any, textRenderer: any, priority: number) {
     super(config, eventBus, styles, pathMap, canvas, textRenderer, 1200);
   }
 
-  caseFlow!: CaseFlow;
+  caseFlow!: WorkflowClient.CaseFlow;
   maxDuration!: number;
   viewer!: NavigatedViewer;
   caseFlowColor?: CaseFlowColor;
 
-  drawConnection(visuals: any, element: BPMN.Connection) {
+  drawConnection(visuals: any, element: BPMN.Connection): SVGElement {
 
     const path = super.drawConnection(visuals, element);
 
@@ -38,13 +38,13 @@ export class CaseFlowRenderer extends CustomRenderer {
     return path;
   }
 
-  gradient = new Gradient([
+  gradient: Gradient = new Gradient([
     { value: 0, color: Color.parse("rgb(117, 202, 112)") },
     { value: 0.5, color: Color.parse("rgb(251, 214, 95)") },
     { value: 1, color: Color.parse("rgb(251, 114, 95)") },
   ]);
 
-  drawShape(visuals: any, element: BPMN.DiElement) {
+  drawShape(visuals: any, element: BPMN.DiElement): SVGElement {
 
     const result = super.drawShape(visuals, element);
 
@@ -171,7 +171,7 @@ function getDoneColor(doneType: DoneType) {
   }
 }
 
-function getTitle(stats: CaseActivityStats) {
+function getTitle(stats: WorkflowClient.CaseActivityStats) {
   let result = `${getToString(stats.workflowActivity)} (${CaseNotificationEntity.nicePluralName()} ${stats.notifications})
 ${CaseActivityEntity.nicePropertyName(a => a.startDate)}: ${DateTime.fromISO(stats.startDate).toFormat("FFF")} (${DateTime.fromISO(stats.startDate).toRelative()})`;
 
@@ -194,8 +194,8 @@ function formatMinutes(minutes: number | undefined) {
   if (minutes == undefined)
     return "";
 
-  return formatDuration(Duration.fromObject({ minutes }).shiftTo("days", "hours", "minutes"));
+  return WorkflowClient.formatDuration(Duration.fromObject({ minutes }).shiftTo("days", "hours", "minutes"));
 }
 
-export const __init__ = ['caseFlowRenderer'];
-export const caseFlowRenderer = ['type', CaseFlowRenderer];
+export const __init__: string[] = ['caseFlowRenderer'];
+export const caseFlowRenderer: (string | typeof CaseFlowRenderer)[] = ['type', CaseFlowRenderer];

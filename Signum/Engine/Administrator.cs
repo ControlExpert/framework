@@ -1,3 +1,4 @@
+using Microsoft.VisualBasic;
 using Signum.CodeGeneration;
 using Signum.Engine.Linq;
 using Signum.Engine.Maps;
@@ -16,9 +17,11 @@ public static class Administrator
 {
     public static Func<bool>? OnTotalGeneration;
 
-    public static void TotalGeneration()
+    public static Func<DatabaseName, bool, bool> DeleteOtherDatabase = (db, interactive) => interactive && SafeConsole.Ask($"Delete {db} as well?");
+
+    public static void TotalGeneration(bool interactive = true)
     {
-        CleanAllDatabases();
+        CleanAllDatabases(interactive);
 
         ExecuteGenerationScript();
     }
@@ -38,14 +41,17 @@ public static class Administrator
         }
     }
 
-    private static void CleanAllDatabases()
+    private static void CleanAllDatabases(bool interactive = true)
     {
         using (Connector.CommandTimeoutScope(TimeoutCreateDatabase))
         {
             foreach (var db in Schema.Current.DatabaseNames())
             {
-                Connector.Current.CleanDatabase(db);
-                SafeConsole.WriteColor(ConsoleColor.DarkGray, '.');
+                if (db == null || Administrator.DeleteOtherDatabase.Invoke(db, interactive))
+                {
+                    Connector.Current.CleanDatabase(db);
+                    SafeConsole.WriteColor(ConsoleColor.DarkGray, '.');
+                }
             }
         }
     }
@@ -204,9 +210,7 @@ public static class Administrator
 
         IColumn[] columns = IndexKeyColumns.Split(view, fields);
 
-        var index = unique ?
-            new UniqueTableIndex(view, columns) :
-            new TableIndex(view, columns);
+        var index = new TableIndex(view, columns) { Unique = unique };
 
         Connector.Current.SqlBuilder.CreateIndex(index, checkUnique: null).ExecuteLeaves();
     }
@@ -632,8 +636,11 @@ public static class Administrator
         });
     }
 
-    public static IDisposable DisableUniqueIndex(UniqueTableIndex index)
+    public static IDisposable DisableUniqueIndex(TableIndex index)
     {
+        if (!index.Unique)
+            throw new InvalidOperationException($"Index {index.IndexName} is not unique");
+
         var sqlBuilder = Connector.Current.SqlBuilder;
         SafeConsole.WriteLineColor(ConsoleColor.DarkMagenta, " DISABLE Unique Index "  + index.IndexName);
         sqlBuilder.DisableIndex(index.Table.Name, index.IndexName).ExecuteLeaves();

@@ -1,8 +1,8 @@
 import * as React from 'react'
 import { OmniboxMessage } from '../Signum.Omnibox/Signum.Omnibox'
-import { OmniboxResult, OmniboxMatch } from '../Signum.Omnibox/OmniboxClient'
+import { OmniboxClient, OmniboxResult, OmniboxMatch } from '../Signum.Omnibox/OmniboxClient'
 import { OmniboxProvider } from '../Signum.Omnibox/OmniboxProvider'
-import * as ChartClient from './ChartClient'
+import { ChartClient } from './ChartClient'
 
 export default class ChartOmniboxProvider extends OmniboxProvider<ChartOmniboxResult>
 {
@@ -10,13 +10,13 @@ export default class ChartOmniboxProvider extends OmniboxProvider<ChartOmniboxRe
     return "ChartOmniboxResult";
   }
 
-  icon() {
+  icon(): React.ReactElement {
     return this.coloredIcon("chart-bar", "violet");
   }
 
-  renderItem(result: ChartOmniboxResult): React.ReactChild[] {
+  renderItem(result: ChartOmniboxResult): React.ReactNode[] {
 
-    const array: React.ReactChild[] = [];
+    const array: React.ReactNode[] = [];
 
     array.push(this.icon());
 
@@ -31,7 +31,7 @@ export default class ChartOmniboxProvider extends OmniboxProvider<ChartOmniboxRe
     return array;
   }
 
-  navigateTo(result: ChartOmniboxResult) {
+  navigateTo(result: ChartOmniboxResult): Promise<string> | undefined {
 
     if (result.queryNameMatch == undefined)
       return undefined;
@@ -41,7 +41,7 @@ export default class ChartOmniboxProvider extends OmniboxProvider<ChartOmniboxRe
     return Promise.resolve(path);
   }
 
-  toString(result: ChartOmniboxResult) {
+  toString(result: ChartOmniboxResult): string {
     if (result.queryNameMatch == undefined)
       return result.keywordMatch.text;
 

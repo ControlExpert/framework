@@ -4,9 +4,9 @@ import { Lite, is, getToString } from '@framework/Signum.Entities'
 import { NavDropdown } from 'react-bootstrap'
 import { useAPI } from '@framework/Hooks';
 import { IsolationEntity, IsolationMessage } from './Signum.Isolation';
-import * as IsolationClient from './IsolationClient';
+import { IsolationClient } from './IsolationClient';
 
-export default function IsolationDropdown(props: {}) {
+export default function IsolationDropdown(props: {}): React.JSX.Element | null {
 
   var isolations = useAPI(signal => IsolationClient.API.isolations(), []);
   function handleSelect(e: React.MouseEvent, c: Lite<IsolationEntity> | undefined) {

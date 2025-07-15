@@ -1,10 +1,10 @@
 import * as React from 'react'
 import * as Services from '@framework/Services'
 import * as AppContext from '@framework/AppContext'
-import * as Navigator from '@framework/Navigator'
+import { Navigator } from '@framework/Navigator'
 import { ModifiableEntity, Lite, Entity, isModifiableEntity, getToString, EntityControlMessage } from '@framework/Signum.Entities'
 import { IFile, FileEntity, FilePathEntity, FileEmbedded, FilePathEmbedded, IFilePath } from '../Signum.Files'
-import { ExtensionInfo, extensionInfo } from '../FilesClient'
+import { FilesClient } from '../FilesClient'
 import { Type } from '@framework/Reflection';
 import "./Files.css"
 import { QueryString } from '@framework/QueryString'
@@ -19,20 +19,20 @@ export interface FileDownloaderProps {
   download?: DownloadBehaviour;
   configuration?: FileDownloaderConfiguration<IFile>;
   htmlAttributes?: React.HTMLAttributes<HTMLSpanElement | HTMLAnchorElement>;
-  children?: React.ReactNode | ((info: ExtensionInfo | undefined) => React.ReactNode)
+  children?: React.ReactNode | ((info: FilesClient.ExtensionInfo | undefined) => React.ReactNode)
   showFileIcon?: boolean;
 }
 
 const units = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
 
-export function getFileName(toStr: string) {
+export function getFileName(toStr: string): string {
   if (units.some(u => toStr.endsWith(" " + u)))
     return toStr.beforeLast(" - ");
 
   return toStr;
 }
 
-export function FileDownloader(p: FileDownloaderProps) {
+export function FileDownloader(p: FileDownloaderProps): React.JSX.Element {
 
   function handleOnClick(e: React.MouseEvent, save: boolean) {
     const entityOrLite = p.entityOrLite;
@@ -69,7 +69,7 @@ export function FileDownloader(p: FileDownloaderProps) {
 
   const fileName = getFileName(toStr); //Hacky
 
-  const info: ExtensionInfo | undefined = extensionInfo[fileName.tryAfterLast(".")?.toLowerCase()!]
+  const info: FilesClient.ExtensionInfo | undefined = FilesClient.extensionInfo[fileName.tryAfterLast(".")?.toLowerCase()!]
 
   function getChildren(){
     return !p.children ? null : (typeof p.children === 'function') ? p.children(info) : p.children
@@ -107,6 +107,12 @@ export function FileDownloader(p: FileDownloaderProps) {
     </div>
   );
 }
+export declare namespace FileDownloader {
+    export var defaultProps: {
+        download: string
+        showFileIcon: boolean
+    }
+}
 
 FileDownloader.defaultProps = {
   download: "ViewOrSave",
@@ -115,7 +121,7 @@ FileDownloader.defaultProps = {
 
 export const configurations: { [typeName: string]: FileDownloaderConfiguration<IFile> } = {};
 
-export function registerConfiguration<T extends IFile & ModifiableEntity>(type: Type<T>, configuration: FileDownloaderConfiguration<T>) {
+export function registerConfiguration<T extends IFile & ModifiableEntity>(type: Type<T>, configuration: FileDownloaderConfiguration<T>): void {
   configurations[type.typeName] = configuration as FileDownloaderConfiguration<IFile>;
 }
 
@@ -155,14 +161,14 @@ export function downloadFile(file: IFilePath & ModifiableEntity): Promise<Respon
   return Services.ajaxGetRaw({ url: fileUrl });
 }
 
-export function downloadUrl(e: React.MouseEvent<any>, url: string) {
+export function downloadUrl(e: React.MouseEvent<any>, url: string): void {
 
   e.preventDefault();
   Services.ajaxGetRaw({ url: url })
     .then(resp => Services.saveFile(resp));
 };
 
-export function viewUrl(e: React.MouseEvent<any>, url: string) {
+export function viewUrl(e: React.MouseEvent<any>, url: string): void {
 
   e.preventDefault();
   const win = window.open();
@@ -189,7 +195,7 @@ function downloadBase64(e: React.MouseEvent<any>, binaryFile: string, fileName: 
 function viewBase64(e: React.MouseEvent<any>, binaryFile: string, fileName: string) {
   e.preventDefault();
 
-  const info = extensionInfo[fileName.tryAfterLast(".")?.toLocaleLowerCase()!];
+  const info = FilesClient.extensionInfo[fileName.tryAfterLast(".")?.toLocaleLowerCase()!];
 
   const blob = Services.b64toBlob(binaryFile, info?.mimeType);
 

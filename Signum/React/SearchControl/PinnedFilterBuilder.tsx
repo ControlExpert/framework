@@ -9,8 +9,7 @@ import "./FilterBuilder.css"
 import { SearchMessage } from '../Signum.Entities';
 import { classes } from '../Globals';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { renderFilterValue } from '../Finder'
-import { Col } from 'react-bootstrap'
+import { Finder } from '../Finder'
 
 interface PinnedFilterBuilderProps {
   filterOptions: FilterOptionParsed[];
@@ -22,13 +21,13 @@ interface PinnedFilterBuilderProps {
   extraSmall?: boolean;
   showGrid?: boolean;
 }
-export default function PinnedFilterBuilder(p: PinnedFilterBuilderProps) {
+export default function PinnedFilterBuilder(p: PinnedFilterBuilderProps): React.JSX.Element | null {
 
   const timeoutWriteText = React.useRef<number | null>(null);
 
   var allPinned = getAllPinned(p.filterOptions).filter(fop => p.pinnedFilterVisible == null || p.pinnedFilterVisible(fop));
 
-  if (allPinned.length == 0)
+  if (allPinned.length == 0 && !p.showGrid)
     return null;
 
   function getColSpan(fo: FilterOptionParsed) {
@@ -123,7 +122,7 @@ export default function PinnedFilterBuilder(p: PinnedFilterBuilderProps) {
 
     const ctx = new TypeContext<any>(undefined, { formGroupStyle: "Basic", readOnly: readOnly, formSize: p.extraSmall ? "xs" : "sm" }, undefined as any, Binding.create(f, a => a.value));
 
-    return renderFilterValue(f, {
+    return Finder.renderFilterValue(f, {
       ctx,
       filterOptions: p.filterOptions,
       label: label,

@@ -1,10 +1,9 @@
 import * as React from 'react'
-import * as Finder from '../Finder'
-import { CellFormatter, EntityFormatter } from '../Finder'
+import { Finder } from '../Finder'
 import { ResultTable, ResultRow, FindOptions, FindOptionsParsed, FilterOptionParsed, FilterOption, QueryDescription, QueryRequest } from '../FindOptions'
 import { Lite, Entity, ModifiableEntity, EntityPack } from '../Signum.Entities'
 import { tryGetTypeInfos, getQueryKey, getTypeInfos, QueryTokenString, getQueryNiceName } from '../Reflection'
-import * as Navigator from '../Navigator'
+import { Navigator, ViewPromise } from '../Navigator'
 import SearchControlLoaded, { OnDrilldownOptions, SearchControlMobileOptions, SearchControlViewMode, ShowBarExtensionOption } from './SearchControlLoaded'
 import { ErrorBoundary } from '../Components';
 import { Property } from 'csstype';
@@ -20,13 +19,13 @@ export interface SimpleFilterBuilderProps {
 
 export interface SearchControlProps {
   findOptions: FindOptions;
-  formatters?: { [token: string]: CellFormatter };
+  formatters?: { [token: string]: Finder.CellFormatter };
   rowAttributes?: (row: ResultRow, columns: string[]) => React.HTMLAttributes<HTMLTableRowElement> | undefined;
-  entityFormatter?: EntityFormatter;
-  selectionFromatter?: (searchControl: SearchControlLoaded, row: ResultRow, rowIndex: number) => React.ReactElement<any> | undefined;
+  entityFormatter?: Finder.EntityFormatter;
+  selectionFromatter?: (searchControl: SearchControlLoaded, row: ResultRow, rowIndex: number) => React.ReactElement | undefined;
 
   extraButtons?: (searchControl: SearchControlLoaded) => (ButtonBarElement | null | undefined | false)[];
-  getViewPromise?: (e: any /*Entity*/) => undefined | string | Navigator.ViewPromise<any /*Entity*/>;
+  getViewPromise?: (e: any /*Entity*/) => undefined | string | ViewPromise<any /*Entity*/>;
   maxResultsHeight?: Property.MaxHeight<string | number> | any;
   tag?: string | {};
   searchOnLoad?: boolean;
@@ -58,7 +57,7 @@ export interface SearchControlProps {
   deps?: React.DependencyList;
   extraOptions?: any;
   enableAutoFocus?: boolean;
-  simpleFilterBuilder?: (sfbc: Finder.SimpleFilterBuilderContext) => React.ReactElement<any> | undefined;
+  simpleFilterBuilder?: (sfbc: Finder.SimpleFilterBuilderContext) => React.ReactElement | undefined;
   onNavigated?: (lite: Lite<Entity>) => void;
   onDoubleClick?: (e: React.MouseEvent<any>, row: ResultRow) => void;
   onSelectionChanged?: (rows: ResultRow[]) => void;
@@ -75,6 +74,7 @@ export interface SearchControlProps {
   mobileOptions?: (fop: FindOptionsParsed) => SearchControlMobileOptions;
   onDrilldown?: (scl: SearchControlLoaded, row: ResultRow, options?: OnDrilldownOptions) => Promise<boolean | undefined>;
   showTitle?: HeaderType;
+  title?: React.ReactElement | string;
 }
 
 export interface SearchControlState {
@@ -98,12 +98,16 @@ export interface SearchControlHandler {
 }
 
 export namespace SearchControlOptions {
-  export let showSelectedButton = (sc: SearchControlHandler) => is_touch_device();
-  export let showSystemTimeButton = (sc: SearchControlHandler) => true;
-  export let showGroupButton = (sc: SearchControlHandler) => true;
+  export let showSelectedButton = (sc: SearchControlHandler, p: SearchControlProps): boolean => (p.showSelectedButton ?? true) && is_touch_device();
+  export let showSystemTimeButton = (sc: SearchControlHandler, p: SearchControlProps): boolean => (p.showSystemTimeButton ?? false);
+  export let showGroupButton = (sc: SearchControlHandler, p: SearchControlProps): boolean => (p.showGroupButton ?? false);
+  export let showFilterButton = (sc: SearchControlHandler, p: SearchControlProps): boolean => (p.showFilterButton ?? true);
+  export let allowChangeColumns = (sc: SearchControlHandler, p: SearchControlProps): boolean => (p.allowChangeColumns ?? true);
+  export let allowOrderColumns = (sc: SearchControlHandler, p: SearchControlProps): boolean => (p.allowChangeOrder ?? true);
+  export let showFooter = (sc: SearchControlHandler, p: SearchControlProps): boolean | undefined => p.showFooter;
 }
 
-const SearchControl = React.forwardRef(function SearchControl(p: SearchControlProps, ref: React.Ref<SearchControlHandler>) {
+const SearchControl: React.ForwardRefExoticComponent<SearchControlProps & React.RefAttributes<SearchControlHandler>> = React.forwardRef(function SearchControl(p: SearchControlProps, ref: React.Ref<SearchControlHandler>) {
 
   const [state, setState] = useStateWithPromise<SearchControlState | undefined>(undefined);
   const searchControlLoaded = React.useRef<SearchControlLoaded>(null);
@@ -198,7 +202,7 @@ const SearchControl = React.forwardRef(function SearchControl(p: SearchControlPr
 
   return (
     <ErrorBoundary>
-      {p.showTitle && <Title type={p.showTitle}>{getQueryNiceName(qd.queryKey)}</Title>}
+      {p.showTitle && <Title type={p.showTitle}>{p.title ?? getQueryNiceName(qd.queryKey)}</Title>}
       <SearchControlLoaded ref={searchControlLoaded}
         findOptions={fop}
         queryDescription={qd}
@@ -218,13 +222,13 @@ const SearchControl = React.forwardRef(function SearchControl(p: SearchControlPr
         pinnedFilterVisible={p.pinnedFilterVisible}
         showFilters={p.showFilters != null ? p.showFilters : false}
         showSimpleFilterBuilder={p.showSimpleFilterBuilder != null ? p.showSimpleFilterBuilder : true}
-        showFilterButton={p.showFilterButton != null ? p.showFilterButton : true}
-        showSystemTimeButton={SearchControlOptions.showSystemTimeButton(handler) && (p.showSystemTimeButton ?? false) && (qs?.allowSystemTime ?? tis.some(a => a.isSystemVersioned == true))}
-        showGroupButton={SearchControlOptions.showGroupButton(handler) && (p.showGroupButton ?? false)}
-        showSelectedButton={SearchControlOptions.showSelectedButton(handler) && (p.showSelectedButton ?? true)}
-        showFooter={p.showFooter}
-        allowChangeColumns={p.allowChangeColumns != null ? p.allowChangeColumns : true}
-        allowChangeOrder={p.allowChangeOrder != null ? p.allowChangeOrder : true}
+        showFilterButton={SearchControlOptions.showFilterButton(handler, p)}
+        showSystemTimeButton={SearchControlOptions.showSystemTimeButton(handler, p) && (qs?.allowSystemTime ?? tis.some(a => a.isSystemVersioned == true))}
+        showGroupButton={SearchControlOptions.showGroupButton(handler, p)}
+        showSelectedButton={SearchControlOptions.showSelectedButton(handler, p)}
+        showFooter={SearchControlOptions.showFooter(handler, p)}
+        allowChangeColumns={SearchControlOptions.allowChangeColumns(handler, p)}
+        allowChangeOrder={SearchControlOptions.allowOrderColumns(handler, p)}
         create={p.create != null ? p.create : (qs?.allowCreate ?? true) && tis.some(ti => Navigator.isCreable(ti, {isSearch: true }))}
         createButtonClass={p.createButtonClass}
 

@@ -1,12 +1,12 @@
 import * as React from 'react'
 import { Dic, classes } from '../Globals'
-import * as Navigator from '../Navigator'
-import * as Constructor from '../Constructor'
-import * as Finder from '../Finder'
+import { Navigator, ViewPromise } from '../Navigator'
+import { Constructor } from '../Constructor'
+import { Finder } from '../Finder'
 import { FindOptions } from '../FindOptions'
 import { TypeContext } from '../TypeContext'
 import { PropertyRoute, tryGetTypeInfos, TypeInfo, IsByAll, TypeReference, getTypeInfo, getTypeInfos, Type } from '../Reflection'
-import { ModifiableEntity, Lite, Entity, EntityControlMessage, toLiteFat, is, entityInfo, SelectorMessage, toLite, parseLiteList, getToString } from '../Signum.Entities'
+import { ModifiableEntity, Lite, Entity, EntityControlMessage, toLiteFat, is, entityInfo, SelectorMessage, toLite, parseLiteList, getToString, isLite } from '../Signum.Entities'
 import { LineBaseController, LineBaseProps } from './LineBase'
 import SelectorModal from '../SelectorModal'
 import { TypeEntity } from "../Signum.Basics";
@@ -14,64 +14,83 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { FindOptionsAutocompleteConfig } from './AutoCompleteConfig'
 import { FilterOption } from '../Search'
 import { toAbsoluteUrl } from '../AppContext'
+import { To } from 'react-router'
 
-export interface EntityBaseProps extends LineBaseProps {
-  view?: boolean | ((item: any/*T*/) => boolean);
+export interface EntityBaseProps<V extends ModifiableEntity | Lite<Entity> | null> extends LineBaseProps<V> {
+  view?: boolean;
   viewOnCreate?: boolean;
   create?: boolean;
   createOnFind?: boolean;
   find?: boolean;
-  remove?: boolean | ((item: any /*T*/) => boolean);
+  remove?: boolean;
   paste?: boolean;
 
-  onView?: (entity: any /*T*/, pr: PropertyRoute) => Promise<ModifiableEntity | undefined> | undefined;
-  onCreate?: (pr: PropertyRoute) => Promise<ModifiableEntity | Lite<Entity> | undefined> | undefined;
-  onFind?: () => Promise<ModifiableEntity | Lite<Entity> | undefined> | undefined;
-  onRemove?: (entity: any /*T*/) => Promise<boolean>;
+  onView?: (entity: NN<V>, pr: PropertyRoute) => Promise<Aprox<V> | undefined> | undefined;
+  onCreate?: (pr: PropertyRoute) => Promise<Aprox<V> | undefined> | undefined;
+  onFind?: () => Promise<Aprox<V> | undefined> | undefined;
+  onRemove?: (entity: NN<V>) => Promise<boolean>;
   findOptions?: FindOptions;
   findOptionsDictionary?: { [typeName: string]: FindOptions };
-  extraButtonsBefore?: (ec: EntityBaseController<EntityBaseProps>) => React.ReactNode;
-  extraButtons?: (ec: EntityBaseController<EntityBaseProps>) => React.ReactNode;
-  liteToString?: (e: any /*T*/) => string;
+  liteToString?: (e: AsEntity<V>) => string;
 
-  getComponent?: (ctx: TypeContext<any /*T*/>) => React.ReactElement<any>;
-  getViewPromise?: (entity: any /*T*/) => undefined | string | Navigator.ViewPromise<ModifiableEntity>;
+  getComponent?: (ctx: TypeContext<AsEntity<V>>) => React.ReactElement;
+  getViewPromise?: (entity: AsEntity<V>) => undefined | string | ViewPromise<ModifiableEntity>;
 
   fatLite?: boolean;
 }
 
-export class EntityBaseController<P extends EntityBaseProps> extends LineBaseController<P>{
+export type NN<T> = NoInfer<NonNullable<T>>;
 
-  static getCreateIcon = () => <FontAwesomeIcon icon="plus" title={EntityControlMessage.Create.niceToString()} />;
-  static getFindIcon = () => <FontAwesomeIcon icon="magnifying-glass" title={EntityControlMessage.Find.niceToString()} />;
-  static getRemoveIcon = () => <FontAwesomeIcon icon="xmark" title={EntityControlMessage.Remove.niceToString()} />;
-  static getViewIcon = () => <FontAwesomeIcon icon="arrow-right" title={EntityControlMessage.View.niceToString()} />;
-  static getMoveIcon = () => <FontAwesomeIcon icon="bars" title={EntityControlMessage.Move.niceToString()} />;
-  static getPasteIcon = () => <FontAwesomeIcon icon="clipboard" title={EntityControlMessage.Paste.niceToString()} />;
+export type Aprox<T> = NoInfer<
+  T extends Entity ? T | Lite<T> :
+  T extends Lite<infer E> ? E | Lite<E> :
+  T extends ModifiableEntity ? T :
+  never>;
 
-  static hasChildrens(element: React.ReactElement<any>) {
+export type AsEntity<T> = NoInfer<
+  T extends ModifiableEntity ? T :
+  T extends Lite<infer E> ? E :
+  never>;
+
+export type AsLite<T> = NoInfer<
+  T extends Entity ? Lite<T> :
+  T extends Lite<infer E> ? T :
+  never>;
+
+export class EntityBaseController<P extends EntityBaseProps<V>, V extends ModifiableEntity | Lite<Entity> | null> extends LineBaseController<P, V>{
+
+  static getCreateIcon = (): React.JSX.Element => <FontAwesomeIcon icon="plus" title={EntityControlMessage.Create.niceToString()} />;
+  static getFindIcon = (): React.JSX.Element => <FontAwesomeIcon icon="magnifying-glass" title={EntityControlMessage.Find.niceToString()} />;
+  static getRemoveIcon = (): React.JSX.Element => <FontAwesomeIcon icon="xmark" title={EntityControlMessage.Remove.niceToString()} />;
+  static getTrashIcon = (): React.JSX.Element => <FontAwesomeIcon icon="trash-can" title={EntityControlMessage.Remove.niceToString()} />;
+  static getViewIcon = (): React.JSX.Element => <FontAwesomeIcon icon="arrow-right" title={EntityControlMessage.View.niceToString()} />;
+  static getMoveIcon = (): React.JSX.Element => <FontAwesomeIcon icon="bars" title={EntityControlMessage.Move.niceToString()} />;
+  static getPasteIcon = (): React.JSX.Element => <FontAwesomeIcon icon="clipboard" title={EntityControlMessage.Paste.niceToString()} />;
+
+  static hasChildrens(element: React.ReactElement): any {
+     
     return element.props.children && React.Children.toArray(element.props.children).length;
   }
 
-  static defaultIsCreable(type: TypeReference, customComponent: boolean) {
+  static defaultIsCreable(type: TypeReference, customComponent: boolean): boolean {
     return type.isEmbedded ? Navigator.isCreable(type.name, { customComponent, isEmbedded: type.isEmbedded }) :
       type.name == IsByAll ? false :
         tryGetTypeInfos(type).some(ti => ti && Navigator.isCreable(ti, { customComponent }));
   }
 
-  static defaultIsViewable(type: TypeReference, customComponent: boolean) {
+  static defaultIsViewable(type: TypeReference, customComponent: boolean): boolean {
     return type.isEmbedded ? Navigator.isViewable(type.name, { customComponent, isEmbedded: type.isEmbedded }) :
       type.name == IsByAll ? true :
         tryGetTypeInfos(type).some(ti => ti && Navigator.isViewable(ti, { customComponent }));
   }
 
-  static defaultIsFindable(type: TypeReference) {
+  static defaultIsFindable(type: TypeReference): boolean {
     return type.isEmbedded ? false :
       type.name == IsByAll ? true :
         tryGetTypeInfos(type).some(ti => ti && Navigator.isFindable(ti));
   }
 
-  static propEquals(prevProps: EntityBaseProps, nextProps: EntityBaseProps): boolean {
+  static propEquals(prevProps: EntityBaseProps<any>, nextProps: EntityBaseProps<any>): boolean {
     if (
       nextProps.getComponent || prevProps.getComponent ||
       nextProps.extraButtons || prevProps.extraButtons ||
@@ -81,7 +100,7 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
     return LineBaseController.propEquals(prevProps, nextProps);
   }
 
-  getDefaultProps(state: P) {
+  getDefaultProps(state: P): void {
     if (state.type) {
       const type = state.type;
 
@@ -96,59 +115,58 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
     }
   }
 
-  convert(entityOrLite: ModifiableEntity | Lite<Entity>): Promise<ModifiableEntity | Lite<Entity>> {
+  async convert(entityOrLite: Aprox<V>): Promise<V> {
 
     const type = this.props.type!;
-
-    const isLite = (entityOrLite as Lite<Entity>).EntityType != undefined;
-    const entityType = (entityOrLite as Lite<Entity>).EntityType ?? (entityOrLite as ModifiableEntity).Type;
+    
+    const entityType = isLite(entityOrLite) ? entityOrLite.EntityType : entityOrLite.Type;
 
     if (type.isEmbedded) {
-      if (entityType != type.name || isLite)
+      if (entityType != type.name || isLite(entityOrLite))
         throw new Error(`Impossible to convert '${entityType}' to '${type.name}'`);
 
-      return Promise.resolve(entityOrLite as ModifiableEntity);
+      return entityOrLite as V;
     }
     else {
       if (type.name != IsByAll && !type.name.split(',').map(a => a.trim()).contains(entityType))
         throw new Error(`Impossible to convert '${entityType}' to '${type.name}'`);
 
-      if (!!isLite == !!type.isLite)
-        return Promise.resolve(entityOrLite);
+      if (!!isLite(entityOrLite) == !!type.isLite)
+        return entityOrLite as V;
 
-      if (isLite) {
+      if (isLite(entityOrLite)) {
         const lite = entityOrLite as Lite<Entity>;
-        return Navigator.API.fetch(lite);
+        return (await Navigator.API.fetch(lite)) as unknown as V;
       }
 
       const entity = entityOrLite as Entity;
       const ti = getTypeInfo(entity.Type);
-      const toStr = this.props.liteToString && this.props.liteToString(entity);
-      const fatLite = this.props.fatLite || this.props.fatLite == null && (ti.entityKind == "Part" || ti.entityKind == "SharedPart");
-      return Promise.resolve(toLite(entity, fatLite, toStr));
+      const toStr = this.props.liteToString && this.props.liteToString(entity as AsEntity<V>);
+      const fatLite = this.props.fatLite || this.props.fatLite == null && (ti.entityKind == "Part" || ti.entityKind == "SharedPart" || entityOrLite.isNew);
+      return toLite(entity, fatLite, toStr) as V;
     }
   }
 
-  doView(entity: ModifiableEntity | Lite<Entity>): Promise<ModifiableEntity | undefined> | undefined {
+  doView(entity: V): Promise<Aprox<V> | undefined> | undefined {
     const pr = this.props.ctx.propertyRoute!;
     return this.props.onView ?
-      this.props.onView(entity, pr) :
-      this.defaultView(entity, pr);
+      this.props.onView(entity!, pr) :
+      this.defaultView(entity!, pr);
   }
 
 
-  defaultView(value: ModifiableEntity | Lite<Entity>, propertyRoute: PropertyRoute): Promise<ModifiableEntity | undefined> {
-    return Navigator.view(value, {
+  defaultView(value: NonNullable<V>, propertyRoute: PropertyRoute): Promise<Aprox<V> | undefined> {
+    return Navigator.view(value!, {
       propertyRoute: propertyRoute,
-      getViewPromise: this.getGetViewPromise(value),
+      getViewPromise: this.getGetViewPromise() as (undefined | ((entity: ModifiableEntity) => undefined | string | ViewPromise<ModifiableEntity>)),
       allowExchangeEntity: false,
-    });
+    }) as Promise<Aprox<V> | undefined>;
   }
 
-  getGetViewPromise(value: ModifiableEntity | Lite<Entity>): undefined | ((entity: ModifiableEntity) => undefined | string | Navigator.ViewPromise<ModifiableEntity>) {
+  getGetViewPromise(): undefined | ((entity: AsEntity<V>) => undefined | string | ViewPromise<AsEntity<V>>) {
     var getComponent = this.props.getComponent;
     if (getComponent)
-      return e => Navigator.ViewPromise.resolve(getComponent!);
+      return e => ViewPromise.resolve(getComponent!);
 
     var getViewPromise = this.props.getViewPromise;
     if (getViewPromise)
@@ -157,12 +175,12 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
     return undefined;
   }
 
-  handleViewClick = (event: React.MouseEvent<any>) => {
+  handleViewClick = async (event: React.MouseEvent<any>): Promise<void> => {
 
     event.preventDefault();
 
     const ctx = this.props.ctx;
-    const entity = ctx.value;
+    const entity = ctx.value as V;
 
     const openWindow = (event.button == 1 || event.ctrlKey) && !this.props.type!.isEmbedded;
     if (openWindow) {
@@ -171,26 +189,23 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
       window.open(toAbsoluteUrl(route));
     }
     else {
-      const promise = this.doView(entity);
+      const e = await this.doView(entity);
 
-      if (!promise)
+      if (!e)
         return;
 
-      promise.then(e => {
-        if (e == undefined)
-          return;
+      //Modifying the sub entity, saving and coming back should change the entity in the UI (ToString, or EntityDetails),
+      //the parent entity is not really modified, but I'm not sure it his is a real problem in practice, till then the line is commented out
+      //if (e.modified || !is(e, entity)) 
+      // return;
 
-        //Modifying the sub entity, saving and coming back should change the entity in the UI (ToString, or EntityDetails), 
-        //the parent entity is not really modified, but I'm not sure it his is a real problem in practice, till then the line is commented out
-        //if (e.modified || !is(e, entity)) 
-        this.convert(e).then(m => this.setValue(m, event));
-      });
+      this.setValue(await this.convert(e), event);
     }
   }
 
-  renderViewButton(btn: boolean, item: ModifiableEntity | Lite<Entity>) {
+  renderViewButton(btn: boolean): React.JSX.Element | undefined {
 
-    if (!this.canView(item))
+    if (!this.props.view)
       return undefined;
 
     return (
@@ -202,14 +217,13 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
     );
   }
 
-  chooseType(predicate: (ti: TypeInfo) => boolean): Promise<string | undefined> {
-    const t = this.props.type!;
+  static chooseType(t: TypeReference, predicate: (ti: TypeInfo) => boolean): Promise<string | undefined> {
 
     if (t.isEmbedded)
       return Promise.resolve(t.name);
 
     if (t.name == IsByAll)
-      return Finder.find(TypeEntity, { title: SelectorMessage.PleaseSelectAType.niceToString() }).then(t => getToString(t) /*CleanName*/);
+      return Finder.find(TypeEntity, { title: SelectorMessage.PleaseSelectAType.niceToString() }).then(t => t && getToString(t) /*CleanName*/);
 
     const tis = tryGetTypeInfos(t).notNull().filter(ti => predicate(ti));
 
@@ -217,58 +231,57 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
       .then(ti => ti ? ti.name : undefined);
   }
 
-  getFindOptions(typeName: string) {
+  getFindOptions(typeName: string): FindOptions | undefined {
     if (this.props.findOptionsDictionary)
       return this.props.findOptionsDictionary[typeName];
 
     return this.props.findOptions;
   }
 
-  defaultCreate(pr: PropertyRoute): Promise<ModifiableEntity | Lite<Entity> | undefined> {
+  async defaultCreate(pr: PropertyRoute): Promise<Aprox<V> | undefined> {
 
-    return this.chooseType(t => this.props.create /*Hack?*/ || Navigator.isCreable(t, { customComponent: !!this.props.getComponent || !!this.props.getViewPromise, isEmbedded: pr.member!.type.isEmbedded }))
-      .then(typeName => {
-        if (!typeName)
-          return Promise.resolve(undefined);
+    var typeName = await EntityBaseController.chooseType(this.props.type!, t => this.props.create /*Hack?*/ || Navigator.isCreable(t, { customComponent: !!this.props.getComponent || !!this.props.getViewPromise, isEmbedded: pr.member!.type.isEmbedded }));
 
-        var fo = this.getFindOptions(typeName);
+    if (typeName == null)
+      return undefined;
 
-        return Finder.getPropsFromFindOptions(typeName, fo)
-          .then(props => Constructor.construct(typeName, props, pr));
-      });
+    var fo = this.getFindOptions(typeName);
+
+    var props = await Finder.getPropsFromFindOptions(typeName, fo);
+
+    var result = (await Constructor.construct(typeName, props, pr));
+    
+    return result as Aprox<V>;
   }
 
-  handleCreateClick = (event: React.SyntheticEvent<any>) => {
+  handleCreateClick = async (event: React.SyntheticEvent<any>): Promise<void> => {
 
     event.preventDefault();
 
     var pr = this.props.ctx.propertyRoute!;
-    const promise = this.props.onCreate ?
-      this.props.onCreate(pr) : this.defaultCreate(pr);
+    const e = this.props.onCreate ? await this.props.onCreate(pr) :
+      await this.defaultCreate(pr);
 
-    if (!promise)
+    if (!e)
       return;
 
-    promise.then<ModifiableEntity | Lite<Entity> | undefined>(e => {
+    if (!this.props.viewOnCreate) {
+      var value = await this.convert(e);
+      this.setValue(value);
 
-      if (e == undefined)
-        return undefined;
+    } else {
+      var conv = await this.convert(e);
+      var v = await this.doView(conv);
+      if (v != null) {
+        var value = await this.convert(v);
+        this.setValue(value);
 
-      if (!this.props.viewOnCreate)
-        return Promise.resolve(e);
+      }
+    }
+  }
 
-      return this.doView(e);
+  async paste(text: string): Promise<void> {
 
-    }).then(e => {
-
-      if (!e)
-        return;
-
-      this.convert(e).then(m => this.setValue(m, event));
-    });
-  };
-
-  paste(text: string) {
     var lites = parseLiteList(text);
     if (lites.length == 0)
       return;
@@ -279,33 +292,32 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
       return;
 
     tis = lites.map(lite => lite.EntityType).distinctBy().map(tn => getTypeInfo(tn));
-    return SelectorModal.chooseType(tis)
-      .then(ti => {
-        if (!ti)
-          return;
+    var ti = await SelectorModal.chooseType(tis);
 
-        lites = lites.filter(lite => lite.EntityType == ti.name);
-        return Navigator.API.fillLiteModels(...lites)
-          .then(() => SelectorModal.chooseLite(ti.name, lites));
-      })
-      .then(lite => {
-        if (!lite)
-          return;
+    if (!ti)
+      return;
 
-        const typeName = lite.EntityType;
-        const fo = this.getFindOptions(typeName) ?? { queryName: typeName };
-        const fos = (fo.filterOptions ?? []).concat([{ token: "Entity", operation: "EqualTo", value: lite }]);
-        return Finder.fetchLites({ queryName: typeName, filterOptions: fos })
-          .then(lites => {
-            if (lites.length == 0)
-              return;
+    lites = lites.filter(lite => lite.EntityType == ti!.name);
 
-            return this.convert(lites[0]).then(m => this.setValue(m));
-          });
-      });
+    await Navigator.API.fillLiteModels(...lites);
+
+    var lite = await SelectorModal.chooseLite(ti.name, lites);
+    if (!lite)
+      return;
+
+    const typeName = lite.EntityType;
+    const fo = this.getFindOptions(typeName) ?? { queryName: typeName };
+    const fos = (fo.filterOptions ?? []).concat([{ token: "Entity", operation: "EqualTo", value: lite }]);
+    var lites = await Finder.fetchLites({ queryName: typeName, filterOptions: fos });
+    if (lites.length == 0)
+      return;
+
+
+    var value = await this.convert(lites.single() as Aprox<V>);
+    this.setValue(value);
   }
 
-  handlePasteClick = (event: React.SyntheticEvent<any>) => {
+  handlePasteClick = (event: React.SyntheticEvent<any>): void => {
 
     event.preventDefault();
 
@@ -313,7 +325,7 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
       .then(text => this.paste(text));
   }
 
-  renderCreateButton(btn: boolean, createMessage?: string) {
+  renderCreateButton(btn: boolean, createMessage?: string): React.JSX.Element | undefined {
     if (!this.props.create || this.props.ctx.readOnly)
       return undefined;
 
@@ -326,7 +338,7 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
     );
   }
 
-  renderPasteButton(btn: boolean) {
+  renderPasteButton(btn: boolean): React.JSX.Element | undefined {
     if (!this.props.paste || this.props.ctx.readOnly)
       return undefined;
 
@@ -346,41 +358,44 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
     } as any;
   }
 
-  defaultFind(): Promise<ModifiableEntity | Lite<Entity> | undefined> {
+  async defaultFind(): Promise<Aprox<V> | undefined> {
 
     if (this.props.findOptions) {
-      return Finder.find(this.props.findOptions, { searchControlProps: { create: this.props.createOnFind } });
+      var lite = await Finder.find(this.props.findOptions, { searchControlProps: { create: this.props.createOnFind } });
+
+      return lite as Aprox<V> | undefined;
+
+    } else {
+
+      var typeName = await EntityBaseController.chooseType(this.props.type!, ti => Finder.isFindable(ti, false));
+
+      if (typeName == null)
+        return undefined;
+
+      var fo: FindOptions = (this.props.findOptionsDictionary && this.props.findOptionsDictionary[typeName]) ?? Navigator.defaultFindOptions({ name: typeName }) ?? { queryName: typeName };
+
+      var lite = await Finder.find(fo, { searchControlProps: { create: this.props.createOnFind } });
+
+      return lite as Aprox<V> | undefined;
     }
-
-    return this.chooseType(ti => Finder.isFindable(ti, false))
-      .then<ModifiableEntity | Lite<Entity> | undefined>(typeName => {
-        if (typeName == null)
-          return undefined;
-
-        var fo: FindOptions = (this.props.findOptionsDictionary && this.props.findOptionsDictionary[typeName]) ?? Navigator.defaultFindOptions({ name: typeName }) ?? { queryName: typeName };
-
-        return Finder.find(fo, { searchControlProps: { create: this.props.createOnFind } })
-      });
+  
   }
 
-  handleFindClick = (event: React.SyntheticEvent<any>) => {
+  handleFindClick = async (event: React.SyntheticEvent<any>): Promise<void> => {
 
     event.preventDefault();
 
-    const promise = this.props.onFind ? this.props.onFind() : this.defaultFind();
+    const lite = this.props.onFind ?
+      await this.props.onFind() :
+      await this.defaultFind();
 
-    if (!promise)
-      return;
+    if (lite != null) {
+      var value = await this.convert(lite);
+      this.setValue(value);
+    }
+  }
 
-    promise.then(entity => {
-      if (!entity)
-        return;
-
-      this.convert(entity).then(e => this.setValue(e, event));
-    });
-  };
-
-  renderFindButton(btn: boolean) {
+  renderFindButton(btn: boolean): React.JSX.Element | undefined {
     if (!this.props.find || this.props.ctx.readOnly)
       return undefined;
 
@@ -393,21 +408,21 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
     );
   }
 
-  handleRemoveClick = (event: React.SyntheticEvent<any>) => {
+  handleRemoveClick = (event: React.SyntheticEvent<any>): void => {
 
     event.preventDefault();
 
-    (this.props.onRemove ? this.props.onRemove(this.props.ctx.value) : Promise.resolve(true))
+    (this.props.onRemove ? this.props.onRemove(this.props.ctx.value!) : Promise.resolve(true))
       .then(result => {
         if (result == false)
           return;
 
-        this.setValue(null, event);
+        this.setValue(null!, event);
       });
   };
 
-  renderRemoveButton(btn: boolean, item: ModifiableEntity | Lite<Entity>) {
-    if (!this.canRemove(item) || this.props.ctx.readOnly)
+  renderRemoveButton(btn: boolean): React.JSX.Element | undefined {
+    if (!this.props.remove || this.props.ctx.readOnly)
       return undefined;
 
     return (
@@ -417,31 +432,5 @@ export class EntityBaseController<P extends EntityBaseProps> extends LineBaseCon
         {EntityBaseController.getRemoveIcon()}
       </a>
     );
-  }
-
-  canRemove(item: ModifiableEntity | Lite<Entity>): boolean | undefined {
-
-    const remove = this.props.remove;
-
-    if (remove == undefined)
-      return undefined;
-
-    if (typeof remove === "function")
-      return remove(item);
-
-    return remove;
-  }
-
-  canView(item: ModifiableEntity | Lite<Entity>): boolean | undefined {
-
-    const view = this.props.view;
-
-    if (view == undefined)
-      return undefined;
-
-    if (typeof view === "function")
-      return view(item);
-
-    return view;
   }
 }

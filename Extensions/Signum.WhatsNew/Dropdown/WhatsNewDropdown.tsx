@@ -1,24 +1,23 @@
 import * as React from 'react'
-import * as Operations from '@framework/Operations'
+import { Operations } from '@framework/Operations'
 import { useRootClose } from '@restart/ui'
-import * as Finder from '@framework/Finder'
+import { Finder } from '@framework/Finder'
 import { is, JavascriptMessage, toLite } from '@framework/Signum.Entities'
 import { Toast, Button, ButtonGroup } from 'react-bootstrap'
 import { DateTime } from 'luxon'
 import { useAPI, useAPIWithReload, useForceUpdate, useUpdatedRef } from '@framework/Hooks';
-import * as Navigator from '@framework/Navigator'
+import { Navigator } from '@framework/Navigator'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import * as WhatsNewClient from '../WhatsNewClient'
+import { WhatsNewClient } from '../WhatsNewClient'
 import "./WhatsNewDropdown.css"
 import { Link } from 'react-router-dom';
 import { classes, Dic } from '@framework/Globals'
 import MessageModal from '@framework/Modals/MessageModal'
 import { WhatsNewEntity, WhatsNewLogEntity, WhatsNewMessage, WhatsNewOperation, WhatsNewState } from '../Signum.WhatsNew'
 import * as AppContext from "@framework/AppContext"
-import { API, NumWhatsNews, WhatsNewFull, WhatsNewShort } from '../WhatsNewClient'
 import { HtmlViewer } from '../Templates/WhatsNewHtmlEditor'
 
-export default function WhatsNewDropdown() {
+export default function WhatsNewDropdown(): React.JSX.Element | null {
 
   if (!Navigator.isViewable(WhatsNewEntity))
     return null;
@@ -48,7 +47,7 @@ function WhatsNewDropdownImp() {
 
   Navigator.useEntityChanged(WhatsNewLogEntity, () => reloadCount(), []);
 
-  const [whatsNew, setNews] = React.useState<WhatsNewShort[] | undefined>(undefined);
+  const [whatsNew, setNews] = React.useState<WhatsNewClient.WhatsNewShort[] | undefined>(undefined);
 
   function handleOnToggle() {
 
@@ -65,7 +64,7 @@ function WhatsNewDropdownImp() {
     AppContext.navigate("/news/");
   }
 
-  function handleOnCloseNews(toRemove: WhatsNewShort[]) {
+  function handleOnCloseNews(toRemove: WhatsNewClient.WhatsNewShort[]) {
 
     //Optimistic
     let wasClosed = false;
@@ -80,7 +79,7 @@ function WhatsNewDropdownImp() {
       countResult.numWhatsNews -= 1;
     forceUpdate();
 
-    API.setNewsLogRead(toRemove.map(r => r.whatsNew)).then(res => {
+    WhatsNewClient.API.setNewsLogRead(toRemove.map(r => r.whatsNew)).then(res => {
 
       // Pesimistic
       WhatsNewClient.API.myNews()
@@ -143,7 +142,7 @@ function WhatsNewDropdownImp() {
   );
 }
 
-export function WhatsNewToast(p: { whatsnew: WhatsNewShort, onClose: (e: WhatsNewShort[]) => void, refresh: () => void, className?: string; setIsOpen: (isOpen: boolean) => void })
+export function WhatsNewToast(p: { whatsnew: WhatsNewClient.WhatsNewShort, onClose: (e: WhatsNewClient.WhatsNewShort[]) => void, refresh: () => void, className?: string; setIsOpen: (isOpen: boolean) => void }): React.JSX.Element
 {
   //ignoring open tags other than img
   function HTMLSubstring(text: string) {
@@ -186,6 +185,12 @@ export function WhatsNewToast(p: { whatsnew: WhatsNewShort, onClose: (e: WhatsNe
       </Toast.Body>
     </Toast>
   );
+}
+
+export declare namespace WhatsNewToast {
+    export var icons: {
+        [alertTypeKey: string]: React.ReactNode
+    }
 }
 
 WhatsNewToast.icons = {} as { [alertTypeKey: string]: React.ReactNode };

@@ -3,8 +3,7 @@ import { openModal, IModalProps } from '@framework/Modals';
 import { FrameMessage, Lite } from '@framework/Signum.Entities'
 import { getTypeInfo } from '@framework/Reflection'
 import { TreeEntity } from './Signum.Tree'
-import * as TreeClient from './TreeClient'
-import { TreeNode } from './TreeClient'
+import { TreeClient, TreeNode, TreeOptions } from './TreeClient'
 import { TreeViewer } from './TreeViewer'
 import { FilterOption } from "@framework/FindOptions";
 import { Modal } from 'react-bootstrap';
@@ -12,12 +11,11 @@ import { ModalHeaderButtons } from '@framework/Components/ModalHeaderButtons';
 import { useForceUpdate } from '@framework/Hooks'
 
 interface TreeModalProps extends  IModalProps<TreeNode | undefined> {
-  typeName: string;
-  filterOptions: FilterOption[];
+  treeOptions: TreeOptions;
   title?: React.ReactNode;
 }
 
-export default function TreeModal(p : TreeModalProps){
+function TreeModal(p : TreeModalProps): React.JSX.Element {
   const forceUpdate = useForceUpdate();
 
   const [show, setShow] = React.useState(true);
@@ -59,7 +57,7 @@ export default function TreeModal(p : TreeModalProps){
   return (
     <Modal size="lg" onHide={handleCancelClicked} show={show} onExited={handleOnExited}>
       <ModalHeaderButtons onClose={handleCancelClicked}>
-        <span className="sf-entity-title"> {p.title ?? getTypeInfo(p.typeName).nicePluralName}</span>
+        <span className="sf-entity-title"> {p.title ?? getTypeInfo(p.treeOptions.typeName).nicePluralName}</span>
         &nbsp;
         <a className="sf-popup-fullscreen" href="#" title={FrameMessage.Fullscreen.niceToString()} onClick={(e) => treeViewRef.current
           && treeViewRef.current.handleFullScreenClick(e)}>
@@ -69,9 +67,8 @@ export default function TreeModal(p : TreeModalProps){
 
       <div className="modal-body">
         <TreeViewer
-          filterOptions={p.filterOptions}
+          treeOptions={p.treeOptions}
           avoidChangeUrl={true}
-          typeName={p.typeName}
           onSelectedNode={handleSelectedNode}
           onDoubleClick={handleDoubleClick}
           ref={treeViewRef}
@@ -81,14 +78,17 @@ export default function TreeModal(p : TreeModalProps){
   );
 }
 
-TreeModal.open = (typeName: string, filterOptions: FilterOption[], options ?: TreeClient.TreeModalOptions): Promise < Lite<TreeEntity> | undefined > => {
-  return openModal<TreeNode>(<TreeModal
-    filterOptions={filterOptions}
-    typeName={typeName}
-    title={options?.title}
-  />)
-    .then(tn => tn?.lite);
+namespace TreeMap {
+  export function open(treeOptions: TreeOptions, options?: TreeClient.TreeModalOptions): Promise<Lite<TreeEntity> | undefined> {
+    return openModal<TreeNode>(<TreeModal
+      treeOptions={treeOptions}
+      title={options?.title}
+    />)
+      .then(tn => tn?.lite);
+  }
 }
+
+export default TreeMap;
 
 
 

@@ -23,7 +23,7 @@ public abstract class JsonConverterWithExisting<T> : JsonConverter<T>, IJsonConv
 
 public class MListJsonConverterFactory : JsonConverterFactory
 {
-    readonly Action<PropertyRoute, ModifiableEntity?> AsserCanWrite;
+    protected readonly Action<PropertyRoute, ModifiableEntity?> AsserCanWrite;
 
     public MListJsonConverterFactory(Action<PropertyRoute, ModifiableEntity?> asserCanWrite)
     {
@@ -43,9 +43,19 @@ public class MListJsonConverterFactory : JsonConverterFactory
 
 public class MListJsonConverter<T> : JsonConverterWithExisting<MList<T>>
 {
-    readonly Action<PropertyRoute, ModifiableEntity?> AsserCanWrite;
+    protected readonly Action<PropertyRoute, ModifiableEntity?> AsserCanWrite;
 
-    readonly JsonConverter<T> converter;
+    protected virtual bool IsAllowedToAddNewValue(T newValue)
+    {
+        return true;
+    }
+
+    protected virtual object? OnGetRowIdValue(ref Utf8JsonReader reader)
+    {
+        return reader.GetLiteralValue();
+    }
+
+    protected readonly JsonConverter<T> converter;
     public MListJsonConverter(JsonSerializerOptions options, Action<PropertyRoute, ModifiableEntity?> asserCanWrite)
     {
         this.converter = (JsonConverter<T>)options.GetConverter(typeof(T));
@@ -106,7 +116,7 @@ public class MListJsonConverter<T> : JsonConverterWithExisting<MList<T>>
                 throw new JsonException($"member 'rowId' expected in {reader.CurrentState}");
 
             reader.Read();
-            var rowIdValue = reader.GetLiteralValue();
+            var rowIdValue = OnGetRowIdValue(ref reader);
 
             reader.Read();
             reader.Assert(JsonTokenType.PropertyName);
@@ -129,7 +139,8 @@ public class MListJsonConverter<T> : JsonConverterWithExisting<MList<T>>
                         {
                             T newValue = (T)converter.Read(ref reader, typeof(T), options)!;
 
-                            newList.Add(new MList<T>.RowIdElement(newValue, rowId, null));
+                            if (IsAllowedToAddNewValue(newValue))
+                                newList.Add(new MList<T>.RowIdElement(newValue, rowId, null));
                         }
                         else
                         {
@@ -137,10 +148,13 @@ public class MListJsonConverter<T> : JsonConverterWithExisting<MList<T>>
                                 (T)jcwe.Read(ref reader, typeof(T), options, oldValue.Value.Element!, null)! :
                                 (T)converter.Read(ref reader, typeof(T), options)!;
 
-                            if (oldValue.Value.Element!.Equals(newValue))
-                                newList.Add(new MList<T>.RowIdElement(newValue, rowId, oldValue.Value.OldIndex));
-                            else
-                                newList.Add(new MList<T>.RowIdElement(newValue));
+                            if (IsAllowedToAddNewValue(newValue))
+                            {
+                                if (oldValue.Value.Element!.Equals(newValue))
+                                    newList.Add(new MList<T>.RowIdElement(newValue, rowId, oldValue.Value.OldIndex));
+                                else
+                                    newList.Add(new MList<T>.RowIdElement(newValue));
+                            }
                         }
                     }
                 }
@@ -149,7 +163,9 @@ public class MListJsonConverter<T> : JsonConverterWithExisting<MList<T>>
                     using (EntityJsonContext.SetCurrentPropertyRouteAndEntity((elementPr, tup.mod, null)))
                     {
                         var newValue = (T)converter.Read(ref reader, typeof(T), options)!;
-                        newList.Add(new MList<T>.RowIdElement(newValue));
+
+                        if (IsAllowedToAddNewValue(newValue))
+                            newList.Add(new MList<T>.RowIdElement(newValue));
                     }
                 }
             }
@@ -184,7 +200,7 @@ public class MListJsonConverter<T> : JsonConverterWithExisting<MList<T>>
         return (MList<T>)existingMList;
     }
 
-    private static Type GetRowIdTypeFromAttribute(PropertyRoute route)
+    protected static Type GetRowIdTypeFromAttribute(PropertyRoute route)
     {
         var settings = Schema.Current.Settings;
         var att = settings.FieldAttribute<PrimaryKeyAttribute>(route) ??
@@ -194,7 +210,7 @@ public class MListJsonConverter<T> : JsonConverterWithExisting<MList<T>>
         return att.Type;
     }
 
-    private static bool GetPreserveOrderFromAttribute(PropertyRoute route)
+    protected static bool GetPreserveOrderFromAttribute(PropertyRoute route)
     {
         var att = Schema.Current.Settings.FieldAttribute<PreserveOrderAttribute>(route);
 

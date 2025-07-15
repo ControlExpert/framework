@@ -1,21 +1,21 @@
 import * as React from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { LoginAuthMessage, UserEntity } from '../Signum.Authorization'
-import * as AuthClient from '../AuthClient'
+import { AuthClient } from '../AuthClient'
 import { LinkContainer } from '@framework/Components';
 import { Dropdown, NavItem, NavDropdown, Nav } from 'react-bootstrap';
 import { Lite, toLite, is } from '@framework/Signum.Entities';
-import * as CultureClient from '@framework/Basics/CultureClient'
+import { CultureClient } from '@framework/Basics/CultureClient'
 import { SmallProfilePhoto } from '../Templates/ProfilePhoto';
 
 
-export default function LoginDropdown(p: {
-  renderName?: (u: UserEntity) => React.ReactChild;
+function LoginDropdown(p: {
+  renderName?: (u: UserEntity) => React.ReactElement | string | null;
   changePasswordVisible?: boolean;
   switchUserVisible?: boolean;
   profileVisible?: boolean;
-  extraMenuItems?: (user: UserEntity) => React.ReactNode;
-}) {
+  extraMenuItems?: (user: UserEntity) => React.ReactNode | undefined | null;
+}): React.JSX.Element {
 
   const currentCulture = CultureClient.currentCulture;
   const user = AuthClient.currentUser();
@@ -34,9 +34,9 @@ export default function LoginDropdown(p: {
 
   function handleProfileClick() {
     import("@framework/Navigator")
-      .then(Navigator =>
-        Navigator.API.fetchEntityPack(toLite(user))
-          .then(pack => Navigator.view(pack))
+      .then(file =>
+        file.Navigator.API.fetchEntityPack(toLite(user))
+          .then(pack => file.Navigator.view(pack))
           .then(u => u && AuthClient.API.fetchCurrentUser(true).then(nu => AuthClient.setCurrentUser(u))));
   }
 
@@ -56,11 +56,11 @@ export default function LoginDropdown(p: {
   );
 }
 
-LoginDropdown.customLoginIcon = (user: UserEntity | null | undefined) =>
-  user ? <SmallProfilePhoto user={toLite(user)} /> :
-    <FontAwesomeIcon icon="user" className="me-1" />;
+namespace LoginDropdown {
+  export function customLoginIcon(user: UserEntity | null | undefined): React.JSX.Element {
+    return user ? <SmallProfilePhoto user={toLite(user)} /> :
+      <FontAwesomeIcon icon="user" className="me-1" />;
+  }
+}
 
-
-
-
-
+export default LoginDropdown;

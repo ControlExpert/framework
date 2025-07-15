@@ -18,7 +18,7 @@ import { EmailMessageFormat, EmailTemplateEntity, EmailTemplateFromEmbedded, Ema
 import { QueryOrderEmbedded } from '../../Signum.UserAssets/Signum.UserAssets.Queries'
 import { ValidationMessage } from '../../../Signum/React/Signum.Entities.Validation'
 
-export default function EmailTemplate(p: { ctx: TypeContext<EmailTemplateEntity> }) {
+export default function EmailTemplate(p: { ctx: TypeContext<EmailTemplateEntity> }): React.JSX.Element {
   const forceUpdate = useForceUpdate();
   const ec = p.ctx.subCtx({ labelColumns: { sm: 2 } });
   const ctx = p.ctx;
@@ -81,7 +81,7 @@ export default function EmailTemplate(p: { ctx: TypeContext<EmailTemplateEntity>
               <FilterBuilderEmbedded ctx={ctx.subCtx(e => e.filters)} onChanged={forceUpdate}
                 subTokenOptions={SubTokensOptions.CanAnyAll | SubTokensOptions.CanElement | canAggregate}
                 queryKey={ctx.value.query!.key} />
-              <EntityTable ctx={ctx.subCtx(e => e.orders)} onChange={forceUpdate} columns={EntityTable.typedColumns<QueryOrderEmbedded>([
+              <EntityTable ctx={ctx.subCtx(e => e.orders)} onChange={forceUpdate} columns={[
                 {
                   property: a => a.token,
                   template: ctx => <QueryTokenEmbeddedBuilder
@@ -90,7 +90,7 @@ export default function EmailTemplate(p: { ctx: TypeContext<EmailTemplateEntity>
                     subTokenOptions={SubTokensOptions.CanElement | canAggregate} />
                 },
                 { property: a => a.orderType }
-              ])} />
+              ]} />
             </Tab>
             }
             <Tab eventKey="applicable" title={
@@ -98,7 +98,7 @@ export default function EmailTemplate(p: { ctx: TypeContext<EmailTemplateEntity>
                 {ctx.niceName(a => a.applicable)}
               </span>}>
               <EntityDetail ctx={ctx3.subCtx(e => e.applicable)} onChange={forceUpdate}
-                getComponent={(ec2: TypeContext<TemplateApplicableEval>) => <TemplateApplicable ctx={ec2} query={ctx.value.query!} />} />
+                getComponent={ec2 => <TemplateApplicable ctx={ec2} query={ctx.value.query!} />} />
             </Tab>
             
           </Tabs>
@@ -114,8 +114,8 @@ export default function EmailTemplate(p: { ctx: TypeContext<EmailTemplateEntity>
         </div>
         <EntityLine ctx={ec.subCtx(e => e.masterTemplate, { labelColumns: 2 })} />
         <div className="sf-email-replacements-container">
-          <EntityTabRepeater ctx={ec.subCtx(a => a.messages)} onChange={() => forceUpdate()} getComponent={(ctx: TypeContext<EmailTemplateMessageEmbedded>) =>
-            <EmailTemplateMessageComponent ctx={ctx} queryKey={ec.value.query?.key} messageFormat={ec.value.messageFormat} invalidate={() => forceUpdate()} />} />
+          <EntityTabRepeater ctx={ec.subCtx(a => a.messages)} onChange={() => forceUpdate()} getComponent={ctxMsg =>
+            <EmailTemplateMessageComponent ctx={ctxMsg} queryKey={ec.value.query?.key} messageFormat={ec.value.messageFormat} invalidate={() => forceUpdate()} />} />
         </div>
       </div>
     </div>
@@ -232,7 +232,7 @@ export interface EmailTemplateMessageComponentProps {
   invalidate: () => void;
 }
 
-export function EmailTemplateMessageComponent(p: EmailTemplateMessageComponentProps) {
+export function EmailTemplateMessageComponent(p: EmailTemplateMessageComponentProps): React.JSX.Element {
   const forceUpdate = useForceUpdate();
   const [showPreview, setShowPreview] = React.useState(false);
   const showPreviewRef = useUpdatedRef(showPreview);

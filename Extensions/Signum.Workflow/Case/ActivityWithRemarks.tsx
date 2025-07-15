@@ -4,9 +4,9 @@ import { classes } from '@framework/Globals'
 import { getToString, Lite } from '@framework/Signum.Entities'
 import { CaseActivityMessage, CaseNotificationEntity, CaseNotificationOperation, CaseActivityEntity, WorkflowActivityEntity, CaseTagTypeEntity, CaseEntity } from '../Signum.Workflow'
 import { FindOptions } from '@framework/Search'
-import * as Finder from '@framework/Finder'
+import { Finder } from '@framework/Finder'
 import * as AppContext from '@framework/AppContext'
-import * as Operations from '@framework/Operations'
+import { Operations } from '@framework/Operations'
 import AutoLineModal from '@framework/AutoLineModal'
 import { AlertEntity } from '../../Signum.Alerts/Signum.Alerts'
 import InlineCaseTags from './InlineCaseTags'
@@ -37,7 +37,7 @@ function useStateFromProps<T>(propsValue: T): [T, (newValue: T) => void] {
   return [val, setVal];
 }
 
-export default function ActivityWithRemarksComponent(p: ActivityWithRemarksProps) {
+export default function ActivityWithRemarksComponent(p: ActivityWithRemarksProps): React.JSX.Element {
 
   const [remarks, setRemarks] = useStateFromProps(p.data.remarks);
   const [alerts, setAlerts] = useStateFromProps(p.data.alerts);

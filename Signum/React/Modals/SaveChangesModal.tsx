@@ -9,7 +9,7 @@ import { BsSize } from '../Components';
 import { Modal } from 'react-bootstrap';
 import { getTypeInfo, OperationInfo, tryGetTypeInfo, TypeInfo } from '../Reflection';
 import { ButtonsContext, EntityFrame } from '../TypeContext';
-import { EntityOperationContext, operationInfos } from '../Operations';
+import { Operations, EntityOperationContext } from '../Operations';
 import { PropertyRoute } from '../Lines';
 import { OperationButton } from '../Operations/EntityOperations';
 
@@ -19,7 +19,7 @@ interface SaveChangesModalProps extends IModalProps<SaveChangesResult | undefine
   eocs: EntityOperationContext<any>[];
 }
 
-export default function SaveChangesModal(p: SaveChangesModalProps) {
+function SaveChangesModal(p: SaveChangesModalProps): React.JSX.Element {
 
   const [show, setShow] = React.useState(true);
 
@@ -71,7 +71,12 @@ export default function SaveChangesModal(p: SaveChangesModalProps) {
   );
 }
 
-SaveChangesModal.show = (options: SaveChangesModalProps): Promise<SaveChangesResult | undefined> => {
-  return openModal(<SaveChangesModal {...options} />);
+namespace SaveChangesModal {
+  export function show(options: SaveChangesModalProps): Promise<SaveChangesResult | undefined> {
+    return openModal(<SaveChangesModal {...options} />);
+  }
 }
+
+export default SaveChangesModal; 
+
 

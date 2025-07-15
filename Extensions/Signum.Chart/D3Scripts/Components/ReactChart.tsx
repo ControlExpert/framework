@@ -1,26 +1,25 @@
 import * as React from 'react'
-import * as ChartClient from '../../ChartClient'
 import { classes } from '@framework/Globals';
-import { ChartRow } from '../../ChartClient';
+import { ChartClient, ChartRow, ChartScriptProps, ChartTable } from '../../ChartClient';
 import { useThrottle, useSize, areEqualDeps } from '@framework/Hooks';
 import { ChartRequestModel } from '../../Signum.Chart';
 import { DashboardFilter } from '../../../Signum.Dashboard/View/DashboardFilterController';
 
 export interface ReactChartProps {
   chartRequest: ChartRequestModel,
-  data?: ChartClient.ChartTable;
+  data?: ChartTable;
   parameters: { [parameter: string]: string }; 
   loading: boolean;
   onReload: (() => void) | undefined;
   onDrillDown: (row: ChartRow, e: React.MouseEvent | MouseEvent) => void;
   onBackgroundClick?: (e: React.MouseEvent) => void;
-  onRenderChart: (data: ChartClient.ChartScriptProps) => React.ReactNode;
+  onRenderChart: (data: ChartScriptProps) => React.ReactNode;
   dashboardFilter?: DashboardFilter;
   minHeight: number | null;
 }
 
 
-export default function ReactChart(p: ReactChartProps) {
+function ReactChart(p: ReactChartProps): React.JSX.Element {
 
   const isSimple = p.data == null || p.data.rows.length < ReactChart.maxRowsForAnimation;
   const oldData = useThrottle(p.data, 200, { enabled: isSimple });
@@ -51,8 +50,11 @@ export default function ReactChart(p: ReactChartProps) {
   );
 }
 
-ReactChart.maxRowsForAnimation = 500;
+namespace ReactChart {
+   export let maxRowsForAnimation = 500;
+}
 
+export default ReactChart;
 
 export class MemoRepository {
   cache: Map<string, { val: unknown, deps: unknown[] }> = new Map();

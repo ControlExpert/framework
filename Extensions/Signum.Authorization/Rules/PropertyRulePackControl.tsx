@@ -1,24 +1,24 @@
 import * as React from 'react'
 import { Button } from 'react-bootstrap';
 import { PropertyRouteEntity } from '@framework/Signum.Basics';
-import { notifySuccess } from '@framework/Operations'
+import { Operations } from '@framework/Operations'
 import { TypeContext, ButtonsContext, IRenderButtons } from '@framework/TypeContext'
 import { EntityLine, AutoLine } from '@framework/Lines'
-import { API } from '../AuthAdminClient'
+import { AuthAdminClient } from '../AuthAdminClient'
 import { PropertyRulePack, PropertyAllowedRule, PropertyAllowed, AuthAdminMessage } from './Signum.Authorization.Rules'
 import { ColorRadio, GrayCheckbox } from './ColoredRadios'
 import "./AuthAdmin.css"
 import { useForceUpdate } from '@framework/Hooks';
 
-export default React.forwardRef(function PropertyRulesPackControl({ ctx }: { ctx: TypeContext<PropertyRulePack> }, ref: React.Ref<IRenderButtons>) {
+export default function PropertyRulesPackControl({ ctx, innerRef }: { ctx: TypeContext<PropertyRulePack>, innerRef?: React.Ref<IRenderButtons> }): React.JSX.Element {
 
   function handleSaveClick(bc: ButtonsContext) {
     let pack = ctx.value;
 
-    API.savePropertyRulePack(pack)
-      .then(() => API.fetchPropertyRulePack(pack.type.cleanName!, pack.role.id!))
+    AuthAdminClient.API.savePropertyRulePack(pack)
+      .then(() => AuthAdminClient.API.fetchPropertyRulePack(pack.type.cleanName!, pack.role.id!))
       .then(newPack => {
-        notifySuccess();
+        Operations.notifySuccess();
         bc.frame.onReload({ entity: newPack, canExecute: {} });
       });
   }
@@ -29,7 +29,7 @@ export default React.forwardRef(function PropertyRulesPackControl({ ctx }: { ctx
     ];
   }
 
-  React.useImperativeHandle(ref, () => ({ renderButtons }), [ctx.value]);
+  React.useImperativeHandle(innerRef, () => ({ renderButtons }), [ctx.value]);
   const forceUpdate = useForceUpdate();
 
   function handleHeaderClick(e: React.MouseEvent<HTMLAnchorElement>, hc: PropertyAllowed) {
@@ -116,4 +116,4 @@ export default React.forwardRef(function PropertyRulesPackControl({ ctx }: { ctx
       onClicked={a => { c.allowed = allowed; c.modified = true; forceUpdate() }}
     />;
   }
-});
+}

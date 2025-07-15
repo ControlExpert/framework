@@ -4,10 +4,10 @@ import { EntityLine, TypeContext, FormGroup, TextAreaLine } from '@framework/Lin
 import { Entity, JavascriptMessage, SaveChangesMessage } from '@framework/Signum.Entities'
 import { Binding, PropertyRoute, ReadonlyBinding } from '@framework/Reflection'
 import JavascriptCodeMirror from '../../Signum.CodeMirror/JavascriptCodeMirror'
-import * as DynamicViewClient from '../DynamicViewClient'
-import * as Navigator from '@framework/Navigator'
+import { DynamicViewClient } from '../DynamicViewClient'
+import { Navigator, ViewPromise } from '@framework/Navigator'
 import { ViewReplacer } from '@framework/Frames/ReactVisitor';
-import * as TypeHelpClient from '../../Signum.Eval/TypeHelp/TypeHelpClient'
+import { TypeHelpClient } from '../../Signum.Eval/TypeHelp/TypeHelpClient'
 import TypeHelpComponent from '../../Signum.Eval/TypeHelp/TypeHelpComponent'
 import TypeHelpButtonBarComponent from '../../Signum.Eval/TypeHelp/TypeHelpButtonBarComponent'
 import AutoLineModal from '@framework/AutoLineModal'
@@ -24,7 +24,7 @@ interface DynamicViewOverrideComponentProps {
   ctx: TypeContext<DynamicViewOverrideEntity>;
 }
 
-export default function DynamicViewOverrideComponent(p: DynamicViewOverrideComponentProps) {
+export default function DynamicViewOverrideComponent(p: DynamicViewOverrideComponentProps): React.JSX.Element {
 
   const typeName: string | null = p.ctx.value.entityType?.cleanName;
   const typeHelp = useAPI(() => typeName ? TypeHelpClient.API.typeHelp(typeName, "CSharp") : Promise.resolve(undefined), [typeName]);
@@ -34,7 +34,7 @@ export default function DynamicViewOverrideComponent(p: DynamicViewOverrideCompo
 
   const forceUpdate = useForceUpdate();
 
-  const exampleEntityRef = React.useRef<Entity | undefined>(undefined);
+  const exampleEntityRef = React.useRef<Entity | null>(null);
   const componentTypeRef = React.useRef<React.ComponentType<{ ctx: TypeContext<Entity> }> | null>(null);
   function setComponentType(ct: React.ComponentType<{ ctx: TypeContext<Entity> }> | null) {
     componentTypeRef.current = ct;
@@ -127,7 +127,7 @@ export default function DynamicViewOverrideComponent(p: DynamicViewOverrideCompo
   }
 
   function renderExampleEntity(typeName: string) {
-    const exampleCtx = new TypeContext<Entity | undefined>(undefined, undefined, PropertyRoute.root(typeName), Binding.create(exampleEntityRef, s => s.current));
+    const exampleCtx = new TypeContext<Entity | null>(undefined, undefined, PropertyRoute.root(typeName), Binding.create(exampleEntityRef, s => s.current));
 
     return (
       <div className="code-container">
@@ -300,7 +300,7 @@ interface RenderWithReplacementsProps {
   viewOverride?: (vr: ViewReplacer<Entity>) => void;
 }
 
-export function RenderWithReplacements(p: RenderWithReplacementsProps) {
+export function RenderWithReplacements(p: RenderWithReplacementsProps): React.JSX.Element {
 
   const originalRenderRef = React.useRef<Function | undefined>(undefined);
 
@@ -323,7 +323,7 @@ export function RenderWithReplacements(p: RenderWithReplacementsProps) {
       return p.componentType;
     }
     else
-      return Navigator.surroundFunctionComponent((p.componentType as React.FunctionComponent<{ ctx: TypeContext<Entity> }>), [{ override: vo }]);
+      return ViewPromise.surroundFunctionComponent((p.componentType as React.FunctionComponent<{ ctx: TypeContext<Entity> }>), [{ override: vo }]);
   }
 
   var frame = { refreshCount: 0 } as EntityFrame;

@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { openModal, IModalProps } from '../Modals';
-import * as Finder from '../Finder';
+import { Finder } from '../Finder';
 import { FindOptions, FindMode, ResultRow, ModalFindOptions, ModalFindOptionsMany, FindOptionsParsed } from '../FindOptions'
 import { getQueryNiceName, PseudoType, QueryKey, getTypeInfo } from '../Reflection'
 import SearchControl, { SearchControlProps, SearchControlHandler } from './SearchControl'
@@ -28,7 +28,7 @@ interface SearchModalProps extends IModalProps<{ rows: ResultRow[], searchContro
   onOKClicked?: (sc: SearchControlLoaded) => Promise<boolean>;
 }
 
-function SearchModal(p: SearchModalProps) {
+function SearchModal(p: SearchModalProps): React.JSX.Element {
 
   const [show, setShow] = React.useState(true);
 
@@ -215,7 +215,7 @@ namespace SearchModal {
 
 export default SearchModal;
 
-export function defaultSelectMessage(queryName: PseudoType | QueryKey, plural: boolean, forProperty?: string) {
+export function defaultSelectMessage(queryName: PseudoType | QueryKey, plural: boolean, forProperty?: string): string {
 
   var type = queryName instanceof QueryKey ? null : getTypeInfo(queryName);
 

@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { OmniboxResult, OmniboxMatch } from '../Signum.Omnibox/OmniboxClient'
+import { OmniboxClient, OmniboxResult, OmniboxMatch } from '../Signum.Omnibox/OmniboxClient'
 import { OmniboxProvider } from '../Signum.Omnibox/OmniboxProvider'
 
 
@@ -9,13 +9,13 @@ export default class TreeOmniboxProvider extends OmniboxProvider<TreeOmniboxResu
     return "TreeOmniboxResult";
   }
 
-  icon() {
+  icon(): React.ReactElement {
     return this.coloredIcon("sitemap", "gold");
   }
 
-  renderItem(result: TreeOmniboxResult): React.ReactChild[] {
+  renderItem(result: TreeOmniboxResult): React.ReactElement[] {
 
-    var array: React.ReactChild[] = [];
+    var array: React.ReactElement[] = [];
 
     array.push(this.icon());
 
@@ -24,11 +24,11 @@ export default class TreeOmniboxProvider extends OmniboxProvider<TreeOmniboxResu
     return array;
   }
 
-  navigateTo(result: TreeOmniboxResult) {
+  navigateTo(result: TreeOmniboxResult) : Promise<string> {
     return Promise.resolve("/tree/" + result.type);
   }
 
-  toString(result: TreeOmniboxResult) {
+  toString(result: TreeOmniboxResult) : string {
     return result.typeMatch.text;
   }
 }

@@ -1,8 +1,8 @@
 import * as React from 'react'
 import { Dic, classes } from '@framework/Globals'
-import * as Constructor from '@framework/Constructor'
-import * as Finder from '@framework/Finder'
-import * as Navigator from '@framework/Navigator'
+import { Constructor } from '@framework/Constructor'
+import { Finder } from '@framework/Finder'
+import { Navigator } from '@framework/Navigator'
 import { AutoLine, EntityLine, TypeContext } from '@framework/Lines'
 import { ModifiableEntity, Entity, Lite, JavascriptMessage } from '@framework/Signum.Entities'
 import { getTypeInfo, Binding, PropertyRoute } from '@framework/Reflection'
@@ -14,7 +14,7 @@ interface DynamicSqlMigrationComponentProps {
   ctx: TypeContext<DynamicSqlMigrationEntity>;
 }
 
-export default function DynamicSqlMigrationComponent(p : DynamicSqlMigrationComponentProps){
+export default function DynamicSqlMigrationComponent(p : DynamicSqlMigrationComponentProps): React.JSX.Element {
   function handleScriptChange(newScript: string) {
     const ctxValue = p.ctx.value;
     ctxValue.script = newScript;

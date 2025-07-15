@@ -434,6 +434,7 @@ public class OperationInfoTS
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public bool? CanBeNew;
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public bool? CanBeModified;
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public bool? ForReadonlyEntity;
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public bool? ResultIsSaved;
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public bool? HasCanExecute;
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public bool? HasCanExecuteExpression;
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public bool? HasStates;
@@ -445,6 +446,7 @@ public class OperationInfoTS
     {
         this.CanBeNew = oper.CanBeNew;
         this.ForReadonlyEntity = oper.ForReadonlyEntity;
+        this.ResultIsSaved = oper.ResultIsSaved;
         this.CanBeModified = oper.CanBeModified;
         this.HasCanExecute = oper.HasCanExecute;
         this.HasCanExecuteExpression = oper.HasCanExecuteExpression;
@@ -517,16 +519,16 @@ public class TypeReferenceTS
         {
             case TypeCode.Boolean: return "boolean";
             case TypeCode.Char: return "string";
-            case TypeCode.SByte:
-            case TypeCode.Byte:
-            case TypeCode.Int16:
-            case TypeCode.UInt16:
-            case TypeCode.Int32:
-            case TypeCode.UInt32:
-            case TypeCode.Int64:
-            case TypeCode.UInt64: return "number";
-            case TypeCode.Single:
-            case TypeCode.Double:
+            case TypeCode.SByte: return "sbyte";
+            case TypeCode.Byte: return "byte";
+            case TypeCode.Int16: return "short";
+            case TypeCode.UInt16: return "ushort";
+            case TypeCode.Int32: return "int";
+            case TypeCode.UInt32: return "uint";
+            case TypeCode.Int64: return "long";
+            case TypeCode.UInt64: return "ulong";
+            case TypeCode.Single: return "float";
+            case TypeCode.Double: return "double";
             case TypeCode.Decimal: return "decimal";
             case TypeCode.String: return "string";
         }

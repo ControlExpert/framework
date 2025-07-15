@@ -1,9 +1,9 @@
 import * as React from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import * as Navigator from '@framework/Navigator'
+import { Navigator } from '@framework/Navigator'
 import { mlistItemContext, TypeContext } from '@framework/TypeContext'
 import { getTypeInfo } from '@framework/Reflection'
-import { API } from './UserAssetClient'
+import { UserAssetClient } from './UserAssetClient'
 import { UserAssetMessage, UserAssetPreviewModel, EntityAction, LiteConflictEmbedded } from './Signum.UserAssets'
 import { useForceUpdate } from '@framework/Hooks'
 import { useTitle } from '@framework/AppContext'
@@ -13,9 +13,9 @@ import { getToString, is, liteKey, liteKeyLong, MList } from '@framework/Signum.
 import SelectorModal from '@framework/SelectorModal'
 import MessageModal from '@framework/Modals/MessageModal'
 
-export default function ImportAssetsPage() {
+export default function ImportAssetsPage(): React.JSX.Element {
 
-  const [file, setFile] = React.useState<API.FileUpload | undefined>(undefined);
+  const [file, setFile] = React.useState<UserAssetClient.API.FileUpload | undefined>(undefined);
   const [model, setModel] = React.useState<UserAssetPreviewModel | undefined>(undefined);
   const [success, setSuccess] = React.useState<boolean | undefined>(undefined);
   const [fileVer, setFileVer] = React.useState<number>(0);
@@ -34,11 +34,11 @@ export default function ImportAssetsPage() {
         let content = ((e.target as any).result as string).after("base64,");
         let fileName = f.name;
 
-        var file: API.FileUpload = { content, fileName };
+        var file: UserAssetClient.API.FileUpload = { content, fileName };
         setFile(file);
         setFileVer(fileVer + 1);
 
-        API.importPreview(file!).then(model => { setModel(model); setSuccess(false); });
+        UserAssetClient.API.importPreview(file!).then(model => { setModel(model); setSuccess(false); });
       };
       fileReader.readAsDataURL(f);
     }
@@ -56,7 +56,7 @@ export default function ImportAssetsPage() {
   function renderModel() {
 
     function handleImport() {
-      API.importAssets({
+      UserAssetClient.API.importAssets({
         file: file!,
         model: model!
       })
@@ -98,6 +98,7 @@ export default function ImportAssetsPage() {
             <tr>
               <th> {UserAssetPreviewModel.nicePropertyName(a => a.lines![0].element.type)} </th>
               <th> {UserAssetPreviewModel.nicePropertyName(a => a.lines![0].element.text)} </th>
+              <th> {UserAssetPreviewModel.nicePropertyName(a => a.lines![0].element.entityType)} </th>
               <th> {UserAssetPreviewModel.nicePropertyName(a => a.lines![0].element.action)} </th>
               <th> {UserAssetPreviewModel.nicePropertyName(a => a.lines![0].element.overrideEntity)} </th>
               <th> {UserAssetPreviewModel.nicePropertyName(a => a.lines![0].element.customResolution)} </th>
@@ -115,6 +116,7 @@ export default function ImportAssetsPage() {
                     <tr key={ea.type!.cleanName}>
                       <td> {getTypeInfo(ea.type!.cleanName).niceName} </td>
                       <td> {ea.text}</td>
+                      <td> {ea.entityType? getTypeInfo(ea.entityType!.cleanName)?.niceName:""}</td>
                       <td> {EntityAction.niceToString(ea.action!)} </td>
                       <td>
                         {ea.action == "Different" &&
@@ -141,7 +143,7 @@ export default function ImportAssetsPage() {
                       <td colSpan={4}>
                         {UserAssetMessage.LooksLikeSomeEntitiesIn0DoNotExistsOrHaveADifferentMeaningInThisDatabase.niceToString().formatHtml(<strong>{ea.text}</strong>)}
                         <EntityTable avoidFieldSet ctx={mlec.subCtx(a => a.liteConflicts)} create={false} remove={false} move={false}
-                          columns={EntityTable.typedColumns<LiteConflictEmbedded>([
+                          columns={[
                             { property: a => a.propertyRoute, template: ctx => <code>{ctx.value.propertyRoute}</code> },
                             { property: a => a.from, template: ctx => <code>{liteKeyLong(ctx.value.from)}</code> },
                             {
@@ -150,7 +152,7 @@ export default function ImportAssetsPage() {
                                 onChange={e =>  handleChangeConflict(ctx.value)}
                                 />
                             }
-                          ])}
+                          ]}
                         />
                       </td>
                     </tr>}

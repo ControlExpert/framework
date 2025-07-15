@@ -1,6 +1,6 @@
 import * as AppContext from './AppContext';
 import * as React from 'react'
-import { useStateWithPromise} from './Hooks';
+import { useStateWithPromise, useUpdatedRef} from './Hooks';
 import { useLocation } from 'react-router';
 
 declare global {
@@ -25,37 +25,39 @@ let current: GlobalModalContainerHandles;
   
 const modalInstances: (React.Component & IHandleKeyboard)[] = [];
 
-export function isStarted() {
+export function isStarted(): boolean {
   return current != null;
 }
 
 
 interface GlobalModalContainerHandles {
-  pushModal(element: React.ReactElement<any>) : Promise<any>;
-  popModal(element: React.ReactElement<any>): Promise<any>;
+  pushModal(element: React.ReactElement) : Promise<any>;
+  popModal(element: React.ReactElement): Promise<any>;
   getCount(): number;
 }
 
-export function GlobalModalContainer() {
+export function GlobalModalContainer(): React.DetailedReactHTMLElement<{
+    className: string;
+}, HTMLElement> {
   React.useEffect(() => {
     window.addEventListener("keydown", hanldleKeyDown);
     return () => window.removeEventListener("keydown", hanldleKeyDown);
   }, []);
 
-  var [modals, setModals] = useStateWithPromise<React.ReactElement<IModalProps<any>>[]>([]);
-
+  const [modals, setModals] = useStateWithPromise<React.ReactElement<IModalProps<any>>[]>([]);
+  const modalsLengthRef = useUpdatedRef(modals.length);
   const location = useLocation();
 
   React.useEffect(() => { setModals([]); }, [location]);
 
   React.useEffect(() => {
     current = {
-      pushModal: e => setModals([...modals, e]),
-      popModal: e => setModals(modals.filter(a=>a != e)),
-      getCount: () => modals.length
+      pushModal: e => setModals(ms => [...ms, e]),
+      popModal: e => setModals(ms => ms.filter(a => a != e)),
+      getCount: () => modalsLengthRef.current
     };
     return () => { current = null!; };
-  }, [modals.length]);
+  }, []);
 
   function hanldleKeyDown(e: KeyboardEvent){
     if (modalInstances.length) {
@@ -68,9 +70,7 @@ export function GlobalModalContainer() {
     }
   }
 
-  React.useEffect(() => {
-    setModals([]);
-  }, [location.pathname])
+
 
   return React.createElement("div", { className: "sf-modal-container" }, ...modals);
 }
@@ -110,13 +110,13 @@ export class FunctionalAdapter extends React.Component<FunctionalAdapterProps> {
       throw new Error("Not a valid react element: " + only);
 
     if (isForwardRef(only.type)) {
-      return React.cloneElement(only, { ref: (a: any) => { this.innerRef = a; } } as any);
+      return React.cloneElement(only, { ref: (a: any) => { this.innerRef = a; } } as any);//TODO: while forwardRef exists
     }
 
-    return this.props.children;
+    return React.cloneElement(only, { innerRef: (a: any) => { this.innerRef = a; } } as any); //TODO: To avoid having to use forward Ref until is removed
   }
 
-  static withRef(element: React.ReactElement<any>, ref: React.Ref<React.Component>) {
+  static withRef(element: React.ReactElement, ref: React.Ref<React.Component>): React.JSX.Element {
     var type = element.type as React.ComponentClass | React.FunctionComponent | string;
     if (typeof type == "string" || type.prototype?.render) {
       return React.cloneElement(element, { ref: ref });
@@ -125,7 +125,7 @@ export class FunctionalAdapter extends React.Component<FunctionalAdapterProps> {
     }
   }
 
-  static isInstanceOf(component: React.Component | null | undefined, type: React.ComponentType) {
+  static isInstanceOf(component: React.Component | null | undefined, type: React.ComponentType): boolean {
 
     if (component instanceof type)
       return true;
@@ -138,7 +138,7 @@ export class FunctionalAdapter extends React.Component<FunctionalAdapterProps> {
     return false
   }
 
-  static innerRef(component: React.Component | null | undefined) {
+  static innerRef(component: React.Component | null | undefined): any {
 
     if (component instanceof FunctionalAdapter) {
       return component.innerRef;

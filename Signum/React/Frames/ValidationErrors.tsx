@@ -9,7 +9,8 @@ export interface ValidationErrorsHandle {
   forceUpdate() : void; 
 }
 
-export const ValidationErrors = React.forwardRef(function ValidationErrors(p: { entity: ModifiableEntity, prefix: string }, ref: React.Ref<ValidationErrorsHandle>) {
+export const ValidationErrors: React.ForwardRefExoticComponent<{ entity: ModifiableEntity; prefix: string; } & React.RefAttributes<ValidationErrorsHandle>>
+  = React.forwardRef(function ValidationErrors(p: { entity: ModifiableEntity, prefix: string }, ref: React.Ref<ValidationErrorsHandle>) {
 
   const forceUpdate = useForceUpdate();
 
@@ -35,11 +36,24 @@ export const ValidationErrors = React.forwardRef(function ValidationErrors(p: { 
   function handleOnClick(key: string) {
 
     var result = document.querySelector(`[data-error-path='${key}']`);
-    if (result != null) {
+    if (result != null && result.checkVisibility()) {
       result.scrollIntoView();
       var input = result.querySelector("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])");
       if (input)
         (input as HTMLInputElement).focus();
+    } else {
+      var subKey = key.tryBeforeLast(".");
+      while (subKey) {
+        var container = document.querySelector(`[data-error-container='${subKey}']`);
+        if (container) {
+          (container as HTMLElement).dispatchEvent(new Event("openError"));
+          setTimeout(() => handleOnClick(key), 200);
+
+          return;
+        }
+
+        subKey = subKey.tryBeforeLast(".");
+      }
     }
   }
 });

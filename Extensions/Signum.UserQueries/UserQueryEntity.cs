@@ -1,7 +1,9 @@
 using Signum.Dashboard;
+using Signum.DynamicQuery;
 using Signum.UserAssets;
 using Signum.UserAssets.Queries;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Xml.Linq;
 
 namespace Signum.UserQueries;
@@ -58,6 +60,8 @@ public class UserQueryEntity : Entity, IUserAssetEntity, IHasEntityType
     [NumberIsValidator(ComparisonType.GreaterThanOrEqualTo, 1)]
     public int? ElementsPerPage { get; set; }
 
+    public SystemTimeEmbedded? SystemTime { get; set; }
+
     [PreserveOrder, NoRepeatValidator]
     [ImplementedBy(typeof(UserQueryEntity))]
     public MList<Lite<Entity>> CustomDrilldowns { get; set; } = new MList<Lite<Entity>>();
@@ -88,15 +92,18 @@ public class UserQueryEntity : Entity, IUserAssetEntity, IHasEntityType
         }
     }
 
+
+
     internal void ParseData(QueryDescription description)
     {
         var canAggregate = this.GroupResults ? SubTokensOptions.CanAggregate : 0;
+        var canTimeSeries = this.SystemTime?.Mode == SystemTimeMode.TimeSeries ? SubTokensOptions.CanTimeSeries : 0;
 
         foreach (var f in Filters)
-            f.ParseData(this, description, SubTokensOptions.CanAnyAll | SubTokensOptions.CanElement | canAggregate);
+            f.ParseData(this, description, SubTokensOptions.CanAnyAll | SubTokensOptions.CanElement | canAggregate | canTimeSeries);
 
         foreach (var c in Columns)
-            c.ParseData(this, description, SubTokensOptions.CanElement | SubTokensOptions.CanSnippet | SubTokensOptions.CanToArray | (canAggregate != 0 ? canAggregate : SubTokensOptions.CanOperation | SubTokensOptions.CanManual));
+            c.ParseData(this, description, SubTokensOptions.CanElement | SubTokensOptions.CanSnippet | SubTokensOptions.CanToArray | (canAggregate != 0 ? canAggregate : SubTokensOptions.CanOperation | SubTokensOptions.CanManual) | canTimeSeries);
 
         foreach (var o in Orders)
             o.ParseData(this, description, SubTokensOptions.CanElement | SubTokensOptions.CanSnippet | canAggregate);
@@ -108,20 +115,21 @@ public class UserQueryEntity : Entity, IUserAssetEntity, IHasEntityType
             new XAttribute("Guid", Guid),
             new XAttribute("DisplayName", DisplayName),
             new XAttribute("Query", Query.Key),
-            EntityType == null ? null! : new XAttribute("EntityType", ctx.RetrieveLite(EntityType).CleanName),
-            Owner == null ? null! : new XAttribute("Owner", Owner.KeyLong()),
-            !HideQuickLink ? null! : new XAttribute("HideQuickLink", HideQuickLink),
-            IncludeDefaultFilters == null ? null! : new XAttribute("IncludeDefaultFilters", IncludeDefaultFilters.Value),
-            !AppendFilters ? null! : new XAttribute("AppendFilters", AppendFilters),
-            RefreshMode == RefreshMode.Auto ? null! : new XAttribute("RefreshMode", RefreshMode.ToString()),
-            !GroupResults ? null! : new XAttribute("GroupResults", GroupResults),
-            ElementsPerPage == null ? null! : new XAttribute("ElementsPerPage", ElementsPerPage),
-            PaginationMode == null ? null! : new XAttribute("PaginationMode", PaginationMode),
+            EntityType == null ? null : new XAttribute("EntityType", ctx.RetrieveLite(EntityType).CleanName),
+            Owner == null ? null : new XAttribute("Owner", Owner.KeyLong()),
+            !HideQuickLink ? null : new XAttribute("HideQuickLink", HideQuickLink),
+            IncludeDefaultFilters == null ? null : new XAttribute("IncludeDefaultFilters", IncludeDefaultFilters.Value),
+            !AppendFilters ? null : new XAttribute("AppendFilters", AppendFilters),
+            RefreshMode == RefreshMode.Auto ? null : new XAttribute("RefreshMode", RefreshMode.ToString()),
+            !GroupResults ? null : new XAttribute("GroupResults", GroupResults),
+            ElementsPerPage == null ? null : new XAttribute("ElementsPerPage", ElementsPerPage),
+            PaginationMode == null ? null : new XAttribute("PaginationMode", PaginationMode),
             new XAttribute("ColumnsMode", ColumnsMode),
-            Filters.IsNullOrEmpty() ? null! : new XElement("Filters", Filters.Select(f => f.ToXml(ctx)).ToList()),
-            Columns.IsNullOrEmpty() ? null! : new XElement("Columns", Columns.Select(c => c.ToXml(ctx)).ToList()),
-            Orders.IsNullOrEmpty() ? null! : new XElement("Orders", Orders.Select(o => o.ToXml(ctx)).ToList()),
-            CustomDrilldowns.IsNullOrEmpty() ? null! : new XElement("CustomDrilldowns", CustomDrilldowns.Select(d => new XElement("CustomDrilldown", ctx.Include((Lite<IUserAssetEntity>)d))).ToList()));
+            Filters.IsNullOrEmpty() ? null : new XElement("Filters", Filters.Select(f => f.ToXml(ctx)).ToList()),
+            Columns.IsNullOrEmpty() ? null : new XElement("Columns", Columns.Select(c => c.ToXml(ctx)).ToList()),
+            Orders.IsNullOrEmpty() ? null : new XElement("Orders", Orders.Select(o => o.ToXml(ctx)).ToList()),
+            SystemTime?.ToXml(),
+            CustomDrilldowns.IsNullOrEmpty() ? null : new XElement("CustomDrilldowns", CustomDrilldowns.Select(d => new XElement("CustomDrilldown", ctx.Include((Lite<IUserAssetEntity>)d))).ToList()));
     }
 
     public void FromXml(XElement element, IFromXmlContext ctx)
@@ -142,7 +150,7 @@ public class UserQueryEntity : Entity, IUserAssetEntity, IHasEntityType
         Columns.Synchronize(element.Element("Columns")?.Elements().ToList(), (c, x) => c.FromXml(x, ctx));
         Orders.Synchronize(element.Element("Orders")?.Elements().ToList(), (o, x) => o.FromXml(x, ctx));
         CustomDrilldowns.Synchronize((element.Element("CustomDrilldowns")?.Elements("CustomDrilldown")).EmptyIfNull().Select(x => (Lite<Entity>)ctx.GetEntity(Guid.Parse(x.Value)).ToLiteFat()).NotNull().ToMList());
-
+        SystemTime = element.Element("SystemTime")?.Let(xml => (SystemTime ?? new SystemTimeEmbedded()).FromXml(xml));
         ParseData(ctx.GetQueryDescription(Query));
     }
 
@@ -155,6 +163,89 @@ public class UserQueryEntity : Entity, IUserAssetEntity, IHasEntityType
             case Signum.DynamicQuery.PaginationMode.Paginate: return new Pagination.Paginate(ElementsPerPage!.Value, 1);
             default: return null;
         }
+    }
+}
+
+public class SystemTimeEmbedded : EmbeddedEntity
+{
+    public SystemTimeMode Mode { get; set; }
+
+    [StringLengthValidator(Max = 100)]
+    public string? StartDate { get; set; }
+
+    [StringLengthValidator(Max = 100)]
+    public string? EndDate { get; set; }
+
+    public SystemTimeJoinMode? JoinMode { get; set; }
+
+    public TimeSeriesUnit? TimeSeriesUnit { get; set; }
+
+    [NumberIsValidator(ComparisonType.GreaterThan, 0)]
+    public int? TimeSeriesStep { get; set; }
+
+    [NumberIsValidator(ComparisonType.GreaterThan, 0)]
+    public int? TimeSeriesMaxRowsPerStep { get; set; }
+
+    protected override string? PropertyValidation(PropertyInfo pi)
+    {
+        return stateValidator.Validate(this, pi) ??  base.PropertyValidation(pi);
+    }
+
+    static StateValidator<SystemTimeEmbedded, SystemTimeMode> stateValidator = new StateValidator<SystemTimeEmbedded, SystemTimeMode>
+        (a => a.Mode, a => a.StartDate, a => a.EndDate, a => a.JoinMode, a => a.TimeSeriesUnit, a => a.TimeSeriesStep, a => a.TimeSeriesMaxRowsPerStep)
+    {
+ { SystemTimeMode.AsOf,       true,          false,            false,          false,                false,                false  },
+ { SystemTimeMode.Between,    true,          true,             true,           false,                false,                false  },
+ { SystemTimeMode.ContainedIn,true,          true,             true,           false,                false,                false  },
+ { SystemTimeMode.All,        false,         false,            true,           false,                false,                false  },
+ { SystemTimeMode.TimeSeries,  true,          true,             false,          true,                 true,                 true  },
+
+
+    };
+
+    internal SystemTimeEmbedded? FromXml(XElement xml)
+    {
+        Mode = xml.Attribute("Mode")!.Value.ToEnum<SystemTimeMode>();
+        StartDate = xml.Attribute("StartDate")?.Value;
+        EndDate = xml.Attribute("EndDate")?.Value;
+        JoinMode = xml.Attribute("JoinMode")?.Value.ToEnum<SystemTimeJoinMode>();
+        TimeSeriesUnit = xml.Attribute("TimeSeriesUnit")?.Value.ToEnum<TimeSeriesUnit>();
+        TimeSeriesStep = xml.Attribute("TimeSeriesStep")?.Value.ToInt();
+        TimeSeriesMaxRowsPerStep = xml.Attribute("TimeSeriesMaxRowsPerStep")?.Value.ToInt();
+        return this;
+    }
+
+    internal XElement ToXml()
+    {
+        return new XElement("SystemTime",
+            new XAttribute("Mode", Mode.ToString()),
+            StartDate == null ? null : new XAttribute("StartDate", StartDate),
+            EndDate == null ? null : new XAttribute("EndDate", EndDate),
+            JoinMode == null ? null : new XAttribute("JoinMode", JoinMode.ToString()!),
+            TimeSeriesUnit == null ? null : new XAttribute("TimeSeriesUnit", TimeSeriesUnit.ToString()!),
+            TimeSeriesStep == null ? null : new XAttribute("TimeSeriesStep", TimeSeriesStep.ToString()!),
+            TimeSeriesMaxRowsPerStep == null ? null : new XAttribute("TimeSeriesMaxRowsPerStep", TimeSeriesMaxRowsPerStep.ToString()!)
+        );
+    }
+
+    internal SystemTimeRequest ToSystemTimeRequest() => new SystemTimeRequest
+    {
+        mode = this.Mode,
+        joinMode = this.JoinMode,
+        endDate = ParseDate(this.EndDate),
+        startDate = ParseDate(this.StartDate),
+        timeSeriesStep = this.TimeSeriesStep,
+        timeSeriesUnit = this.TimeSeriesUnit,
+        timeSeriesMaxRowsPerStep = this.TimeSeriesMaxRowsPerStep,
+    };
+
+    DateTime? ParseDate(string? date)
+    {
+        if (date.IsNullOrEmpty())
+            return null;
+
+
+        return (DateTime)FilterValueConverter.Parse(date, typeof(DateTime), false)!;
     }
 }
 
@@ -248,9 +339,9 @@ public class ValueUserQueryElementEmbedded : EmbeddedEntity
     internal XElement ToXml(IToXmlContext ctx)
     {
         return new XElement("ValueUserQueryElement",
-            Label == null ? null! : new XAttribute(nameof(Label), Label),
-            Href == null ? null! : new XAttribute(nameof(Href), Href),
-            IsQueryCached == false ? null! : new XAttribute(nameof(IsQueryCached), IsQueryCached),
+            Label == null ? null : new XAttribute(nameof(Label), Label),
+            Href == null ? null : new XAttribute(nameof(Href), Href),
+            IsQueryCached == false ? null : new XAttribute(nameof(IsQueryCached), IsQueryCached),
             new XAttribute("UserQuery", ctx.Include(UserQuery)));
     }
 
@@ -366,4 +457,6 @@ public enum UserQueryMessage
     MakesThe0AvailableAsAQuickLinkOf1,
     [Description("the selected {0}")]
     TheSelected0,
+    Date,
+    Pagination,
 }

@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { PredictorEntity, PredictSimpleResultEntity, DefaultColumnEncodings } from '../Signum.MachineLearning';
-import * as ChartClient from '../../Signum.Chart/ChartClient'
+import { ChartClient } from '../../Signum.Chart/ChartClient'
 import { TypeContext } from '@framework/Lines';
 import { is } from '@framework/Signum.Entities';
 import { QueryTokenString } from '@framework/Reflection';
@@ -11,7 +11,7 @@ interface SimpleResultButtonProps {
   ctx: TypeContext<PredictorEntity>;
 }
 
-export default function SimpleResultButton(p : SimpleResultButtonProps){
+export default function SimpleResultButton(p : SimpleResultButtonProps): React.JSX.Element {
 
   function handleOnClick(e: React.MouseEvent<any>) {
     e.preventDefault();

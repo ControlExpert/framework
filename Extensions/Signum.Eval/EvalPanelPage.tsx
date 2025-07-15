@@ -3,19 +3,18 @@ import { DateTime } from 'luxon'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { classes } from '@framework/Globals'
 import { StyleContext } from '@framework/TypeContext'
-import * as Finder from '@framework/Finder'
+import { Finder } from '@framework/Finder'
 import * as AppContext from '@framework/AppContext'
 import { WebApiHttpError } from '@framework/Services'
 import { SearchValue, FindOptions, SearchValueLine } from '@framework/Search'
 import EntityLink from '@framework/SearchControl/EntityLink'
 import { QueryEntitiesRequest } from '@framework/FindOptions'
 import { getQueryNiceName, QueryTokenString } from '@framework/Reflection'
-import { API, CompilationError, EvalEntityError, Options } from './EvalClient'
-import * as AuthClient from '../Signum.Authorization/AuthClient'
+import { EvalClient } from './EvalClient'
+import { AuthClient } from '../Signum.Authorization/AuthClient'
 import { useLocation, useParams } from "react-router";
 import { Tab, Tabs } from 'react-bootstrap';
 import { FormGroup } from '@framework/Lines';
-import { toFilterRequests } from '@framework/Finder';
 import "./EvalPanelPage.css"
 import { JavascriptMessage, SearchMessage } from '@framework/Signum.Entities';
 import { useForceUpdate, useAPI, useInterval } from '@framework/Hooks'
@@ -26,7 +25,7 @@ import { EvalPanelMessage, EvalPanelPermission } from './Signum.Eval'
 
 type DynamicPanelTab = "search" | "checkEvals";
 
-export default function DynamicPanelSimplePage() {
+export default function DynamicPanelSimplePage(): React.JSX.Element {
   const location = useLocation();
 
   function handleSelect(key: any /*string*/) {
@@ -57,13 +56,13 @@ export default function DynamicPanelSimplePage() {
 
 
 
-export function SearchPanel(props: {}) {
+export function SearchPanel(props: {}): React.JSX.Element {
 
 
   const [search, setSearch] = React.useState("");
   var sc = new StyleContext(undefined, { labelColumns: 3 });
 
-  const elements = Options.onGetDynamicPanelSearch.map(f => f(sc, search));
+  const elements = EvalClient.Options.onGetDynamicPanelSearch.map(f => f(sc, search));
 
   return (
     <div>
@@ -80,7 +79,7 @@ export function SearchPanel(props: {}) {
   );
 }
 
-export function CheckEvalsStep() {
+export function CheckEvalsStep(): React.JSX.Element {
 
   const [autoStart, setAutoStart] = React.useState<number | undefined>(undefined);
 
@@ -92,7 +91,7 @@ export function CheckEvalsStep() {
   var ctx = new StyleContext(undefined, {});
   return (
     <div>
-      {Options.checkEvalFindOptions.map((fo, i) => <CheckEvalType key={i} ctx={ctx} findOptions={fo} autoStart={autoStart} />)}
+      {EvalClient.Options.checkEvalFindOptions.map((fo, i) => <CheckEvalType key={i} ctx={ctx} findOptions={fo} autoStart={autoStart} />)}
       <button className="btn btn-success" onClick={handleOnClick}><FontAwesomeIcon icon="arrows-rotate" /> Refresh all</button>
     </div>
   );
@@ -107,11 +106,11 @@ interface CheckEvalTypeProps {
 
 interface CheckEvalTypeState {
   state: "initial" | "loading" | "success" | "failed";
-  errors?: EvalEntityError[];
+  errors?: EvalClient.EvalEntityError[];
 }
 
 
-export function CheckEvalType(p: CheckEvalTypeProps) {
+export function CheckEvalType(p: CheckEvalTypeProps): React.JSX.Element {
 
   const [{ state, errors }, setState] = React.useState<CheckEvalTypeState>({ state: "initial", errors: undefined });
 
@@ -129,11 +128,11 @@ export function CheckEvalType(p: CheckEvalTypeProps) {
       .then(fop => {
         var request = {
           queryKey: fop.queryKey,
-          filters: toFilterRequests(fop.filterOptions),
+          filters: Finder.toFilterRequests(fop.filterOptions),
           orders: [{ token: QueryTokenString.entity().append(e => e.id).toString(), orderType: "Ascending" }],
           count: 10000,
         } as QueryEntitiesRequest;
-        API.getEvalErrors(request)
+        EvalClient.API.getEvalErrors(request)
           .then(errors => setState({ state: "success", errors: errors }),
             e => {
               setState({ state: "failed", errors: undefined });
@@ -178,7 +177,7 @@ export function CheckEvalType(p: CheckEvalTypeProps) {
 }
 
 
-export function RefreshClientsStep() {
+export function RefreshClientsStep(): React.JSX.Element {
   function handleRefreshClient(e: React.MouseEvent<any>) {
     e.preventDefault();
     window.location.reload();

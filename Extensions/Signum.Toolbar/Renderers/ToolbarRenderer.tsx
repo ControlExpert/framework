@@ -1,14 +1,14 @@
 import * as React from 'react'
 import { useLocation, Location } from 'react-router'
 import * as AppContext from '@framework/AppContext'
-import * as ToolbarClient from '../ToolbarClient'
+import { ToolbarClient, ToolbarResponse } from '../ToolbarClient'
 import { ToolbarConfig } from "../ToolbarConfig";
 import '@framework/Frames/MenuIcons.css'
 import './Toolbar.css'
 import { Nav } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { useAPI, useUpdatedRef, useWindowEvent, useAPIWithReload } from '@framework/Hooks'
-import * as Navigator from '@framework/Navigator'
+import { Navigator } from '@framework/Navigator'
 import { QueryString } from '@framework/QueryString'
 import { getToString } from '@framework/Signum.Entities'
 import { parseIcon } from '@framework/Components/IconTypeahead'
@@ -30,7 +30,7 @@ export default function ToolbarRenderer(p: {
   const responseRef = useUpdatedRef(response);
 
   const [refresh, setRefresh] = React.useState(false);
-  const [active, setActive] = React.useState<ToolbarClient.ToolbarResponse<any> | null>(null);
+  const [active, setActive] = React.useState<ToolbarResponse<any> | null>(null);
 
   const location = useLocation();
 
@@ -61,13 +61,13 @@ export default function ToolbarRenderer(p: {
       </div>
 
       <ul>
-        {response && response.elements && response.elements.map((res: ToolbarClient.ToolbarResponse<any>, i: number) => renderNavItem(res, active, i, handleRefresh, p.onAutoClose))}
+        {response && response.elements && response.elements.map((res: ToolbarResponse<any>, i: number) => renderNavItem(res, active, i, handleRefresh, p.onAutoClose))}
       </ul>
     </div>
   );
 }
 
-export function isCompatibleWithUrl(r: ToolbarClient.ToolbarResponse<any>, location: Location, query: any): number {
+export function isCompatibleWithUrl(r: ToolbarResponse<any>, location: Location, query: any): number {
   if (r.url)
     return AppContext.toAbsoluteUrl(location.pathname + location.search).startsWith(AppContext.toAbsoluteUrl(r.url)) ? 1 : 0;
 
@@ -81,7 +81,7 @@ export function isCompatibleWithUrl(r: ToolbarClient.ToolbarResponse<any>, locat
   return config.isCompatibleWithUrlPrio(r, location, query);
 }
 
-export function inferActive(r: ToolbarClient.ToolbarResponse<any>, location: Location, query: any): { prio: number, response: ToolbarClient.ToolbarResponse<any> } | null {
+export function inferActive(r: ToolbarResponse<any>, location: Location, query: any): { prio: number, response: ToolbarResponse<any> } | null {
   if (r.elements)
     return r.elements.map(e => inferActive(e, location, query)).notNull().maxBy(a => a.prio) ?? null;
 
@@ -98,7 +98,7 @@ export function inferActive(r: ToolbarClient.ToolbarResponse<any>, location: Loc
 }
 
 
-export function renderNavItem(res: ToolbarClient.ToolbarResponse<any>, active: ToolbarClient.ToolbarResponse<any> | null, key: string | number, onRefresh: () => void, onAutoClose?: () => void) {
+export function renderNavItem(res: ToolbarResponse<any>, active: ToolbarResponse<any> | null, key: string | number, onRefresh: () => void, onAutoClose?: () => void): React.JSX.Element {
 
   switch (res.type) {
     case "Divider":
@@ -110,7 +110,7 @@ export function renderNavItem(res: ToolbarClient.ToolbarResponse<any>, active: T
         var icon = ToolbarConfig.coloredIcon(parseIcon(res.iconName), res.iconColor);
 
         return (
-          <ToolbarDropdown parentTitle={title} icon={icon} key={key} extraIcons={renderExtraIcons(res.extraIcons, active, onAutoClose)}>
+          <ToolbarDropdown parentTitle={title} icon={icon} key={key} toolbarMenuId={res.content?.id} extraIcons={renderExtraIcons(res.extraIcons, active, onAutoClose)}>
             {res.elements && res.elements.map((sr, i) => renderNavItem(sr, active, i, onRefresh, onAutoClose))}
           </ToolbarDropdown>
         );
@@ -164,12 +164,22 @@ export function renderNavItem(res: ToolbarClient.ToolbarResponse<any>, active: T
   }
 }
 
-function ToolbarDropdown(p: { parentTitle: string | undefined, icon: any, children: any, extraIcons: React.ReactElement | undefined }) {
-  var [show, setShow] = React.useState(false);
+function ToolbarDropdown(p: { parentTitle: string | undefined, icon: any, children: any, toolbarMenuId: string | number | undefined, extraIcons: React.ReactElement | undefined }) {
+  var [show, setShow] = React.useState(localStorage.getItem("toolbar-menu-" + p.toolbarMenuId) != null);
+
+  function handleSetShow(value: boolean) {
+    if (value)
+      localStorage.setItem("toolbar-menu-" + p.toolbarMenuId, "1");
+    else
+      localStorage.removeItem("toolbar-menu-" + p.toolbarMenuId);
+
+    setShow(value);
+  }
+
 
   return (
     <div>
-      <ToolbarNavItem title={p.parentTitle} extraIcons={p.extraIcons} onClick={() => setShow(!show)}
+      <ToolbarNavItem title={p.parentTitle} extraIcons={p.extraIcons} onClick={() => handleSetShow(!show)}
         icon={
           <div style={{ display: 'inline-block', position: 'relative' }}>
             <div className="nav-arrow-icon" style={{ position: 'absolute' }}><FontAwesomeIcon icon={show ? "caret-down" : "caret-right"} className="icon" /></div>
@@ -186,7 +196,7 @@ function ToolbarDropdown(p: { parentTitle: string | undefined, icon: any, childr
   );
 }
 
-export function ToolbarNavItem(p: { title: string | undefined, active?: boolean, isExternalLink?: boolean, extraIcons?: React.ReactElement, onClick: (e: React.MouseEvent) => void, icon?: React.ReactNode, onAutoCloseExtraIcons?: () => void }) {
+export function ToolbarNavItem(p: { title: string | undefined, active?: boolean, isExternalLink?: boolean, extraIcons?: React.ReactElement, onClick: (e: React.MouseEvent) => void, icon?: React.ReactNode, onAutoCloseExtraIcons?: () => void }): React.JSX.Element {
   return (
     <li className="nav-item d-flex">
       <Nav.Link title={p.title} onClick={p.onClick} onAuxClick={p.onClick} active={p.active} className="d-flex w-100">
@@ -202,7 +212,7 @@ export function ToolbarNavItem(p: { title: string | undefined, active?: boolean,
   );
 }
 
-export function renderExtraIcons(extraIcons?: ToolbarClient.ToolbarResponse<any>[], active?: ToolbarClient.ToolbarResponse<any> | null, autoClose?: () => void): React.ReactElement | undefined {
+export function renderExtraIcons(extraIcons?: ToolbarResponse<any>[], active?: ToolbarResponse<any> | null, autoClose?: () => void): React.ReactElement | undefined {
   if (extraIcons == null)
     return undefined;
 

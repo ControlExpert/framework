@@ -2,7 +2,7 @@
 import * as React from 'react'
 import { Popover, OverlayTrigger  } from 'react-bootstrap'
 import { Entity, getToString } from '@framework/Signum.Entities'
-import * as HelpClient from './HelpClient';
+import { HelpClient } from './HelpClient';
 import * as AppContext from '@framework/AppContext';
 import { WidgetContext } from '@framework/Frames/Widgets';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -11,18 +11,17 @@ import { useAPI } from '@framework/Hooks';
 import { TypeContext } from '@framework/Lines';
 import { HtmlViewer } from './Pages/EditableText';
 import './HelpWidget.css';
+import { classes } from '@framework/Globals';
 
 export interface HelpWidgetProps {
   wc: WidgetContext<Entity>
 }
 
-const cache: { [cleanName: string]: Promise<TypeHelpEntity> } = {}; 
-
-export function HelpWidget(p: HelpWidgetProps) {
+export function HelpWidget(p: HelpWidgetProps): React.JSX.Element {
 
   const entity = p.wc.ctx.value;
 
-  var typeHelp = useAPI(() => cache[entity.Type] ?? HelpClient.API.type(entity.Type), [entity.Type]);
+  var typeHelp = useAPI(() => HelpClient.API.type(entity.Type), [entity.Type]);
 
   var hasContent = Boolean(typeHelp && !typeHelp!.isNew);
 
@@ -40,14 +39,14 @@ export function HelpWidget(p: HelpWidgetProps) {
   );
 }
 
-export function HelpIcon(p: { ctx: TypeContext<any> }) {
+export function HelpIcon(p: { ctx: TypeContext<any>, typeHelp?: TypeHelpEntity }): React.JSX.Element | undefined | null | boolean {
 
   //debugger;
 
   if (p.ctx.propertyRoute == null)
     return undefined;
 
-  var typeHelp = p.ctx.frame?.pack.typeHelp;
+  var typeHelp = p.typeHelp ?? p.ctx.frame?.pack.typeHelp;
 
   const pr = p.ctx.propertyRoute;
 
@@ -80,5 +79,18 @@ export function HelpIcon(p: { ctx: TypeContext<any> }) {
         <FontAwesomeIcon icon="circle-question" />
       </a>
     </OverlayTrigger>
+  );
+}
+
+interface TypeHelpIconProps extends React.HTMLAttributes<HTMLAnchorElement>{
+  type: string
+}
+
+export function TypeHelpIcon({type, className, ...props} : TypeHelpIconProps): React.JSX.Element {
+
+  return (
+    <a href={AppContext.toAbsoluteUrl(HelpClient.Urls.typeUrl(type))} target="_blank" className={classes("sf-help-button", className)} {...props}>
+      <FontAwesomeIcon icon="circle-question" />
+    </a>
   );
 }

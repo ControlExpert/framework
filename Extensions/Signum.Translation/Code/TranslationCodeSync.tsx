@@ -1,9 +1,9 @@
 import * as React from 'react'
 import { useParams } from 'react-router'
 import { Dic } from '@framework/Globals'
-import { notifySuccess } from '@framework/Operations'
+import { Operations } from '@framework/Operations'
 import { getToString } from '@framework/Signum.Entities'
-import { API, AssemblyResult } from '../TranslationClient'
+import { TranslationClient } from '../TranslationClient'
 import { TranslationMessage } from '../Signum.Translation'
 import { TranslationTypeTable } from './TranslationTypeTable'
 import { Link } from "react-router-dom";
@@ -11,16 +11,16 @@ import "../Translation.css"
 import { decodeDots, encodeDots } from './TranslationCodeStatus'
 import { useAPI, useAPIWithReload } from '@framework/Hooks'
 import { useTitle } from '@framework/AppContext'
-import * as CultureClient from '@framework/Basics/CultureClient'
+import { CultureClient } from '@framework/Basics/CultureClient'
 
-export default function TranslationCodeSync() {
+export default function TranslationCodeSync(): React.JSX.Element {
   const params = useParams() as { culture: string; assembly: string; namespace?: string; };
   const cultures = useAPI(() => CultureClient.getCultures(null), []);
   const assembly = decodeDots(params.assembly);
   const culture = params.culture;
   const namespace = params.namespace && decodeDots(params.namespace);
 
-  const [result, reloadResult] = useAPIWithReload(() => API.sync(assembly, culture, namespace), [assembly, culture, namespace]);  
+  const [result, reloadResult] = useAPIWithReload(() => TranslationClient.API.sync(assembly, culture, namespace), [assembly, culture, namespace]);  
 
   var message = result?.totalTypes == 0 ? TranslationMessage._0AlreadySynchronized.niceToString(namespace ?? assembly) :
     TranslationMessage.Synchronize0In1.niceToString(namespace ?? assembly, cultures ? getToString(cultures[culture]) : culture) +
@@ -29,8 +29,8 @@ export default function TranslationCodeSync() {
   useTitle(message);
 
   function handleSave() {
-    API.save(assembly, culture ?? "", result!)
-      .then(() => notifySuccess())
+    TranslationClient.API.save(assembly, culture ?? "", result!)
+      .then(() => Operations.notifySuccess())
       .then(() => reloadResult());
   }
 
@@ -46,7 +46,7 @@ export default function TranslationCodeSync() {
   );
 }
 
-function SyncTable({ result, onSave, currentCulture }: { result: AssemblyResult, onSave: () => void, currentCulture: string }) {
+function SyncTable({ result, onSave, currentCulture }: { result: TranslationClient.AssemblyResult, onSave: () => void, currentCulture: string }) {
 
   return (
     <div>

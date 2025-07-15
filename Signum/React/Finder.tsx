@@ -2,8 +2,8 @@ import * as React from "react";
 import { RouteObject } from 'react-router'
 import { DateTime, Duration } from 'luxon'
 import * as AppContext from "./AppContext"
-import * as Navigator from "./Navigator"
-import { Dic, classes, softCast } from './Globals'
+import { Navigator, ViewPromise } from "./Navigator"
+import { Dic, classes, isNumber, softCast } from './Globals'
 import { ajaxGet, ajaxPost } from './Services';
 
 import {
@@ -25,7 +25,10 @@ import {
   Type, QueryKey, getQueryKey, isQueryDefined, TypeReference,
   getTypeInfo, tryGetTypeInfos, getEnumInfo, toLuxonFormat, toNumberFormat, PseudoType,
   TypeInfo, PropertyRoute, QueryTokenString, getTypeInfos, tryGetTypeInfo, onReloadTypesActions, 
-  Anonymous, toLuxonDurationFormat, toFormatWithFixes, isTypeModel
+  Anonymous, toLuxonDurationFormat, toFormatWithFixes, isTypeModel,
+  isNumberType,
+  isDecimalType,
+  numberLimits
 } from './Reflection';
 
 import EntityLink from './SearchControl/EntityLink';
@@ -44,14 +47,19 @@ import { CollectionMessage } from "./Signum.External";
 import { QueryTokenMessage } from "./Signum.DynamicQuery.Tokens";
 import { TextHighlighter } from "./Components/Typeahead";
 import * as FinderRules from "./FinderRules";
+import { Operations } from "./Operations";
+
+
+export namespace Finder {
+
 
 export const querySettings: { [queryKey: string]: QuerySettings } = {};
 
-export function clearQuerySettings() {
+  export function clearQuerySettings(): void {
   Dic.clear(querySettings);
 }
 
-export function start(options: { routes: RouteObject[] }) {
+  export function start(options: { routes: RouteObject[] }): void {
   options.routes.push({ path: "/find/:queryName", element: <ImportComponent onImport={() => Options.getSearchPage()} /> });
   AppContext.clearSettingsActions.push(clearContextualItems);
   AppContext.clearSettingsActions.push(clearQuerySettings);
@@ -62,7 +70,7 @@ export function start(options: { routes: RouteObject[] }) {
   onReloadTypesActions.push(clearQueryDescriptionCache);
 }
 
-export function addSettings(...settings: QuerySettings[]) {
+  export function addSettings(...settings: QuerySettings[]): void {
   settings.forEach(s => Dic.addOrThrow(querySettings, getQueryKey(s.queryName), s));
 }
 
@@ -152,21 +160,21 @@ export function defaultFind(fo: FindOptions, modalOptions?: ModalFindOptions): P
 }
 
 export namespace Options {
-  export function getSearchPage() {
+    export function getSearchPage(): Promise<typeof import("./SearchControl/SearchPage")> {
     return import("./SearchControl/SearchPage");
   }
-  export function getSearchModal() {
+    export function getSearchModal(): Promise<typeof import("./SearchControl/SearchModal")> {
     return import("./SearchControl/SearchModal");
   }
 
   export let entityColumnHeader: () => React.ReactElement | string | null | undefined = () => "";
 
-  export let tokenCanSetPropery = (qt: QueryToken) =>
+    export let tokenCanSetPropery = (qt: QueryToken): boolean =>
     qt.filterType == "Lite" && qt.key != "Entity" ||
     qt.filterType == "Enum" && !isState(qt.type) ||
     qt.filterType == "DateTime" && qt.propertyRoute != null && PropertyRoute.tryParseFull(qt.propertyRoute)?.member?.type.name == "DateOnly";
 
-  export let isState = (ti: TypeReference) => ti.name.endsWith("State");
+    export let isState = (ti: TypeReference): boolean => ti.name.endsWith("State");
 
   export let defaultPagination: Pagination = {
     mode: "Paginate",
@@ -185,7 +193,7 @@ export function findRow(fo: FindOptions, modalOptions?: ModalFindOptions): Promi
 }
 
 
-export function findMany<T extends Entity = Entity>(findOptions: FindOptions, modalOptions?: ModalFindOptionsMany): Promise<Lite<T>[] | undefined>;
+  export function findMany<T extends Entity>(findOptions: FindOptions, modalOptions?: ModalFindOptionsMany): Promise<Lite<T>[] | undefined>;
 export function findMany<T extends Entity>(type: Type<T>, modalOptions?: ModalFindOptionsMany): Promise<Lite<T>[] | undefined>;
 export function findMany(findOptions: FindOptions | Type<any>, modalOptions?: ModalFindOptionsMany): Promise<Lite<Entity>[] | undefined> {
 
@@ -238,7 +246,7 @@ export function findManyRows(fo: FindOptions, modalOptions?: ModalFindOptionsMan
     .then(a => a.default.openMany(fo, modalOptions));
 }
 
-export function exploreWindowsOpen(findOptions: FindOptions, e: React.MouseEvent<any>) {
+  export function exploreWindowsOpen(findOptions: FindOptions, e: React.MouseEvent<any>): void {
   e.preventDefault();
   if (e.ctrlKey || e.button == 1)
     window.open(AppContext.toAbsoluteUrl(findOptionsPath(findOptions)));
@@ -278,6 +286,9 @@ export function findOptionsPathQuery(fo: FindOptions, extra?: any): any {
     systemTimeJoinMode: fo.systemTime && fo.systemTime.joinMode,
     systemTimeStartDate: fo.systemTime && fo.systemTime.startDate,
     systemTimeEndDate: fo.systemTime && fo.systemTime.endDate,
+      timeSeriesStep: fo.systemTime && fo.systemTime.timeSeriesStep,
+      timeSeriesUnit: fo.systemTime && fo.systemTime.timeSeriesUnit,
+      timeSeriesMaxRowsPerStep: fo.systemTime && fo.systemTime.timeSeriesMaxRowsPerStep,
     ...extra
   };
 
@@ -288,7 +299,7 @@ export function findOptionsPathQuery(fo: FindOptions, extra?: any): any {
   return query;
 }
 
-export function getTypeNiceName(tr: TypeReference) {
+  export function getTypeNiceName(tr: TypeReference): string {
 
   const niceName = tr.typeNiceName ??
     tryGetTypeInfos(tr)
@@ -298,7 +309,13 @@ export function getTypeNiceName(tr: TypeReference) {
   return tr.isCollection ? QueryTokenMessage.ListOf0.niceToString(niceName) : niceName;
 }
 
-export function getSimpleTypeNiceName(name: string) {
+  export function getSimpleTypeNiceName(name: string): string {
+
+    if (isDecimalType(name))
+      return QueryTokenMessage.DecimalNumber.niceToString();
+
+    if (isNumberType(name))
+      return QueryTokenMessage.Number.niceToString();
 
   switch (name) {
     case "string":
@@ -307,8 +324,6 @@ export function getSimpleTypeNiceName(name: string) {
     case "Date": return QueryTokenMessage.Date.niceToString();
     case "DateTime": return QueryTokenMessage.DateTime.niceToString();
     case "DateTimeOffset": return QueryTokenMessage.DateTimeOffset.niceToString();
-    case "number": return QueryTokenMessage.Number.niceToString();
-    case "decimal": return QueryTokenMessage.DecimalNumber.niceToString();
     case "boolean": return QueryTokenMessage.Check.niceToString();
   }
 
@@ -336,6 +351,9 @@ export function parseFindOptionsPath(queryName: PseudoType | QueryKey, query: an
       joinMode: query.systemTimeJoinMode,
       startDate: query.systemTimeStartDate,
       endDate: query.systemTimeEndDate,
+        timeSeriesUnit: query.timeSeriesUnit,
+        timeSeriesStep: query.timeSeriesStep && parseInt(query.timeSeriesStep),
+        timeSeriesMaxRowsPerStep: query.timeSeriesMaxRowsPerStep && parseInt(query.timeSeriesMaxRowsPerStep),
     }
   };
 
@@ -577,7 +595,7 @@ export function tryConvert(value: any, type: TypeReference): Promise<any> | unde
       return Promise.resolve(value);
   }
 
-  if (type.name == "number") {
+    if (isNumberType(type.name)) {
     if (typeof value === "number")
       return Promise.resolve(value);
   }
@@ -785,18 +803,19 @@ export function parseFindOptions(findOptions: FindOptions, qd: QueryDescription,
 
   const canAggregate = (findOptions.groupResults ? SubTokensOptions.CanAggregate : 0);
   const canAggregateXorOperation = (canAggregate != 0 ? canAggregate : SubTokensOptions.CanOperation | SubTokensOptions.CanManual);
+    const canTimeSeries = (fo.systemTime?.mode == QueryTokenString.timeSeries.token ? SubTokensOptions.CanTimeSeries : 0);
 
   const completer = new TokenCompleter(qd);
 
 
   if (fo.filterOptions)
-    fo.filterOptions.notNull().forEach(fo => completer.requestFilter(fo, SubTokensOptions.CanElement | SubTokensOptions.CanAnyAll | canAggregate));
+      fo.filterOptions.notNull().forEach(fo => completer.requestFilter(fo, SubTokensOptions.CanElement | SubTokensOptions.CanAnyAll | canAggregate | canTimeSeries));
 
   if (fo.orderOptions)
-    fo.orderOptions.notNull().forEach(oo => completer.request(oo.token.toString(), SubTokensOptions.CanElement | SubTokensOptions.CanSnippet | canAggregate));
+      fo.orderOptions.notNull().forEach(oo => completer.request(oo.token.toString(), SubTokensOptions.CanElement | SubTokensOptions.CanSnippet | canAggregate | canTimeSeries));
 
   if (fo.columnOptions) {
-    fo.columnOptions.notNull().forEach(co => completer.request(co.token.toString(), SubTokensOptions.CanElement | SubTokensOptions.CanToArray | SubTokensOptions.CanSnippet | canAggregateXorOperation));
+      fo.columnOptions.notNull().forEach(co => completer.request(co.token.toString(), SubTokensOptions.CanElement | SubTokensOptions.CanToArray | SubTokensOptions.CanSnippet | canAggregateXorOperation | canTimeSeries));
     fo.columnOptions.notNull().filter(a => a.summaryToken).forEach(co => completer.request(co.summaryToken!.toString(), SubTokensOptions.CanElement | SubTokensOptions.CanAggregate));
   }
 
@@ -1028,11 +1047,13 @@ export function toFilterRequest(fop: FilterOptionParsed, overridenValue?: Overri
     var value = overridenValue ? overridenValue.value : fop.value;
 
     if (fop.token && typeof value == "string") {
-      if (fop.token.type.name == "number") {
+        if (isNumberType(fop.token.type.name)) {
 
         var numVal = parseInt(value);
 
-        if (isNaN(numVal)) {
+          var limits = numberLimits[fop.token.type.name]
+
+          if (isNaN(numVal) || numVal < limits.min || limits.max < numVal) {
           if (overridenValue)
             return undefined;
 
@@ -1161,7 +1182,7 @@ export function autoRemoveTrivialColumns(fo: FindOptions): FindOptions {
   return newFO;
 }
 
-export function getTrivialColumns(fos: FilterOption[]) {
+  export function getTrivialColumns(fos: FilterOption[]): ColumnOption[] {
   return fos
     .filter(fo => !isFilterGroup(fo) && (fo.operation == null || fo.operation == "EqualTo") && !fo.token.toString().contains(".") && fo.pinned == null && fo.value != null)
     .map(fo => ({ token: fo.token }) as ColumnOption);
@@ -1199,7 +1220,7 @@ export class TokenCompleter {
     this.queryCache = (TokenCompleter.globalCache[queryDescription.queryKey] ??= {});
   }
 
-  requestFilter(fo: FilterOption, options: SubTokensOptions) {
+    requestFilter(fo: FilterOption, options: SubTokensOptions): void {
 
     if (isFilterGroup(fo)) {
       fo.token && this.request(fo.token.toString(), options);
@@ -1247,8 +1268,8 @@ export class TokenCompleter {
     };
   }
 
-  isSimple(fullKey: string) {
-    return !fullKey.contains(".") && fullKey != "Count";
+    isSimple(fullKey: string): boolean {
+      return !fullKey.contains(".") && fullKey != QueryTokenString.count.token && fullKey != QueryTokenString.timeSeries.token;
   }
 
   finished(): Promise<void> {
@@ -1273,7 +1294,7 @@ export class TokenCompleter {
       const cd = this.queryDescription.columns[fullKey];
 
       if (cd == undefined)
-        throw new Error(`Column '${fullKey}' is not a column of query '${this.queryDescription.queryKey}'. Maybe use 'Entity.${fullKey}' instead?`);
+          throw new Error(`No column with name '${fullKey}' found in query '${this.queryDescription.queryKey}'.\nMaybe use '${(fullKey ? ("Entity." + fullKey) : "Entity")}'`);
 
       return toQueryToken(cd);
     }
@@ -1515,7 +1536,7 @@ export type ExtractTokensObject<T> = {
 
 export function useQuery(fo: FindOptions | null, additionalDeps?: any[], options?: APIHookOptions): ResultTable | undefined | null {
   return useAPI(
-    signal => fo == null ? Promise.resolve<ResultTable | null>(null) : getResultTable(fo, signal),
+      signal => fo == null ? null : getResultTable(fo, signal),
     [fo && findOptionsPath(fo), ...(additionalDeps || [])],
     options);
 
@@ -1531,7 +1552,7 @@ interface FetchEntitiesOptions<T extends Entity = any> {
 
 
 
-export function useFetchLites<T extends Entity>(fo: FetchEntitiesOptions<T>, additionalDeps?: React.DependencyList, options?: APIHookOptions): Lite<T>[] | undefined | null {
+  export function useFetchLites<T extends Entity>(fo: FetchEntitiesOptions<T>, additionalDeps?: React.DependencyList, options?: APIHookOptions): Lite<T>[] | undefined {
   return useAPI(() => fetchLites(fo),
     [
       findOptionsPath({
@@ -1546,8 +1567,25 @@ export function useFetchLites<T extends Entity>(fo: FetchEntitiesOptions<T>, add
   );
 }
 
+
+  export function useResultTableTyped<TO extends { [name: string]: QueryTokenString<any> | string }>(fo: FindOptions | null, tokensObject: TO, additionalDeps?: React.DependencyList, options?: APIHookOptions): ExtractTokensObject<TO>[] | null | undefined {
+    var fo2: FindOptions | null = fo && {
+      pagination: { mode: "All" },
+      ...fo,
+      columnOptions: Dic.getValues(tokensObject).map(a => ({ token: a })),
+      columnOptionsMode: "ReplaceAll",
+    };
+
+    var result = useAPI(signal => fo2 && getResultTable(fo2, signal), [fo2 && findOptionsPath(fo2), ...(additionalDeps || [])], options);
+
+    return result && result.rows.map(row => Dic.mapObject(tokensObject, (key, value, index) => row.columns[index]) as ExtractTokensObject<TO>);
+  }
+
+
+
 export function getResultTableTyped<TO extends { [name: string]: QueryTokenString<any> | string }>(fo: FindOptions, tokensObject: TO, signal?: AbortSignal): Promise<ExtractTokensObject<TO>[]> {
   var fo2: FindOptions = {
+      pagination: { mode: "All" },
     ...fo,
     columnOptions: Dic.getValues(tokensObject).map(a => ({ token: a })),
     columnOptionsMode: "ReplaceAll",
@@ -1556,6 +1594,20 @@ export function getResultTableTyped<TO extends { [name: string]: QueryTokenStrin
   return getResultTable(fo2)
     .then(fop => fop.rows.map(row => Dic.mapObject(tokensObject, (key, value, index) => row.columns[index]) as ExtractTokensObject<TO>));
 }
+
+  export function getResultTableTypedWithPagination<TO extends { [name: string]: QueryTokenString<any> | string }>(fo: FindOptions, tokensObject: TO, signal?: AbortSignal): Promise<{ totalElements?: number, rows: ExtractTokensObject<TO>[] }> {
+    var fo2: FindOptions = {
+      ...fo,
+      columnOptions: Dic.getValues(tokensObject).map(a => ({ token: a })),
+      columnOptionsMode: "ReplaceAll",
+    };
+
+    return getResultTable(fo2)
+      .then(fop => ({
+        totalElements: fop.totalElements,
+        rows: fop.rows.map(row => Dic.mapObject(tokensObject, (key, value, index) => row.columns[index]) as ExtractTokensObject<TO>)
+      }));
+  }
 
 export function getResultTable(fo: FindOptions, signal?: AbortSignal): Promise<ResultTable> {
 
@@ -1735,7 +1787,7 @@ export module Encoder {
 
 
 
-  export function encodeFilters(query: any, filterOptions?: FilterOption[], prefix?: string) {
+    export function encodeFilters(query: any, filterOptions?: FilterOption[], prefix?: string): void {
 
     var i: number = 0;
 
@@ -1768,12 +1820,12 @@ export module Encoder {
       filterOptions.forEach(fo => encodeFilter(fo, 0, false));
   }
 
-  export function encodeOrders(query: any, orderOptions?: OrderOption[], prefix?: string) {
+    export function encodeOrders(query: any, orderOptions?: OrderOption[], prefix?: string): void {
     if (orderOptions)
       orderOptions.forEach((oo, i) => query[(prefix ?? "") + "order" + i] = (oo.orderType == "Descending" ? "-" : "") + oo.token);
   }
 
-  export function encodeColumns(query: any, columnOptions?: ColumnOption[], prefix?: string) {
+    export function encodeColumns(query: any, columnOptions?: ColumnOption[], prefix?: string): void {
     if (columnOptions) {
       columnOptions.forEach((co, i) => {
 
@@ -1813,7 +1865,7 @@ export module Encoder {
     return scapeTilde(value.toString());
   }
 
-  export function scapeTilde(str: string) {
+    export function scapeTilde(str: string): string {
     if (str == undefined)
       return "";
 
@@ -1959,7 +2011,7 @@ export module ButtonBarQuery {
     return onButtonBarElements.map(f => f(ctx)).filter(a => a != undefined).map(a => a as ButtonBarElement);
   }
 
-  export function clearButtonBarElements() {
+    export function clearButtonBarElements(): void {
     ButtonBarQuery.onButtonBarElements.clear();
   }
 
@@ -1983,10 +2035,14 @@ export interface QuerySettings {
   showContextMenu?: (fop: FindOptionsParsed) => boolean | "Basic";
   allowCreate?: boolean;
   allowSelection?: boolean;
+<<<<<<< HEAD
   showFilters?: boolean;
   getViewPromise?: (e: ModifiableEntity | null) => (undefined | string | Navigator.ViewPromise<ModifiableEntity>);
+=======
+    getViewPromise?: (e: ModifiableEntity | null) => (undefined | string | ViewPromise<ModifiableEntity>);
+>>>>>>> origin/EasyClaim_2024.08.28
   onDoubleClick?: (e: React.MouseEvent<any>, row: ResultRow, columns: string[], sc?: SearchControlLoaded) => void;
-  simpleFilterBuilder?: (sfbc: SimpleFilterBuilderContext) => React.ReactElement<any> | undefined;
+    simpleFilterBuilder?: (sfbc: SimpleFilterBuilderContext) => React.ReactElement | undefined;
   onFind?: (fo: FindOptions, mo?: ModalFindOptions) => Promise<Lite<Entity> | undefined>;
   onFindMany?: (fo: FindOptions, mo?: ModalFindOptions) => Promise<Lite<Entity>[] | undefined>;
   onExplore?: (fo: FindOptions, mo?: ModalFindOptions) => Promise<void>;
@@ -2007,7 +2063,7 @@ export interface SimpleFilterBuilderContext {
 
 
 
-export function isSystemVersioned(tr?: TypeReference) {
+  export function isSystemVersioned(tr?: TypeReference): boolean {
   return tr != null && getTypeInfos(tr).some(ti => ti.isSystemVersioned == true)
 }
 
@@ -2027,7 +2083,7 @@ export function getCellFormatter(qs: QuerySettings | undefined, qt: QueryToken, 
   return rule.formatter(qt, sc);
 }
 
-export function resetFormatRules() {
+  export function resetFormatRules(): void {
   Dic.clear(registeredPropertyFormatters);
 
   formatRules.clear();
@@ -2068,7 +2124,7 @@ export interface CellFormatterContext {
 
 export const registeredPropertyFormatters: { [typeAndProperty: string]: CellFormatter } = {};
 
-export function registerPropertyFormatter(pr: PropertyRoute | string/*For expressions*/ | undefined, formater: CellFormatter) {
+  export function registerPropertyFormatter(pr: PropertyRoute | string/*For expressions*/ | undefined, formater: CellFormatter): void {
   if (pr == null)
     return;
   registeredPropertyFormatters[pr.toString()] = formater;
@@ -2117,7 +2173,9 @@ export interface FilterValueFormatter {
 
 export const filterValueFormatRules: FilterValueFormatter[] = FinderRules.initFilterValueFormatRules();
 
-export function renderFilterValue(f: FilterOptionParsed, ffc: FilterFormatterContext) {
+  export function renderFilterValue(f: FilterOptionParsed, ffc: FilterFormatterContext): React.ReactElement<any, string | React.JSXElementConstructor<any>> {
   var rule = filterValueFormatRules.filter(r => r.applicable(f, ffc)).last();
   return rule.renderValue(f, ffc);
+}
+
 }

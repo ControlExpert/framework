@@ -7,7 +7,7 @@ import { useForceUpdate } from '@framework/Hooks'
 import { Tabs, Tab } from 'react-bootstrap'
 import { EmailMasterTemplateEntity, EmailMasterTemplateMessageEmbedded, EmailTemplateMessage, EmailTemplateViewMessage } from '../Signum.Mailing.Templates'
 
-export default function EmailMasterTemplate(p : { ctx: TypeContext<EmailMasterTemplateEntity> }){
+export default function EmailMasterTemplate(p : { ctx: TypeContext<EmailMasterTemplateEntity> }): React.JSX.Element {
   const forceUpdate = useForceUpdate();
   const ctx = p.ctx;
 
@@ -17,8 +17,8 @@ export default function EmailMasterTemplate(p : { ctx: TypeContext<EmailMasterTe
       <AutoLine ctx={ctx.subCtx(f => f.isDefault)} />
       <Tabs id={ctx.prefix + "tabs"}>
         <Tab eventKey="messages" title={ctx.niceName(a => a.messages)}>
-          <EntityTabRepeater ctx={ctx.subCtx(a => a.messages)} avoidFieldSet onChange={() => forceUpdate()} getComponent={(ctx: TypeContext<EmailMasterTemplateMessageEmbedded>) =>
-            <EmailTemplateMessageComponent ctx={ctx} invalidate={() => forceUpdate()} />} />
+          <EntityTabRepeater ctx={ctx.subCtx(a => a.messages)} avoidFieldSet onChange={() => forceUpdate()} getComponent={ctxMsg =>
+            <EmailTemplateMessageComponent ctx={ctxMsg} invalidate={() => forceUpdate()} />} />
         </Tab>
         <Tab eventKey="attachments" title={ctx.niceName(a => a.attachments)}>
           <EntityRepeater ctx={ctx.subCtx(e => e.attachments)} avoidFieldSet onChange={() => forceUpdate()} />
@@ -33,7 +33,7 @@ export interface EmailMasterTemplateMessageComponentProps {
   invalidate: () => void;
 }
 
-export function EmailTemplateMessageComponent(p : EmailMasterTemplateMessageComponentProps){
+export function EmailTemplateMessageComponent(p : EmailMasterTemplateMessageComponentProps): React.JSX.Element{
   const forceUpdate = useForceUpdate();
   const [showPreview, setShowPreview] = React.useState(false);
 

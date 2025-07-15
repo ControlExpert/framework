@@ -16,7 +16,7 @@ export interface ColumnsBuilderProps {
   readonly?: boolean;
 }
 
-export default function ColumnsBuilder(p: ColumnsBuilderProps) {
+export default function ColumnsBuilder(p: ColumnsBuilderProps): React.JSX.Element {
 
   const forceUpdate = useForceUpdate();
 
@@ -57,7 +57,7 @@ export default function ColumnsBuilder(p: ColumnsBuilderProps) {
           <thead>
             <tr>
               <th style={{ minWidth: "24px" }}></th>
-              <th>{SearchMessage.Field.niceToString()}</th>
+              <th>{SearchMessage.ColumnField.niceToString()}</th>
             </tr>
           </thead>
           <tbody>
@@ -97,7 +97,7 @@ export interface ColumnComponentProps {
   readonly: boolean;
 }
 
-export function ColumnComponent(p: ColumnComponentProps) {
+export function ColumnComponent(p: ColumnComponentProps): React.JSX.Element {
 
   const forceUpdate = useForceUpdate();
   function handleDeleteColumn() {

@@ -17,6 +17,8 @@ using Order = Signum.DynamicQuery.Order;
 using Microsoft.Graph.Models.ODataErrors;
 using System;
 using Signum.Files;
+using Signum.Utilities.Synchronization;
+using Signum.Engine.Sync;
 
 namespace Signum.Authorization.ActiveDirectory.Azure;
 
@@ -80,7 +82,13 @@ public static class AzureADLogic
                             if (u.State == UserState.Active && isEnabledDictionary.TryGetS(u.Mixin<UserADMixin>().OID!.Value) != true)
                             {
                                 stc.StringBuilder.AppendLine($"User {u.Id} ({u.UserName}) with OID {u.Mixin<UserADMixin>().OID} has been deactivated in Azure AD");
-                                u.Execute(UserOperation.Deactivate);
+                                u.Execute(UserOperation.AutoDeactivate);
+                            }
+
+                            if (u.State == UserState.AutoDeactivate && isEnabledDictionary.TryGetS(u.Mixin<UserADMixin>().OID!.Value) == true)
+                            {
+                                stc.StringBuilder.AppendLine($"User {u.Id} ({u.UserName}) with OID {u.Mixin<UserADMixin>().OID} has been reactivated in Azure AD");
+                                u.Execute(UserOperation.Reactivate);
                             }
                         }
                     });
@@ -411,7 +419,7 @@ public static class AzureADLogic
             {
                 req.QueryParameters.Top = 999;
                 req.QueryParameters.Select = new[] { "id", "displayName", "ODataType" };
-            }).Result;
+            }).ResultSafe();
 
             return result!.Value!.Select(di => new SimpleGroup(Guid.Parse(di.Id!), di.DisplayName)).ToList();
         }

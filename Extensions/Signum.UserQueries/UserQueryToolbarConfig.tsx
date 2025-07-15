@@ -1,16 +1,15 @@
 import * as React from 'react'
 import { Location } from 'react-router'
-import * as Navigator from '@framework/Navigator'
-import * as Finder from '@framework/Finder'
+import { Navigator } from '@framework/Navigator'
+import { Finder } from '@framework/Finder'
 import { Lite, liteKey } from '@framework/Signum.Entities'
-import { ToolbarResponse } from '../Signum.Toolbar/ToolbarClient'
 import { IconColor, ToolbarConfig } from '../Signum.Toolbar/ToolbarConfig'
-import * as UserQueryClient from './UserQueryClient'
+import { UserQueryClient } from './UserQueryClient'
 import { UserQueryEntity } from './Signum.UserQueries'
 import { useAPI } from '@framework/Hooks';
 import { SearchToolbarCount, ToolbarCount } from '../Signum.Toolbar/QueryToolbarConfig';
-import { useFetchInState } from '@framework/Navigator'
 import { ShowCount } from '../Signum.Toolbar/Signum.Toolbar'
+import { ToolbarResponse } from '../Signum.Toolbar/ToolbarClient'
 
 export default class UserQueryToolbarConfig extends ToolbarConfig<UserQueryEntity> {
   constructor() {
@@ -18,7 +17,7 @@ export default class UserQueryToolbarConfig extends ToolbarConfig<UserQueryEntit
     super(type);
   }
 
-  getIcon(element: ToolbarResponse<UserQueryEntity>) {
+  getIcon(element: ToolbarResponse<UserQueryEntity>): React.JSX.Element | null {
 
     if (element.showCount != null) {
       return (
@@ -39,7 +38,7 @@ export default class UserQueryToolbarConfig extends ToolbarConfig<UserQueryEntit
     });
   }
 
-  handleNavigateClick(e: React.MouseEvent<any>, res: ToolbarResponse<UserQueryEntity>) {
+  handleNavigateClick(e: React.MouseEvent<any>, res: ToolbarResponse<UserQueryEntity>): void {
     if (!res.openInPopup)
       super.handleNavigateClick(e, res);
     else {
@@ -75,9 +74,9 @@ interface CountUserQueryIconProps {
 }
 
 
-export function SearchUserQueryCount(p: CountUserQueryIconProps) {
+export function SearchUserQueryCount(p: CountUserQueryIconProps): React.JSX.Element {
 
-  var userQuery = useFetchInState(p.userQuery)
+  var userQuery = Navigator.useFetchInState(p.userQuery)
   var findOptions = useAPI(signal => userQuery ? UserQueryClient.Converter.toFindOptions(userQuery, undefined) : Promise.resolve(undefined), [userQuery]);
 
   if (findOptions == null)

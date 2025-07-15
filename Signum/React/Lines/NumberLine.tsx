@@ -1,28 +1,29 @@
 import * as React from 'react'
 import { DateTime, Duration } from 'luxon'
-import { DatePicker, DropdownList, Combobox } from 'react-widgets'
 import { CalendarProps } from 'react-widgets/cjs/Calendar'
-import { Dic, addClass, classes } from '../Globals'
-import { MemberInfo, TypeReference, toLuxonFormat, toNumberFormat, isTypeEnum, timeToString, tryGetTypeInfo, toFormatWithFixes, splitLuxonFormat, dateTimePlaceholder, timePlaceholder, toLuxonDurationFormat } from '../Reflection'
+import { Dic, classes } from '../Globals'
+import { MemberInfo, TypeReference, toLuxonFormat, toNumberFormat, isTypeEnum, timeToString, tryGetTypeInfo, toFormatWithFixes, splitLuxonFormat, dateTimePlaceholder, timePlaceholder, toLuxonDurationFormat, numberLimits } from '../Reflection'
 import { LineBaseController, LineBaseProps, setRefProp, tasks, useController, useInitiallyFocused } from '../Lines/LineBase'
 import { FormGroup } from '../Lines/FormGroup'
 import { FormControlReadonly } from '../Lines/FormControlReadonly'
 import { BooleanEnum, JavascriptMessage } from '../Signum.Entities'
 import TextArea from '../Components/TextArea';
 import { KeyNames } from '../Components/Basic';
-import { getTimeMachineIcon } from './TimeMachineIcon'
 import { ValueBaseController, ValueBaseProps } from './ValueBase'
 import { TypeContext } from '../Lines'
+import { ValidationMessage } from '../Signum.Entities.Validation'
 
-export interface NumberLineProps extends ValueBaseProps<NumberLineController> {
-  ctx: TypeContext<number | undefined | null>;
+export interface NumberLineProps extends ValueBaseProps<number | null> {
   incrementWithArrow?: boolean | number;
+  minValue?: number | null;
+  maxValue?: number | null;
 }
 
-export class NumberLineController extends ValueBaseController<NumberLineProps>{
+export class NumberLineController extends ValueBaseController<NumberLineProps, number | null>{
 }
 
-export const NumberLine = React.memo(React.forwardRef(function NumberLine(props: NumberLineProps, ref: React.Ref<NumberLineController>) {
+export const NumberLine: React.MemoExoticComponent<React.ForwardRefExoticComponent<NumberLineProps & React.RefAttributes<NumberLineController>>> =
+  React.memo(React.forwardRef(function NumberLine(props: NumberLineProps, ref: React.Ref<NumberLineController>) {
 
   const c = useController(NumberLineController, props, ref);
 
@@ -75,11 +76,15 @@ function numericTextBox(vl: NumberLineController, validateKey: (e: React.Keyboar
     ...vl.props.valueHtmlAttributes
   } as React.AllHTMLAttributes<any>;
 
+  const limits = numberLimits[s.type?.name!];
+
   return (
     <FormGroup ctx={s.ctx} label={s.label} labelIcon={s.labelIcon} helpText={s.helpText} htmlAttributes={{ ...vl.baseHtmlAttributes(), ...s.formGroupHtmlAttributes }} labelHtmlAttributes={s.labelHtmlAttributes}>
       {inputId => vl.withItemGroup(
         <NumberBox
-          id={inputId }
+          id={inputId}
+          minValue={s.minValue != undefined ? s.minValue : limits?.min}
+          maxValue={s.maxValue != undefined ? s.maxValue : limits?.max}
           htmlAttributes={htmlAttributes}
           value={s.ctx.value}
           onChange={handleOnChange}
@@ -98,9 +103,11 @@ export interface NumberBoxProps {
   readonly?: boolean;
   onChange: (newValue: number | null) => void;
   validateKey: (e: React.KeyboardEvent<any>) => boolean;
+  minValue?: number | null;
+  maxValue?: number | null;
   format: Intl.NumberFormat;
   formControlClass?: string;
-  htmlAttributes?: React.HTMLAttributes<HTMLInputElement>;
+  htmlAttributes?: React.InputHTMLAttributes<HTMLInputElement>;
   innerRef?: ((ta: HTMLInputElement | null) => void) | React.RefObject<HTMLInputElement>;
   id?: string;
 }
@@ -123,7 +130,7 @@ function getLocaleSeparators(locale: string) {
 }
 
 
-export function NumberBox(p: NumberBoxProps) {
+export function NumberBox(p: NumberBoxProps): React.JSX.Element {
 
   const [text, setText] = React.useState<string | undefined>(undefined);
 
@@ -132,12 +139,19 @@ export function NumberBox(p: NumberBoxProps) {
     p.value != undefined ? p.format?.format(p.value) :
       "";
 
-  return <input ref={p.innerRef} {...p.htmlAttributes}
+  const warning =
+    p.value != null && p.minValue != null && p.value < p.minValue ? ValidationMessage.NumberIsTooSmall.niceToString() :
+      p.value != null && p.maxValue != null && p.maxValue < p.value ? ValidationMessage.NumberIsTooBig.niceToString() :
+        undefined;
+
+  return <input ref={p.innerRef}
+    autoComplete="off"
+    {...p.htmlAttributes}
     id={p.id}
     readOnly={p.readonly}
     type="text"
-    autoComplete="asdfasf" /*Not in https://html.spec.whatwg.org/multipage/form-control-infrastructure.html#autofill*/
-    className={addClass(p.htmlAttributes, classes(p.formControlClass, "numeric"))} value={value}
+    className={classes(p.htmlAttributes?.className, p.formControlClass, "numeric", warning && "border-warning")} value={value}
+    title={warning}
     onBlur={handleOnBlur}
     onChange={handleOnChange}
     onKeyDown={handleKeyDown}
@@ -153,17 +167,21 @@ export function NumberBox(p: NumberBoxProps) {
       p.htmlAttributes.onFocus(e);
   };
 
+  function triggetOnBlur() {
+    if (text != null) {
+      let value = NumberLineController.autoFixString(text, false, false);
+
+      const result = value == undefined || value.length == 0 ? null : unformat(p.format, value);
+      setText(undefined);
+      if (result != p.value)
+        p.onChange(result);
+    }
+  }
+
 
   function handleOnBlur(e: React.FocusEvent<any>) {
     if (!p.readonly) {
-      if (text != null) {
-        let value = NumberLineController.autoFixString(text, false, false);
-
-        const result = value == undefined || value.length == 0 ? null : unformat(p.format, value);
-        setText(undefined);
-        if (result != p.value)
-          p.onChange(result);
-      }
+      triggetOnBlur();
     }
 
     if (p.htmlAttributes && p.htmlAttributes.onBlur)
@@ -201,8 +219,12 @@ export function NumberBox(p: NumberBoxProps) {
   }
 
   function handleKeyDown(e: React.KeyboardEvent<any>) {
-    if (!p.validateKey(e))
+
+    if (!p.validateKey(e)) {
+      if (e.ctrlKey || e.altKey) //possible shortcut
+        triggetOnBlur();
       e.preventDefault();
+    }
     else {
       var atts = p.htmlAttributes;
       atts?.onKeyDown && atts.onKeyDown(e);
@@ -210,7 +232,7 @@ export function NumberBox(p: NumberBoxProps) {
   }
 }
 
-export function isNumberKey(e: React.KeyboardEvent<any>) {
+export function isNumberKey(e: React.KeyboardEvent<any>): boolean {
   const c = e.key;
   return ((c >= '0' && c <= '9' && !e.shiftKey) /*0-9*/ ||
     (c == KeyNames.enter) ||

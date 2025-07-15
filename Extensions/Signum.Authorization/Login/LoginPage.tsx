@@ -5,7 +5,7 @@ import { classes } from '@framework/Globals'
 import { ModelState, JavascriptMessage } from '@framework/Signum.Entities'
 import { ValidationError } from '@framework/Services'
 import { LoginAuthMessage } from '../Signum.Authorization'
-import * as AuthClient from '../AuthClient'
+import { AuthClient } from '../AuthClient'
 import MessageModal from '@framework/Modals/MessageModal'
 import * as AppContext from '@framework/AppContext'
 import { QueryString } from "@framework/QueryString"
@@ -17,7 +17,7 @@ export interface LoginContext {
   userName?: React.RefObject<HTMLInputElement>;
 }
 
-export default function LoginPage() {
+function LoginPage(): React.JSX.Element {
 
   AppContext.useTitle(AuthClient.currentUser() ? LoginAuthMessage.SwitchUser.niceToString() : LoginAuthMessage.Login.niceToString());
 
@@ -40,7 +40,7 @@ export default function LoginPage() {
       {LoginPage.showLoginForm == "initially_not" && showLoginForm == false &&
         <div className="row">
           <div className="col-md-6 offset-md-3 mt-2">
-            <a href="#" className="ms-1" onClick={e => {
+            <a href="#" className="ms-1" id="sf-show-login-form" onClick={e => {
               e.preventDefault();
               setShowLoginForm(true);
             }}>
@@ -53,13 +53,17 @@ export default function LoginPage() {
   );
 }
 
+namespace LoginPage {
+  export let customLoginButtons: ((ctx: LoginContext) => React.ReactElement<any>) | null = null;
+  export let showLoginForm: "yes" | "no" | "initially_not" = "yes";
+  export let usernameLabel: () => string = () => LoginAuthMessage.Username.niceToString();
+  export let resetPasswordControl = () => null as null | React.ReactElement;
+}
 
-LoginPage.customLoginButtons = null as (null | ((ctx: LoginContext) => React.ReactElement<any>));
-LoginPage.showLoginForm = "yes" as "yes" | "no" | "initially_not";
-LoginPage.usernameLabel = () => LoginAuthMessage.Username.niceToString();
-LoginPage.resetPasswordControl = () => null as null | React.ReactElement;
 
-export function LoginForm(p: { ctx: LoginContext }) {
+export default LoginPage;
+
+export function LoginForm(p: { ctx: LoginContext }): React.JSX.Element {
   const userName = React.useRef<HTMLInputElement>(null);
   p.ctx.userName = userName;
   const password = React.useRef<HTMLInputElement>(null);

@@ -1,17 +1,17 @@
 import * as React from 'react'
+import { OverlayTrigger, Tooltip } from "react-bootstrap";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { API, TreeNode, TreeNodeState, fixState } from './TreeClient'
+import { TreeClient, TreeNode, TreeNodeState, TreeOptions, TreeOptionsParsed } from './TreeClient'
 import { classes } from '@framework/Globals'
 import * as AppContext from '@framework/AppContext'
-import * as Navigator from '@framework/Navigator'
-import * as Finder from '@framework/Finder'
+import { Navigator } from '@framework/Navigator'
+import { Finder } from '@framework/Finder'
 import ContextMenu from '@framework/SearchControl/ContextMenu'
 import { ContextMenuPosition } from '@framework/SearchControl/ContextMenu'
-import * as Operations from '@framework/Operations'
-import { SearchMessage, JavascriptMessage, EntityControlMessage, toLite, liteKey, getToString } from '@framework/Signum.Entities'
+import { Operations } from '@framework/Operations'
+import { SearchMessage, JavascriptMessage, EntityControlMessage, toLite, liteKey, getToString, Lite } from '@framework/Signum.Entities'
 import { TreeViewerMessage, TreeEntity, TreeOperation, MoveTreeModel, TreeMessage } from './Signum.Tree'
-import * as TreeClient from './TreeClient'
-import { FilterOptionParsed, QueryDescription, SubTokensOptions, FilterOption } from "@framework/FindOptions";
+import { FilterOptionParsed, ColumnOptionParsed, QueryDescription, SubTokensOptions, FilterOption, ColumnOption, QueryRequest, hasToArray, ResultRow } from "@framework/FindOptions";
 import FilterBuilder from "@framework/SearchControl/FilterBuilder";
 import { ISimpleFilterBuilder } from "@framework/Search";
 import { is } from "@framework/Signum.Entities";
@@ -19,24 +19,24 @@ import { ContextualItemsContext, renderContextualItems } from "@framework/Search
 import { Entity } from "@framework/Signum.Entities";
 import { tryGetMixin } from "@framework/Signum.Entities";
 import { Dropdown, DropdownButton } from 'react-bootstrap';
-import { toFilterRequests } from '@framework/Finder';
 import "./TreeViewer.css"
-import { QueryTokenString, tryGetOperationInfo } from '@framework/Reflection';
+import { QueryTokenString, getTypeInfo, tryGetOperationInfo } from '@framework/Reflection';
 import * as Hooks from '@framework/Hooks'
-import SearchPage from '@framework/SearchControl/SearchPage'
 import { DisabledMixin } from '@framework/Signum.Basics'
+import SearchControlLoaded, { ColumnParsed } from '@framework/SearchControl/SearchControlLoaded';
 
 interface TreeViewerProps {
-  typeName: string;
+  treeOptions: TreeOptions;
+  defaultSelectedLite?: Lite<TreeEntity>;
   showContextMenu?: boolean | "Basic";
   allowMove?: boolean;
   avoidChangeUrl?: boolean;
   onDoubleClick?: (selectedNode: TreeNode, e: React.MouseEvent<any>) => void;
   onSelectedNode?: (selectedNode: TreeNode | undefined) => void;
-  onSearch?: () => void;
-  filterOptions?: (FilterOption | null | undefined)[];
+  onSearch?: (top: TreeOptionsParsed) => void;
   initialShowFilters?: boolean;
   showToolbar?: boolean;
+  showExpandCollapseButtons?: boolean;
   deps?: React.DependencyList;
 }
 
@@ -47,10 +47,15 @@ export interface DraggedOver {
   position: DraggedPosition;
 }
 
+interface VisibleColumnsWithFormatter extends ColumnParsed {
+  columnIndex: number;
+}
+
 interface TreeViewerState {
   treeNodes?: Array<TreeNode>;
+  resultColumns?: string[];
   selectedNode?: TreeNode;
-  filterOptions: FilterOptionParsed[];
+  treeOptionsParsed?: TreeOptionsParsed;
   queryDescription?: QueryDescription;
   simpleFilterBuilder?: React.ReactElement<any>;
   showFilters?: boolean;
@@ -71,75 +76,77 @@ interface TreeViewerState {
 
 export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState>{
 
+  static maxToArrayElements = 100;
+
   constructor(props: TreeViewerProps) {
     super(props);
     this.state = {
-      filterOptions: [],
       showFilters: props.initialShowFilters,
       isSelectOpen: false
     };
   }
 
-  selectNode(node: TreeNode | undefined) {
+  selectNode(node: TreeNode | undefined) : void {
 
     this.setState({ selectedNode: node });
     if (this.props.onSelectedNode)
       this.props.onSelectedNode(node);
   }
 
-  componentWillMount() {
-    this.initilize(this.props.typeName, this.props.filterOptions ?? []);
+  componentWillMount() : void {
+    this.initialize(this.props.treeOptions);
   }
 
-  componentWillReceiveProps(newProps: TreeViewerProps) {
-    var path = TreeClient.treePath(newProps.typeName, newProps.filterOptions);
-    if (path == TreeClient.treePath(this.props.typeName, this.props.filterOptions)) {
+  componentWillReceiveProps(newProps: TreeViewerProps) : void {
+    var path = TreeClient.treePath(newProps.treeOptions);
+    if (path == TreeClient.treePath(this.props.treeOptions)) {
       this.searchIfDeps(newProps);
       return;
     }
 
-    if (this.state.filterOptions && this.state.queryDescription) {
-      if (path == TreeClient.treePath(this.props.typeName, Finder.toFilterOptions(this.state.filterOptions))) {
+    if (this.state.treeOptionsParsed && this.state.queryDescription) {
+      if (path == TreeClient.treePath(TreeClient.toTreeOptions(this.state.treeOptionsParsed, this.state.queryDescription))) {
         this.searchIfDeps(newProps);
         return;
       }
     }
 
     this.state = {
-      filterOptions: [],
       showFilters: newProps.initialShowFilters,
       isSelectOpen: false,
     };
     this.forceUpdate();
 
-    this.initilize(newProps.typeName, newProps.filterOptions ?? []);
+    this.initialize(newProps.treeOptions);
   }
 
-  searchIfDeps(newProps: TreeViewerProps) {
+  searchIfDeps(newProps: TreeViewerProps): void {
     if (Hooks.areEqualDeps(this.props.deps ?? [], newProps.deps ?? [])) {
       this.search(false);
     }
   }
 
-  initilize(typeName: string, filterOptions: (FilterOption | null | undefined)[]) {
+  initialize(to: TreeOptions): void {
 
-    Finder.getQueryDescription(typeName)
+    Finder.getQueryDescription(to.typeName)
       .then(qd => {
-        Finder.parseFilterOptions(filterOptions, false, qd).then(fop => {
-          this.setState({ filterOptions: fop }, () => {
-            const qs = Finder.getSettings(typeName);
-            const sfb = qs?.simpleFilterBuilder && qs.simpleFilterBuilder({ queryDescription: qd, initialFilterOptions: this.state.filterOptions, search: () => this.search(true)});
-            this.setState({ queryDescription: qd, simpleFilterBuilder: sfb });
-            if (sfb)
-              this.setState({ showFilters: false });
+        this.setState({ queryDescription: qd }, () =>
+        TreeClient.parseTreeOptions(to, qd)
+          .then((top) => {
+            this.setState({ treeOptionsParsed: top }, () => {
+              const qs = Finder.getSettings(to.typeName);
+              const sfb = qs?.simpleFilterBuilder && qs.simpleFilterBuilder({ queryDescription: this.state.queryDescription!, initialFilterOptions: this.state.treeOptionsParsed!.filterOptions, search: () => this.search(true) });
+              this.setState({ simpleFilterBuilder: sfb });
+              if (sfb)
+                this.setState({ showFilters: false });
 
-            this.search(true);
-          });
-        });
+              this.search(true, false, true);
+            });
+          }));
       });
   }
 
-  handleFullScreenClick = (ev: React.MouseEvent<any>) => {
+  handleFullScreenClick = (ev: React.MouseEvent<any>): void => {
 
     ev.preventDefault();
 
@@ -151,42 +158,41 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
       AppContext.navigate(path);
   };
 
-  getCurrentUrl() {
-    return TreeClient.treePath(this.props.typeName, Finder.toFilterOptions(this.state.filterOptions));
+  getCurrentUrl() : string {
+    return TreeClient.treePath(TreeClient.toTreeOptions(this.state.treeOptionsParsed!, this.state.queryDescription!));
   }
 
-
-
-  handleNodeIconClick = (n: TreeNode) => {
+  handleNodeIconClick = (n: TreeNode): void => {
     if (n.nodeState == "Collapsed" || n.nodeState == "Filtered") {
       n.nodeState = "Expanded";
       this.search(false);
     }
     else if (n.nodeState == "Expanded") {
       n.nodeState = "Collapsed";
+      allNodes(n).forEach(n => n.nodeState = "Collapsed");
       this.forceUpdate();
     }
   }
 
-  handleNodeTextClick = (n: TreeNode) => {
+  handleNodeTextClick = (n: TreeNode): void => {
     this.selectNode(n);
   }
 
-  handleNodeTextDoubleClick = (n: TreeNode, e: React.MouseEvent<any>) => {
+  handleNodeTextDoubleClick = (n: TreeNode, e: React.MouseEvent<any>): void => {
     if (this.props.onDoubleClick)
       this.props.onDoubleClick(n, e);
     else
       this.handleView();
   }
 
-  handleView = () => {
+  handleView = (): void => {
     const node = this.state.selectedNode!;
     Navigator.view(node.lite)
       .then(() => this.search(false));
   }
 
 
-  render() {
+  render(): React.ReactElement {
     return (
       <div>
         {this.renderSearch()}
@@ -196,19 +202,76 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
           <br />
         </>}
         
-        <div className="tree-container">
-          <ul>
-            {!this.state.treeNodes ? JavascriptMessage.loading.niceToString() :
-              this.state.treeNodes.map((node, i) =>
-                <TreeNodeControl key={i} treeViewer={this} treeNode={node} dropDisabled={node == this.state.draggedNode} />)}
-          </ul>
+        {!this.props.showToolbar && this.props.showExpandCollapseButtons && this.renderExpandCollapseButtons()}
+
+        <div className="tree-container sf-scroll-table-container table-responsive">
+          <table className="sf-search-results table table-hover table-sm">
+            <thead>
+              {this.renderHeaders()}
+            </thead>
+            <tbody>
+              {this.renderRows()}
+            </tbody>
+          </table>
         </div>
         {this.state.contextualMenu && this.renderContextualMenu()}
       </div>
     );
   }
 
-  handleNodeTextContextMenu = (n: TreeNode, e: React.MouseEvent<any>) => {
+  renderHeaders = (): React.ReactElement => {
+    const visibleColumns = this.getVisibleColumnsWithFormatter();
+    return (
+      <tr>
+        <th
+          className="noOrder"
+          data-column-name="Name">
+          {getTypeInfo(this.props.treeOptions.typeName).members["Name"].niceName}
+        </th>
+        {visibleColumns.map(({ column: co, columnIndex: ci }, i) =>
+          <th key={i}
+            className={classes(co.hiddenColumn && "sf-hidden-column", "noOrder")}
+            data-column-name={co.token && co.token.fullKey}
+            data-column-index={ci}>
+            {co.displayName}
+          </th>)}
+      </tr>
+    );
+  }
+
+  renderRows = (): React.ReactNode | string => {
+    if (!this.state.treeNodes)
+      return JavascriptMessage.loading.niceToString();
+
+    const visibleColumns = this.getVisibleColumnsWithFormatter();
+    return this.state.treeNodes.map((node, i) =>
+      <TreeNodeControl key={i} treeViewer={this} treeNode={node} columns={visibleColumns} dropDisabled={node == this.state.draggedNode} />);
+  }
+
+  getVisibleColumnsWithFormatter = (): VisibleColumnsWithFormatter[] => {
+    if (!this.state.resultColumns)
+      return [];
+
+    const qs = Finder.getSettings(this.props.treeOptions.typeName);
+    const resultColumns = this.state.resultColumns;
+    const columnOptions = this.state.treeOptionsParsed!.columnOptions
+      .map((co, i) => ({ co, i }))
+      .filter(({ co, i }) => !co.hiddenColumn &&
+        co.token?.fullKey != "Id" &&
+        co.token?.fullKey != "Name" &&
+        co.token?.fullKey != "FullName" &&
+        resultColumns.some(rc => rc == co.token?.fullKey));
+
+    return columnOptions.map(({ co, i }) => ({
+      column: co,
+      columnIndex: i,
+      hasToArray: hasToArray(co.token),
+      cellFormatter: (co.token && Finder.getCellFormatter(qs, co.token, undefined)),
+      resultIndex: co.token == undefined || resultColumns == null ? -1 : resultColumns.indexOf(co.token.fullKey)
+    } as VisibleColumnsWithFormatter));
+  }
+
+  handleNodeTextContextMenu = (n: TreeNode, e: React.MouseEvent<any>) : void => {
     e.preventDefault();
     e.stopPropagation();
 
@@ -220,7 +283,7 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
     }, () => this.loadMenuItems());
   }
 
-  loadMenuItems() {
+  loadMenuItems() : void {
     if (this.props.showContextMenu == "Basic")
       this.setState({ currentMenuItems: [] });
     else {
@@ -236,11 +299,11 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
     }
   }
 
-  handleContextOnHide = () => {
+  handleContextOnHide = (): void => {
     this.setState({ contextualMenu: undefined, currentMenuItems: undefined });
   }
 
-  renderContextualMenu() {
+  renderContextualMenu(): React.ReactElement | null {
     const cm = this.state.contextualMenu!;
     if (!this.state.selectedNode)
       return null;
@@ -254,7 +317,7 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
 
   renderMenuItems(): React.ReactElement<any>[] {
 
-    let type = this.props.typeName;
+    let type = this.props.treeOptions.typeName;
 
     var menuItems = [
       Navigator.isViewable(type, { isSearch: "main" }) && <Dropdown.Item onClick={this.handleView} className="btn-danger"><FontAwesomeIcon icon="arrow-right" />&nbsp;{EntityControlMessage.View.niceToString()}</Dropdown.Item >,
@@ -275,39 +338,63 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
     return menuItems;
   }
 
-  handleSearchSubmit = (e: React.FormEvent<any>) => {
+  handleSearchSubmit = (e: React.FormEvent<any>) : void => {
     e.preventDefault();
     e.stopPropagation();
 
     this.search(true);
   }
 
+  getQueryRequest(avoidHiddenColumns?: boolean): QueryRequest {
+    const fo = TreeClient.toFindOptionsParsed(this.state.treeOptionsParsed!);
+    const qs = Finder.getSettings(this.props.treeOptions.typeName);
+    const result = Finder.getQueryRequest(fo, qs, avoidHiddenColumns);
 
-  search(clearExpanded: boolean) {
+    return result;
+  }
+
+  search(clearExpanded: boolean, loadDescendants: boolean = false, considerDefaultSelectedLite: boolean = false): undefined {
+
+    if (!this.state.treeOptionsParsed || !this.state.queryDescription)
+      return;
+
+    const defaultSelectedLite = considerDefaultSelectedLite ? this.props.defaultSelectedLite : undefined;
+
     this.getFilterOptionsWithSFB().then(filters => {
       let expandedNodes = clearExpanded || !this.state.treeNodes ? [] :
         this.state.treeNodes!.flatMap(allNodes).filter(a => a.nodeState == "Expanded").map(a => a.lite);
 
+      const userFilters = Finder.toFilterRequests(filters.filter(fo => fo.frozen == false));
+      const frozenFilters = Finder.toFilterRequests(filters.filter(fo => fo.frozen == true));
 
-      const userFilters = toFilterRequests(filters.filter(fo => fo.frozen == false));
-      const frozenFilters = toFilterRequests(filters.filter(fo => fo.frozen == true));
+      const qr = this.getQueryRequest(true);
+      const columns = qr.columns;
 
       if (userFilters.length == 0)
         userFilters.push({ token: QueryTokenString.entity<TreeEntity>().append(e => e.level).toString(), operation: "EqualTo", value: 1 });
 
-      return API.findNodes(this.props.typeName, { userFilters, frozenFilters, expandedNodes });
+      return TreeClient.API.findNodes(this.props.treeOptions.typeName, { userFilters, frozenFilters, columns, expandedNodes, loadDescendants });
     })
-      .then(nodes => {
-        const selectedLite = this.state.selectedNode && this.state.selectedNode.lite;
-        var newSeleted = selectedLite && nodes.filter(a => is(a.lite, selectedLite)).singleOrNull();
-        this.setState({ treeNodes: nodes, selectedNode: newSeleted || undefined });
+      .then(response => {
+        const nodes = response.nodes;
+        const selectedLite = this.state.selectedNode?.lite;
+        var newSeleted = selectedLite && nodes.flatMap(allNodes).filter(a => is(a.lite, selectedLite)).singleOrNull();
+
+        if (newSeleted == null)
+          newSeleted = defaultSelectedLite && nodes.flatMap(allNodes).filter(a => is(a.lite, defaultSelectedLite)).singleOrNull();
+
+        this.setState({ treeNodes: nodes, resultColumns: response.columns, selectedNode: newSeleted || undefined });
+        this.forceUpdate();
 
         if (this.props.onSearch)
-          this.props.onSearch();
+          this.props.onSearch(this.state.treeOptionsParsed!);
+
+        if (defaultSelectedLite && newSeleted && is(newSeleted?.lite, defaultSelectedLite))
+          this.selectNode(newSeleted!);
       });
   }
 
-  renderSearch() {
+  renderSearch(): React.ReactElement {
     const s = this.state;
 
     const sfb = this.state.simpleFilterBuilder &&
@@ -315,43 +402,57 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
 
     return (
       <form onSubmit={this.handleSearchSubmit}>
-        {s.queryDescription && (s.showFilters ?
+        {s.treeOptionsParsed && s.queryDescription && (s.showFilters ?
           <FilterBuilder
             queryDescription={s.queryDescription}
-            filterOptions={s.filterOptions}
+            filterOptions={s.treeOptionsParsed.filterOptions}
             subTokensOptions={SubTokensOptions.CanAnyAll} /> :
           sfb && <div className="simple-filter-builder">{sfb}</div>)}
       </form>
     );
   }
 
-  handleAddRoot = () => {
-    Operations.API.construct(this.props.typeName, TreeOperation.CreateRoot)
+  handleAddRoot = (): void => {
+    Operations.API.construct(this.props.treeOptions.typeName, TreeOperation.CreateRoot)
       .then(ep => Navigator.view(ep!, { requiresSaveOperation: true }))
       .then(te => {
         if (!te)
           return;
-        this.state.treeNodes!.push(toTreeNode(te));
-        this.forceUpdate();
+
+        const qr = this.getQueryRequest(true);
+        const columns = qr.columns;
+
+        TreeClient.API.getNode(this.props.treeOptions.typeName, { lite: toLite(te), columns })
+          .then((node) => {
+            this.state.treeNodes!.push(toTreeNode(te, node));
+            this.forceUpdate();
+          });
       });
   }
 
-  handleAddChildren = () => {
+  handleAddChildren = (): void => {
     var parent = this.state.selectedNode!;
     Operations.API.constructFromLite(parent.lite, TreeOperation.CreateChild)
       .then(ep => Navigator.view(ep!, { requiresSaveOperation: true }))
       .then(te => {
         if (!te)
           return;
-        var newNode = toTreeNode(te);
-        parent.loadedChildren.push(newNode);
-        parent.childrenCount++;
-        fixState(parent);
-        this.selectNode(newNode);
+
+        const qr = this.getQueryRequest(true);
+        const columns = qr.columns;
+
+        TreeClient.API.getNode(this.props.treeOptions.typeName, { lite: toLite(te), columns })
+          .then(node => {
+            var newNode = toTreeNode(te, node);
+            parent.loadedChildren.push(newNode);
+            parent.childrenCount++;
+            TreeClient.fixState(parent);
+            this.selectNode(newNode);
+          })
       });
   }
 
-  handleAddSibling = () => {
+  handleAddSibling = (): void => {
 
     var sibling = this.state.selectedNode!;
 
@@ -360,15 +461,22 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
       .then(te => {
         if (!te)
           return;
-        const newNode = toTreeNode(te);
-        const parent = this.findParent(sibling);
-        const array = parent ? parent.loadedChildren : this.state.treeNodes!;
-        array.insertAt(array.indexOf(sibling) + 1, newNode);
-        this.selectNode(newNode);
+
+        const qr = this.getQueryRequest(true);
+        const columns = qr.columns;
+
+        TreeClient.API.getNode(this.props.treeOptions.typeName, { lite: toLite(te), columns })
+          .then(node => {
+            const newNode = toTreeNode(te, node);
+            const parent = this.findParent(sibling);
+            const array = parent ? parent.loadedChildren : this.state.treeNodes!;
+            array.insertAt(array.indexOf(sibling) + 1, newNode);
+            this.selectNode(newNode);
+          });
       });
   }
 
-  handleCopyClick = () => {
+  handleCopyClick = (): void => {
     const supportsClipboard = (navigator.clipboard && window.isSecureContext);
     if (!supportsClipboard || !this.state.selectedNode)
       return;
@@ -377,14 +485,14 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
     navigator.clipboard.writeText(text);
   }
 
-  findParent(childNode: TreeNode) {
+  findParent(childNode: TreeNode): TreeNode | null {
     return this.state.treeNodes!.flatMap(allNodes).filter(n => n.loadedChildren.contains(childNode)).singleOrNull();
   }
 
   simpleFilterBuilderInstance?: ISimpleFilterBuilder;
   getFilterOptionsWithSFB(): Promise<FilterOptionParsed[]> {
 
-    const fos = this.state.filterOptions;
+    const fos = this.state.treeOptionsParsed!.filterOptions;
     const qd = this.state.queryDescription!;
 
     if (this.simpleFilterBuilderInstance == undefined)
@@ -396,13 +504,15 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
     var filters = this.simpleFilterBuilderInstance.getFilters();
 
     return Finder.parseFilterOptions(filters, false, qd).then(newFos => {
-      this.setState({ filterOptions: newFos });
+      var top = this.state.treeOptionsParsed!;
+      top.filterOptions = newFos;
+      this.setState({ treeOptionsParsed: top });
 
       return newFos;
     });
   }
 
-  renderToolbar() {
+  renderToolbar(): React.ReactElement{
     const s = this.state;
     const selected = s.selectedNode;
     const menuItems = this.renderMenuItems();
@@ -413,7 +523,9 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
           onClick={this.handleToggleFilters}
           title={s.showFilters ? JavascriptMessage.hideFilters.niceToString() : JavascriptMessage.showFilters.niceToString()}><FontAwesomeIcon icon="filter" /></a>
         <button className="btn btn-primary" onClick={this.handleSearchSubmit}>{JavascriptMessage.search.niceToString()}</button>
-        {tryGetOperationInfo(TreeOperation.CreateRoot, this.props.typeName) && <button className="btn btn-light" onClick={this.handleAddRoot} disabled={s.treeNodes == null} > <FontAwesomeIcon icon="star" />&nbsp;{TreeViewerMessage.AddRoot.niceToString()}</button>}
+        {this.props.showExpandCollapseButtons && <button className="btn btn-light" onClick={this.handleExpandAll} disabled={s.treeNodes == null}>{TreeViewerMessage.ExpandAll.niceToString()}</button>}
+        {this.props.showExpandCollapseButtons && <button className="btn btn-light" onClick={this.handleCollapseAll} disabled={s.treeNodes == null}>{TreeViewerMessage.CollapseAll.niceToString()}</button>}
+        {tryGetOperationInfo(TreeOperation.CreateRoot, this.props.treeOptions.typeName) && <button className="btn btn-light" onClick={this.handleAddRoot} disabled={s.treeNodes == null} > <FontAwesomeIcon icon="star" />&nbsp;{TreeViewerMessage.AddRoot.niceToString()}</button>}
         <Dropdown
           onToggle={this.handleSelectedToggle}
           show={s.isSelectOpen}>
@@ -433,7 +545,31 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
     );
   }
 
-  handleSelectedToggle = () => {
+  renderExpandCollapseButtons(): React.ReactElement {
+    const s = this.state;
+
+    return (
+      <div className="btn-toolbar">
+        <button className="btn btn-sm btn-light" onClick={this.handleExpandAll} disabled={s.treeNodes == null} title={TreeViewerMessage.ExpandAll.niceToString()}>
+          <FontAwesomeIcon icon="plus" />
+        </button>
+
+        <button className="btn btn-sm btn-light" onClick={this.handleCollapseAll} disabled={s.treeNodes == null} title={TreeViewerMessage.CollapseAll.niceToString()}>
+          <FontAwesomeIcon icon="minus" />
+        </button>
+      </div>
+    );
+  }
+
+  handleExpandAll = (): undefined => {
+    this.search(true, true, true);
+  }
+
+  handleCollapseAll = (): undefined => {
+    this.search(true, false, true);
+  }
+
+  handleSelectedToggle = (): undefined => {
 
     if (!this.state.isSelectOpen && this.state.currentMenuItems == undefined)
       this.loadMenuItems();
@@ -441,11 +577,11 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
     this.setState({ isSelectOpen: !this.state.isSelectOpen });
   }
 
-  handleExplore = (e: React.MouseEvent<any>) => {
-    var path = Finder.findOptionsPath({
-      queryName: this.props.typeName,
-      filterOptions: Finder.toFilterOptions(this.state.filterOptions),
-    });
+  handleExplore = (e: React.MouseEvent<any>) : void => {
+    const fop = TreeClient.toFindOptionsParsed(this.state.treeOptionsParsed!);
+    const fo = Finder.toFindOptions(fop, this.state.queryDescription!, false);
+
+    var path = Finder.findOptionsPath(fo);
 
     if (this.props.avoidChangeUrl)
       window.open(AppContext.toAbsoluteUrl(path));
@@ -453,7 +589,7 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
       AppContext.pushOrOpenInTab(path, e);
   }
 
-  handleToggleFilters = () => {
+  handleToggleFilters = () : void => {
 
     this.getFilterOptionsWithSFB().then(() => {
       this.simpleFilterBuilderInstance = undefined;
@@ -462,7 +598,7 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
   }
 
 
-  handleDragStart = (node: TreeNode, e: React.DragEvent<any>) => {
+  handleDragStart = (node: TreeNode, e: React.DragEvent<any>): void => {
     e.dataTransfer.setData('text', "start"); //cannot be empty string
 
     var isCopy = e.ctrlKey || e.shiftKey || e.altKey;
@@ -471,7 +607,7 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
   }
 
 
-  handleDragOver = (node: TreeNode, e: React.DragEvent<any>) => {
+  handleDragOver = (node: TreeNode, e: React.DragEvent<any>): void => {
     e.preventDefault();
     const de = e.nativeEvent as DragEvent;
     const span = e.currentTarget as HTMLElement;
@@ -506,11 +642,11 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
     return "Middle";
   }
 
-  handleDragEnd = (node: TreeNode, e: React.DragEvent<any>) => {
+  handleDragEnd = (node: TreeNode, e: React.DragEvent<any>): void => {
     this.setState({ draggedNode: undefined, draggedOver: undefined, draggedKind: undefined });
   }
 
-  handleDrop = (node: TreeNode, e: React.DragEvent<any>) => {
+  handleDrop = (node: TreeNode, e: React.DragEvent<any>): void => {
     const dragged = this.state.draggedNode!;
     const over = this.state.draggedOver!;
 
@@ -518,7 +654,7 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
       return;
 
     var nodeParent = this.findParent(over.node);
-    const ts = TreeClient.settings[this.props.typeName];
+    const ts = TreeClient.settings[this.props.treeOptions.typeName];
     if (ts?.dragTargetIsValid)
       ts.dragTargetIsValid(dragged, over.position == "Middle" ? over.node : nodeParent)
         .then(valid => {
@@ -532,7 +668,7 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
       this.moveOrCopyOperation(nodeParent, dragged, over);
   }
 
-  moveOrCopyOperation(nodeParent: TreeNode | null, dragged: TreeNode, over: DraggedOver) {
+  moveOrCopyOperation(nodeParent: TreeNode | null, dragged: TreeNode, over: DraggedOver): void {
 
     var partial: Partial<MoveTreeModel> =
       over.position == "Middle" ? { newParent: over.node.lite, insertPlace: "LastNode" } :
@@ -555,7 +691,7 @@ export class TreeViewer extends React.Component<TreeViewerProps, TreeViewerState
       );
 
     } else {
-      const s = TreeClient.settings[this.props.typeName];
+      const s = TreeClient.settings[this.props.treeOptions.typeName];
       var promise = s?.createCopyModel ? s.createCopyModel(dragged.lite, partial) : Promise.resolve(MoveTreeModel.New(partial));
       promise.then(treeModel => treeModel &&
         Operations.API.constructFromLite(dragged.lite, TreeOperation.Copy, treeModel).then(() =>
@@ -575,15 +711,17 @@ function allNodes(node: TreeNode): TreeNode[] {
   return [node].concat(node.loadedChildren ? node.loadedChildren.flatMap(allNodes) : []);
 }
 
-function toTreeNode(treeEntity: TreeEntity): TreeNode {
+function toTreeNode(treeEntity: TreeEntity, newNode: TreeNode): TreeNode {
 
   var dm = tryGetMixin(treeEntity, DisabledMixin);
   return {
+    values: newNode.values,
     lite: toLite(treeEntity),
     name: treeEntity.name!,
+    fullName: treeEntity.fullName,
     childrenCount: 0,
     disabled: dm != null && Boolean(dm.isDisabled),
-    level: 0,
+    level: newNode.level,
     loadedChildren: [],
     nodeState: "Leaf"
   };
@@ -592,6 +730,7 @@ function toTreeNode(treeEntity: TreeEntity): TreeNode {
 interface TreeNodeControlProps {
   treeViewer: TreeViewer;
   treeNode: TreeNode;
+  columns: VisibleColumnsWithFormatter[];
   dropDisabled: boolean;
 }
 
@@ -615,7 +754,7 @@ class TreeNodeControl extends React.Component<TreeNodeControlProps> {
           <FontAwesomeIcon icon="square" title={EntityControlMessage.Expand.niceToString()}/>
           <FontAwesomeIcon icon="filter" inverse transform="shrink-2" title={EntityControlMessage.Expand.niceToString()} />
         </span>);
-      default: return <span className="place-holder" />;
+      default: return <span className="place-holder"></span>;
     }
   }
 
@@ -624,32 +763,69 @@ class TreeNodeControl extends React.Component<TreeNodeControlProps> {
     var node = this.props.treeNode;
     const tv = this.props.treeViewer;
     return (
-      <li>
-        <div draggable={tv.props.allowMove}
-          onDragStart={de => tv.handleDragStart(node, de)}
-          onDragEnter={de => tv.handleDragOver(node, de)}
-          onDragOver={de => tv.handleDragOver(node, de)}
-          onDragEnd={de => tv.handleDragEnd(node, de)}
-          onDrop={this.props.dropDisabled ? undefined : de => tv.handleDrop(node, de)}
-          style={this.getDragAndDropStyle(node)}>
-          {this.renderIcon(node.nodeState)}
+      <>
+        <tr>
+          <td>
+            <div className="try-no-wrap"
+              draggable={tv.props.allowMove}
+              onDragStart={de => tv.handleDragStart(node, de)}
+              onDragEnter={de => tv.handleDragOver(node, de)}
+              onDragOver={de => tv.handleDragOver(node, de)}
+              onDragEnd={de => tv.handleDragEnd(node, de)}
+              onDrop={this.props.dropDisabled ? undefined : de => tv.handleDrop(node, de)}
+              style={{ marginLeft: `${(node.level - 1) * 32}px`, ...this.getDragAndDropStyle(node) }}>
+              {this.renderIcon(node.nodeState)}
 
-          <span className={classes("tree-label", node == tv.state.selectedNode && "tree-selected", node.disabled && "tree-disabled")}
-            onDoubleClick={e => tv.handleNodeTextDoubleClick(node, e)}
-            onClick={() => tv.handleNodeTextClick(node)}
-            onContextMenu={tv.props.showContextMenu != false ? e => tv.handleNodeTextContextMenu(node, e) : undefined}>
-            {node.name}
-          </span>
-        </div>
+              <span className={classes("tree-label", node == tv.state.selectedNode && "tree-selected", node.disabled && "tree-disabled")}
+                onDoubleClick={e => tv.handleNodeTextDoubleClick(node, e)}
+                onClick={() => tv.handleNodeTextClick(node)}
+                onContextMenu={tv.props.showContextMenu != false ? e => tv.handleNodeTextContextMenu(node, e) : undefined}>
+                {node.fullName != node.name ? <OverlayTrigger
+                  overlay={
+                    <Tooltip>
+                      <span>{node.fullName}</span>
+                    </Tooltip>
+                  }>
+                  <span>{node.name}</span>
+                </OverlayTrigger> : node.name}
+              </span>
+            </div>
+          </td>
+          {this.renderExtraColumns(node)}
+        </tr>
 
-        {node.loadedChildren.length > 0 && (node.nodeState == "Expanded" || node.nodeState == "Filtered") &&
-          <ul>
-            {node.loadedChildren.map((n, i) =>
-              <TreeNodeControl key={i} treeViewer={tv} treeNode={n} dropDisabled={this.props.dropDisabled || n == tv.state.draggedNode} />)}
-          </ul>
+        {
+          node.loadedChildren.length > 0 && (node.nodeState == "Expanded" || node.nodeState == "Filtered") &&
+          node.loadedChildren.map((n, i) =>
+            <TreeNodeControl key={i} treeViewer={tv} treeNode={n} columns={this.props.columns} dropDisabled={this.props.dropDisabled || n == tv.state.draggedNode} />)
         }
-      </li>
+      </>
     );
+  }
+
+  renderExtraColumns = (node: TreeNode) => {
+    return this.props.columns.map(c =>
+      <td>
+        {this.getColumnElement(node, c)}
+      </td>);
+  }
+
+  getColumnElement(node: TreeNode, c: ColumnParsed) {
+
+    var fctx: Finder.CellFormatterContext = {
+      refresh: undefined,
+      columns: this.props.columns.map(c => c.column.token!.key),
+      row: ({
+        entity: node.lite,
+        columns: node.values,
+      }) as ResultRow,
+      rowIndex: -1,
+    };
+
+    return c.resultIndex == -1 || c.cellFormatter == undefined ? undefined :
+      c.hasToArray != null ? SearchControlLoaded.joinNodes((node.values[c.resultIndex] as unknown[]).map(v => c.cellFormatter!.formatter(v, fctx, c.column.token!)),
+        c.hasToArray.key == "SeparatedByComma" || c.hasToArray.key == "SeparatedByCommaDistinct" ? <span className="text-muted">, </span> : <br />, TreeViewer.maxToArrayElements) :
+        c.cellFormatter.formatter(node.values[c.resultIndex], fctx, c.column.token!);
   }
 
   getDragAndDropStyle(node: TreeNode): React.CSSProperties | undefined {

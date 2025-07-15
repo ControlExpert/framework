@@ -1,17 +1,16 @@
 import * as React from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import * as Finder from '@framework/Finder'
+import { Finder } from '@framework/Finder'
 import { getToString, JavascriptMessage, Lite } from '@framework/Signum.Entities'
 import { WorkflowEntity, WorkflowModel, WorkflowActivityMonitorMessage, CaseActivityEntity } from '../Signum.Workflow'
-import * as Navigator from '@framework/Navigator'
-import { API, WorkflowActivityMonitor, WorkflowActivityMonitorRequest } from '../WorkflowClient'
+import { Navigator } from '@framework/Navigator'
+import { WorkflowClient } from '../WorkflowClient'
 import WorkflowActivityMonitorViewerComponent from '../Bpmn/WorkflowActivityMonitorViewerComponent'
 import { ColumnOptionParsed, FilterOptionParsed, SubTokensOptions, QueryDescription, ColumnRequest } from '@framework/FindOptions';
 import { useLocation, useParams } from "react-router";
 import { newLite } from '@framework/Reflection';
 import FilterBuilder from '@framework/SearchControl/FilterBuilder';
 import ColumnBuilder from '@framework/SearchControl/ColumnBuilder';
-import { toFilterRequests } from '@framework/Finder';
 import { useAPI, useAPIWithReload } from '@framework/Hooks'
 
 export interface WorkflowActivityMonitorConfig {
@@ -22,10 +21,10 @@ export interface WorkflowActivityMonitorConfig {
 
 interface WorkflowActivityMonitorPageState {
   lastConfig: WorkflowActivityMonitorConfig;
-  workflowActivityMonitor: WorkflowActivityMonitor;
+  workflowActivityMonitor: WorkflowClient.WorkflowActivityMonitor;
 }
 
-export default function WorkflowActivityMonitorPage() {
+export default function WorkflowActivityMonitorPage(): React.JSX.Element {
   const params = useParams() as { workflowId: string };
 
   var workflow = useAPI(() => {
@@ -44,14 +43,14 @@ export default function WorkflowActivityMonitorPage() {
       return Promise.resolve(undefined);
 
     const clone = JSON.parse(JSON.stringify(config)) as WorkflowActivityMonitorConfig;
-    return API.workflowActivityMonitor(toRequest(config))
+    return WorkflowClient.API.workflowActivityMonitor(toRequest(config))
       .then(result => ({
         workflowActivityMonitor: result,
         lastConfig: clone,
       }));
   }, [config]);
 
-  const workflowModel = useAPI(() => workflow == null ? Promise.resolve(undefined) : API.getWorkflowModel(workflow).then(wmi => wmi.model), [workflow]);
+  const workflowModel = useAPI(() => workflow == null ? Promise.resolve(undefined) : WorkflowClient.API.getWorkflowModel(workflow).then(wmi => wmi.model), [workflow]);
 
   return (
     <div>
@@ -78,10 +77,10 @@ export default function WorkflowActivityMonitorPage() {
   );
 }
 
-function toRequest(conf: WorkflowActivityMonitorConfig): WorkflowActivityMonitorRequest {
+function toRequest(conf: WorkflowActivityMonitorConfig): WorkflowClient.WorkflowActivityMonitorRequest {
   return {
     workflow: conf.workflow,
-    filters: toFilterRequests(conf.filters),
+    filters: Finder.toFilterRequests(conf.filters),
     columns: conf.columns.filter(c => c.token != null).map(c => ({
       token: c.token!.fullKey,
       displayName: c.token!.niceName
@@ -98,7 +97,7 @@ interface WorkflowActivityMonitorConfigComponentState {
   queryDescription?: QueryDescription;
 }
 
-export function WorkflowActivityMonitorConfigComponent(p: WorkflowActivityMonitorConfigComponentProps) {
+export function WorkflowActivityMonitorConfigComponent(p: WorkflowActivityMonitorConfigComponentProps): React.JSX.Element | null {
 
   const qd = useAPI(() => Finder.getQueryDescription(CaseActivityEntity), []);
 

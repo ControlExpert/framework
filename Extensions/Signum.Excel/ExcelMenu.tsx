@@ -1,13 +1,13 @@
 import * as React from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import * as Finder from '@framework/Finder'
+import { Finder } from '@framework/Finder'
 import { getToString, Lite, SearchMessage, SelectorMessage } from '@framework/Signum.Entities'
-import * as Navigator from '@framework/Navigator'
+import { Navigator } from '@framework/Navigator'
 import SearchControlLoaded from '@framework/SearchControl/SearchControlLoaded'
 import { ExcelReportEntity, ExcelMessage, ExcelReportOperation, ImportFromExcelMessage } from './Signum.Excel'
-import * as ExcelClient from './ExcelClient'
+import { ExcelClient } from './ExcelClient'
 import { Dropdown } from 'react-bootstrap';
-import * as Operations from '@framework/Operations';
+import { Operations } from '@framework/Operations';
 import SelectorModal from '@framework/SelectorModal'
 import { PaginationMode, QueryRequest } from '@framework/FindOptions'
 import { onImportFromExcel } from './Templates/ImportExcelModel'
@@ -20,7 +20,7 @@ export interface ExcelMenuProps {
   excelReport: boolean;
 }
 
-export default function ExcelMenu(p: ExcelMenuProps) {
+export default function ExcelMenu(p: ExcelMenuProps): React.JSX.Element {
 
   const [isOpen, setIsOpen] = React.useState<boolean>(false);
 

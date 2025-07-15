@@ -4,12 +4,12 @@ import { FormGroup, FormControlReadonly, AutoLine, EntityTable, StyleContext, Op
 import { SearchValue } from '@framework/Search'
 import { TypeContext } from '@framework/TypeContext'
 import { NeuralNetworkSettingsEntity, PredictorEntity, PredictorColumnUsage, PredictorCodificationEntity, NeuralNetworkHidenLayerEmbedded, PredictorAlgorithmSymbol, TensorFlowOptimizer } from '../Signum.MachineLearning'
-import { API } from '../PredictorClient';
+import { PredictorClient } from '../PredictorClient';
 import { is } from '@framework/Signum.Entities';
 import { Popover, OverlayTrigger } from 'react-bootstrap';
 import { useForceUpdate, useAPI } from '@framework/Hooks'
 
-export default function NeuralNetworkSettings(p : { ctx: TypeContext<NeuralNetworkSettingsEntity> }){
+export default function NeuralNetworkSettings(p : { ctx: TypeContext<NeuralNetworkSettingsEntity> }): React.JSX.Element {
   const forceUpdate = useForceUpdate();
   function handlePredictionTypeChanged() {
     var nn = p.ctx.value;
@@ -72,11 +72,11 @@ export default function NeuralNetworkSettings(p : { ctx: TypeContext<NeuralNetwo
       <h4>{NeuralNetworkSettingsEntity.niceName()}</h4>
       <AutoLine ctx={ctx.subCtx(a => a.predictionType)} onChange={handlePredictionTypeChanged} />
       {renderCount(ctx, pred, "Input")}
-      <EntityTable ctx={ctx.subCtx(a => a.hiddenLayers)} columns={EntityTable.typedColumns<NeuralNetworkHidenLayerEmbedded>([
+      <EntityTable ctx={ctx.subCtx(a => a.hiddenLayers)} columns={[
         { property: a => a.size, headerHtmlAttributes: { style: { width: "33%" } } },
         { property: a => a.activation, headerHtmlAttributes: { style: { width: "33%" } } },
         { property: a => a.initializer, headerHtmlAttributes: { style: { width: "33%" } } },
-      ])} />
+      ]} />
       <div>
         <div className="row">
           <div className="col-sm-4">
@@ -119,20 +119,12 @@ export default function NeuralNetworkSettings(p : { ctx: TypeContext<NeuralNetwo
   );
 }
 
-function withHelp(element: React.ReactElement<LineBaseProps>, text: React.ReactNode): React.ReactElement<any> {
-  var ctx = element.props.ctx;
-
-  var label = <LabelWithHelp ctx={ctx} text={text} />;
-
-  return React.cloneElement(element, { label: label } as LineBaseProps);
-}
-
 interface LabelWithHelpProps {
   ctx: TypeContext<LineBaseProps>;
   text: React.ReactNode;
 }
 
-export function LabelWithHelp(p: LabelWithHelpProps) {
+export function LabelWithHelp(p: LabelWithHelpProps): React.JSX.Element {
 
     return (
       <OverlayTrigger overlay={

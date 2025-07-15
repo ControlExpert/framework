@@ -106,7 +106,9 @@ public static class ResetPasswordRequestLogic
             if (!rpr.IsValid)
                 throw new ApplicationException(ResetPasswordMessage.TheCodeOfYourLinkHasAlreadyBeenUsed.NiceToString());
 
-            using (UserHolder.UserSession(rpr.User))
+			RemoveOtherRequests(rpr);
+            
+			using (UserHolder.UserSession(rpr.User))
             {
                 rpr.Execute(ResetPasswordRequestOperation.Execute, password);
             }
@@ -149,25 +151,61 @@ public static class ResetPasswordRequestLogic
 
     }
 
-    public static ResetPasswordRequestEntity ResetPasswordRequest(UserEntity user)
+    public static ResetPasswordRequestEntity ResetPasswordRequest(UserEntity user, int maxValidCodes = 5)
     {
         using (OperationLogic.AllowSave<UserEntity>())
         using (AuthLogic.Disable())
         {
-            //Remove old previous requests
-            Database.Query<ResetPasswordRequestEntity>()
-                .Where(r => r.User.Is(user) && r.IsValid)
-                .UnsafeUpdate()
-                .Set(e => e.Used, e => true)
-                .Execute();
 
-            return new ResetPasswordRequestEntity
+            CancelExcess(user, maxValidCodes-1);
+
+            var rpr = new ResetPasswordRequestEntity
             {
                 Code = Random.Shared.NextString(32),
                 User = user,
                 RequestDate = Clock.Now,
             }.Save();
+
+
+            //RemoveOtherRequests(rpr);
+            return rpr; ;
         }
+    }
+
+
+
+    private static void RemoveOtherRequests(ResetPasswordRequestEntity rpr)
+    {
+        Database.Query<ResetPasswordRequestEntity>()
+            .Where(r => r.User.Is(rpr.User) && r.IsValid && !r.Is(rpr))
+            .UnsafeUpdate()
+            .Set(e => e.Used, e => true)
+            .Execute();
+    }
+
+    private static void CancelExcess(UserEntity user, int maxValidCodes)
+    {
+        var valid = Database.Query<ResetPasswordRequestEntity>()
+             .Where(r => r.User.Is(user) && r.IsValid)
+             .OrderByDescending(r => r.RequestDate)
+             .Select(r => r.ToLite()).Take(maxValidCodes).ToList();
+
+
+
+        Database.Query<ResetPasswordRequestEntity>()
+      .Where(r => r.User.Is(user) && r.IsValid && !valid.Any(c => c.Is(r)))
+      .UnsafeUpdate()
+      .Set(e => e.Used, e => true)
+      .Execute();
+    }
+
+    private static void CancelResetPasswordReques(UserEntity user)
+    {
+        Database.Query<ResetPasswordRequestEntity>()
+            .Where(r => r.User.Is(user) && r.IsValid)
+            .UnsafeUpdate()
+            .Set(e => e.Used, e => true)
+            .Execute();
     }
 }
 

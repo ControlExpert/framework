@@ -3,10 +3,10 @@ import { AutoLine, EntityLine, EntityTable, TextBoxLine } from '@framework/Lines
 import { FindOptions, ColumnOption } from '@framework/Search'
 import { TypeContext } from '@framework/TypeContext'
 import { PredictorSubQueryEntity, PredictorSubQueryColumnEmbedded, PredictorEntity, PredictorMainQueryEmbedded, PredictorMessage, PredictorSubQueryColumnUsage } from '../Signum.MachineLearning'
-import * as Finder from '@framework/Finder'
+import { Finder } from '@framework/Finder'
 import QueryTokenEmbeddedBuilder from '../../Signum.UserAssets/Templates/QueryTokenEmbeddedBuilder'
 import FilterBuilderEmbedded from '../../Signum.UserAssets/Templates/FilterBuilderEmbedded';
-import * as UserAssetsClient from '../../Signum.UserAssets/UserAssetClient'
+import { UserAssetClient } from '../../Signum.UserAssets/UserAssetClient'
 import { QueryDescription, SubTokensOptions } from '@framework/FindOptions'
 import { initializeColumn } from './Predictor';
 import { newMListElement } from '@framework/Signum.Entities';
@@ -15,7 +15,7 @@ import { QueryTokenString } from '@framework/Reflection';
 import { useForceUpdate } from '@framework/Hooks'
 import { QueryFilterEmbedded, QueryTokenEmbedded } from '../../Signum.UserAssets/Signum.UserAssets.Queries'
 
-export default function PredictorSubQuery(p : { ctx: TypeContext<PredictorSubQueryEntity>, mainQuery: PredictorMainQueryEmbedded, mainQueryDescription: QueryDescription }){
+export default function PredictorSubQuery(p : { ctx: TypeContext<PredictorSubQueryEntity>, mainQuery: PredictorMainQueryEmbedded, mainQueryDescription: QueryDescription }): React.JSX.Element {
   const forceUpdate = useForceUpdate();
   function handleOnChange() {
     const e = p.ctx.value;
@@ -30,16 +30,16 @@ export default function PredictorSubQuery(p : { ctx: TypeContext<PredictorSubQue
     var sq = p.ctx.value;
 
     Finder.getQueryDescription(sq.query!.key).then(sqd =>
-      UserAssetsClient.API.parseFilters({
+      UserAssetClient.API.parseFilters({
         queryKey: sqd.queryKey,
         canAggregate: true,
         entity: undefined,
-        filters: (getMainFilters() ?? []).concat(sq.filters).map(mle => UserAssetsClient.Converter.toQueryFilterItem(mle.element))
+        filters: (getMainFilters() ?? []).concat(sq.filters).map(mle => UserAssetClient.Converter.toQueryFilterItem(mle.element))
       }).then(filters => {
         var fo: FindOptions = {
           queryName: sq.query!.key,
           groupResults: true,
-          filterOptions: filters.map(f => UserAssetsClient.Converter.toFilterOption(f)),
+          filterOptions: filters.map(f => UserAssetClient.Converter.toFilterOption(f)),
           columnOptions: [{ token: QueryTokenString.count() } as ColumnOption]
             .concat(sq.columns.map(mle => ({ token: mle.element.token && mle.element.token.tokenString, } as ColumnOption))),
           columnOptionsMode: "ReplaceAll",
@@ -122,7 +122,7 @@ export default function PredictorSubQuery(p : { ctx: TypeContext<PredictorSubQue
         <FilterBuilderEmbedded ctx={ctxxs.subCtx(a => a.filters)} queryKey={queryKey}
           subTokenOptions={SubTokensOptions.CanAnyAll | SubTokensOptions.CanElement | SubTokensOptions.CanAggregate}
           />
-          <EntityTable ctx={ctxxs.subCtx(e => e.columns)} columns={EntityTable.typedColumns<PredictorSubQueryColumnEmbedded>([
+          <EntityTable ctx={ctxxs.subCtx(e => e.columns)} columns={[
             {
               property: a => a.usage, template: colCtx => <AutoLine ctx={colCtx.subCtx(a => a.usage)} onChange={() => handleChangeUsage(colCtx)} />
             },
@@ -139,7 +139,7 @@ export default function PredictorSubQuery(p : { ctx: TypeContext<PredictorSubQue
             },
             { property: a => a.encoding, template: colCtx => isInputOutput(colCtx.value.usage) && <AutoLine ctx={colCtx.subCtx(a => a.encoding)} /> },
             { property: a => a.nullHandling, template: colCtx => isInputOutput(colCtx.value.usage) && <AutoLine ctx={colCtx.subCtx(a => a.nullHandling)} /> },
-          ])} />
+          ]} />
 
           {ctx.value.query && <a href="#" onClick={handlePreviewSubQuery}>{PredictorMessage.Preview.niceToString()}</a>}
         </div>}

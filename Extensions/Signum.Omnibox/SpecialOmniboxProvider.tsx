@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { OmniboxResult, OmniboxMatch } from './OmniboxClient'
+import { OmniboxClient, OmniboxResult, OmniboxMatch } from './OmniboxClient'
 import { OmniboxProvider } from "./OmniboxProvider";
 import * as OmniboxSpecialAction from '@framework/OmniboxSpecialAction'
 
@@ -9,7 +9,7 @@ export default class SpecialOmniboxProvider extends OmniboxProvider<SpecialOmnib
     return "SpecialOmniboxResult";
   }
 
-  icon() {
+  icon(): React.ReactElement<any, string | React.JSXElementConstructor<any>> {
     return this.coloredIcon("cog", "limegreen");
   }
 
@@ -26,11 +26,11 @@ export default class SpecialOmniboxProvider extends OmniboxProvider<SpecialOmnib
     return array;
   }
 
-  navigateTo(result: SpecialOmniboxResult) {
+  navigateTo(result: SpecialOmniboxResult): Promise<string | undefined> {
     return OmniboxSpecialAction.specialActions[result.key].onClick();
   }
 
-  toString(result: SpecialOmniboxResult) {
+  toString(result: SpecialOmniboxResult): string {
     return "!" + result.key;
   }
 }

@@ -1,13 +1,13 @@
 import * as React from 'react'
 import { classes, Dic } from '@framework/Globals'
-import * as Navigator from '@framework/Navigator'
+import { Navigator } from '@framework/Navigator'
 import { ModelState } from '@framework/Signum.Entities'
 import { ValidationError } from '@framework/Services'
 import { LoginAuthMessage } from '../Signum.Authorization'
-import * as AuthClient from '../AuthClient'
+import { AuthClient } from '../AuthClient'
 import { useStateWithPromise } from '@framework/Hooks'
 
-export default function ChangePasswordSucessPage() {
+export default function ChangePasswordSucessPage(): React.JSX.Element {
   return (
     <div className="container sf-change-password-success">
       <div className="row">

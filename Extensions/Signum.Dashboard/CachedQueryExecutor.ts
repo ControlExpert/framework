@@ -1,7 +1,6 @@
-import * as Finder from '@framework/Finder'
+import { Finder } from '@framework/Finder'
 import { ColumnRequest, FilterOperation, FilterOptionParsed, FilterRequest, FindOptionsParsed, OrderRequest, Pagination, QueryRequest, QueryToken, QueryValueRequest, ResultRow, ResultTable, isFilterGroup } from '@framework/FindOptions'
 import { Entity, getToString, is, Lite } from '@framework/Signum.Entities';
-import { useFetchAll } from '@framework/Navigator';
 import { ignoreErrors } from '@framework/QuickLinks';
 
 
@@ -32,7 +31,7 @@ export function executeQueryValueCached(request: QueryValueRequest, fop: FindOpt
   if (token == null)
     token = {
       fullKey: "Count",
-      type: { name: "number" },
+      type: { name: "int" },
       queryTokenType: "Aggregate",
       niceName: "Count",
       key: "Count",

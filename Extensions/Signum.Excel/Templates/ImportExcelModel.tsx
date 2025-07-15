@@ -3,11 +3,11 @@ import { AutoLine, CheckboxLine, EnumLine, OptionItem } from '@framework/Lines'
 import { mlistItemContext, TypeContext } from '@framework/TypeContext'
 import { FileLine } from '../../Signum.Files/Components/FileLine'
 import { CollectionElementEmbedded, ImportExcelMode, ImportExcelModel, ImportFromExcelMessage } from '../Signum.Excel'
-import * as Finder from '@framework/Finder'
+import { Finder } from '@framework/Finder'
 import { getTypeInfo, getTypeInfos, PseudoType } from '@framework/Reflection'
 import { SearchControlLoaded } from '@framework/Search'
-import * as Navigator from '@framework/Navigator'
-import * as ExcelClient from '../ExcelClient'
+import { Navigator } from '@framework/Navigator'
+import { ExcelClient } from '../ExcelClient'
 import { Dic, softCast } from '@framework/Globals'
 import { FindOptionsParsed, getTokenParents, hasElement, QueryToken } from '@framework/FindOptions'
 import ErrorModal from '@framework/Modals/ErrorModal'
@@ -18,7 +18,7 @@ import { liteKey, newMListElement } from '@framework/Signum.Entities'
 import { useForceUpdate } from '@framework/Hooks'
 import { selectPagination } from '../ExcelMenu'
 
-export default function ImportExcel(p: { ctx: TypeContext<ImportExcelModel>, searchControl: SearchControlLoaded, fop: FindOptionsParsed, topElementToken: QueryToken | null }) {
+export default function ImportExcel(p: { ctx: TypeContext<ImportExcelModel>, searchControl: SearchControlLoaded, fop: FindOptionsParsed, topElementToken: QueryToken | null }): React.JSX.Element {
   const ctx = p.ctx.subCtx({ formGroupStyle: "Basic" });
   const forceUpdate = useForceUpdate();
 
@@ -96,7 +96,7 @@ function getSaveOperations(type: PseudoType, mode: ImportExcelMode | null) {
 }
 
 
-export async function onImportFromExcel(sc: SearchControlLoaded) {
+export async function onImportFromExcel(sc: SearchControlLoaded): Promise<void> {
 
   var qr = sc.getQueryRequest(true);
   qr.pagination = { mode: "All" };

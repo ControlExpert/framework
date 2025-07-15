@@ -3,16 +3,16 @@ import { useLocation, Location } from 'react-router'
 import { DateTime } from 'luxon'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { classes, Dic, softCast } from '@framework/Globals'
-import * as Finder from '@framework/Finder'
+import { Finder } from '@framework/Finder'
 import { parseLite, is, Lite, toLite, newMListElement, liteKey, SearchMessage, MList, MListElement, getToString, Entity, toMList, translated } from '@framework/Signum.Entities'
 import * as AppContext from '@framework/AppContext'
-import * as Navigator from '@framework/Navigator'
-import { UserQueryEntity, UserQueryLiteModel, UserQueryMessage, UserQueryOperation } from './Signum.UserQueries'
-import * as UserQueryClient from './UserQueryClient'
-import * as UserAssetClient from '../Signum.UserAssets/UserAssetClient'
+import { Navigator } from '@framework/Navigator'
+import { SystemTimeEmbedded, UserQueryEntity, UserQueryLiteModel, UserQueryMessage, UserQueryOperation, UserQueryPermission } from './Signum.UserQueries'
+import { UserQueryClient } from './UserQueryClient'
+import { UserAssetClient } from '../Signum.UserAssets/UserAssetClient'
 import { Dropdown } from 'react-bootstrap';
 import { getQueryKey } from '@framework/Reflection';
-import * as Operations from '@framework/Operations';
+import { Operations } from '@framework/Operations';
 import { FilterOption, FilterOptionParsed } from '@framework/Search'
 import { FindOptionsParsed, isFilterCondition, isFilterGroup, PinnedFilter, SubTokensOptions } from '@framework/FindOptions'
 import { QueryString } from '@framework/QueryString'
@@ -20,9 +20,9 @@ import { AutoFocus } from '@framework/Components/AutoFocus'
 import { KeyNames } from '@framework/Components'
 import type StringDistance from './StringDistance'
 import SearchControlLoaded from '@framework/SearchControl/SearchControlLoaded'
-import { TokenCompleter } from '@framework/Finder'
 import { useForceUpdate } from '@framework/Hooks'
 import { PinnedQueryFilterEmbedded, QueryColumnEmbedded, QueryFilterEmbedded, QueryOrderEmbedded, QueryTokenEmbedded } from '../Signum.UserAssets/Signum.UserAssets.Queries'
+import FramePage from '@framework/Frames/FramePage'
 
 export interface UserQueryMenuProps {
   searchControl: SearchControlLoaded;
@@ -34,7 +34,7 @@ function decodeUserQueryFromUrl(location: Location) {
   return userQueryKey ? parseLite(userQueryKey) as Lite<UserQueryEntity> : undefined;
 }
 
-export default function UserQueryMenu(p: UserQueryMenuProps) {
+export default function UserQueryMenu(p: UserQueryMenuProps): React.JSX.Element | null {
 
   const [filter, setFilter] = React.useState<string>();
   const [isOpen, setIsOpen] = React.useState<boolean>(false);
@@ -117,15 +117,14 @@ export default function UserQueryMenu(p: UserQueryMenuProps) {
   }
 
 
-  function applyUserQuery(uq: Lite<UserQueryEntity>) {
+  function applyUserQueryToSearchControl(uq: Lite<UserQueryEntity>) {
     Navigator.API.fetch(uq).then(userQuery => {
       const sc = p.searchControl;
       const oldFindOptions = sc.props.findOptions;
-      UserQueryClient.Converter.applyUserQuery(oldFindOptions, userQuery, undefined, sc.props.defaultIncudeDefaultFilters)
+      UserQueryClient.Converter.applyUserQuery(oldFindOptions, userQuery, sc.props.extraOptions?.entity, sc.props.defaultIncudeDefaultFilters)
         .then(nfo => {
           sc.setState({ refreshMode: userQuery.refreshMode });
-          if (nfo.filterOptions.length == 0 || anyPinned(nfo.filterOptions))
-            sc.handleChangeFiltermode('Simple');
+          sc.handleChangeFiltermode(nfo.filterOptions.length == 0 || anyPinned(nfo.filterOptions) ? 'Simple' : "Advanced", false, true);
           setCurrentUserQuery(uq, translated(userQuery, a=>a.displayName));
           if (sc.props.findOptions.pagination.mode != "All") {
             sc.doSearchPage1();
@@ -134,23 +133,22 @@ export default function UserQueryMenu(p: UserQueryMenuProps) {
     })
   }
 
-  function handleOnClick(uq: Lite<UserQueryEntity>) {
-    applyUserQuery(uq);
+  function handleSelectUserQuery(uq: Lite<UserQueryEntity>) {
+    applyUserQueryToSearchControl(uq);
   }
 
-  function handleEdit() {
-    Navigator.API.fetch(currentUserQuery!)
-      .then(userQuery => Navigator.view(userQuery))
-      .then(() => reloadList())
-      .then(list => {
-        if (!list.some(a => is(a, currentUserQuery)))
-          setCurrentUserQuery(undefined, undefined);
-        else
-          applyUserQuery(currentUserQuery!)
-      });
+  async function handleEdit() {
+    const userQuery = await Navigator.API.fetch(currentUserQuery!);
+    await Navigator.view(userQuery);
+
+    await reloadList();
+    if (currentUserQuery  && await Navigator.API.exists(currentUserQuery))
+      applyUserQueryToSearchControl(currentUserQuery!);
+     else
+      setCurrentUserQuery(undefined, undefined);
   }
 
-  async function applyChanges(): Promise<UserQueryEntity> {
+  async function applyChangesToUserQuery(): Promise<UserQueryEntity> {
     const sc = p.searchControl;
 
     const uqOld = await Navigator.API.fetch(currentUserQuery!);
@@ -168,6 +166,15 @@ export default function UserQueryMenu(p: UserQueryMenuProps) {
     uqOld.columnsMode = uqNew.columnsMode;
     uqOld.orders = uqNew.orders;
     uqOld.paginationMode = uqNew.paginationMode;
+    uqOld.systemTime = uqNew.systemTime == null ? null : SystemTimeEmbedded.New({
+      mode: uqNew.systemTime.mode,
+      joinMode: uqNew.systemTime.joinMode,
+      startDate: uqNew.systemTime.startDate && UserQueryMerger.similarValues(foOld.systemTime!.startDate, foNew.systemTime!.startDate) ? uqOld.systemTime!.startDate : uqNew.systemTime.startDate,
+      endDate: uqNew.systemTime.endDate && UserQueryMerger.similarValues(foOld.systemTime!.endDate, foNew.systemTime!.endDate) ? uqOld.systemTime!.endDate : uqNew.systemTime.endDate,
+      timeSeriesStep: uqNew.systemTime.timeSeriesStep ?? null,
+      timeSeriesUnit: uqNew.systemTime.timeSeriesUnit ?? null,
+      timeSeriesMaxRowsPerStep: uqNew.systemTime.timeSeriesMaxRowsPerStep ?? null,
+    });
     uqOld.elementsPerPage = uqNew.elementsPerPage;
     uqOld.customDrilldowns = uqNew.customDrilldowns;
     uqOld.modified = true;
@@ -175,16 +182,15 @@ export default function UserQueryMenu(p: UserQueryMenuProps) {
     return uqOld;
   }
 
-  function handleApplyChanges() {
-    applyChanges()
-      .then(uqOld => Navigator.view(uqOld))
-      .then(() => reloadList())
-      .then(list => {
-        if (!list.some(a => is(a, currentUserQuery)))
-          setCurrentUserQuery(undefined, undefined);
-        else
-          applyUserQuery(currentUserQuery!);
-      });
+  async function handleApplyChanges() {
+    const uqOld = await applyChangesToUserQuery();
+    await Navigator.view(uqOld);
+    const list = await reloadList();
+
+    if (currentUserQuery && await Navigator.API.exists(currentUserQuery))
+      applyUserQueryToSearchControl(currentUserQuery!);
+    else
+      setCurrentUserQuery(undefined, undefined);
   }
 
   async function createUserQuery(): Promise<UserQueryEntity> {
@@ -195,13 +201,14 @@ export default function UserQueryMenu(p: UserQueryMenuProps) {
 
     const qfs = await UserAssetClient.API.stringifyFilters({
       canAggregate: fo.groupResults || false,
+      canTimeSeries: fo.systemTime?.mode == 'TimeSeries',
       queryKey: getQueryKey(fo.queryName),
       filters: (fo.filterOptions ?? []).notNull().map(fo => UserAssetClient.Converter.toFilterNode(fo))
     });
 
 
 
-    var parser = new TokenCompleter(sc.props.queryDescription);
+    var parser = new Finder.TokenCompleter(sc.props.queryDescription);
     [
       ...fo.columnOptions?.map(a => a?.token) ?? [],
       ...fo.columnOptions?.map(a => a?.summaryToken) ?? [],
@@ -233,6 +240,15 @@ export default function UserQueryMenu(p: UserQueryMenuProps) {
           token: parser.get(c.token.toString())
         })
       }))),
+      systemTime: fo.systemTime && SystemTimeEmbedded.New({
+        mode: fo.systemTime.mode,
+        startDate: fo.systemTime.startDate && await UserAssetClient.API.stringifyDate(fo.systemTime.startDate),
+        endDate: fo.systemTime.endDate && await UserAssetClient.API.stringifyDate(fo.systemTime.endDate),
+        joinMode: fo.systemTime.joinMode,
+        timeSeriesStep: fo.systemTime.timeSeriesStep ?? null,
+        timeSeriesUnit: fo.systemTime.timeSeriesUnit ?? null,
+        timeSeriesMaxRowsPerStep: fo.systemTime.timeSeriesMaxRowsPerStep ?? null,
+      }),
       paginationMode: fo.pagination && fo.pagination.mode,
       elementsPerPage: fo.pagination && fo.pagination.elementsPerPage,
       refreshMode: p.searchControl.state.refreshMode ?? "Auto",
@@ -246,7 +262,7 @@ export default function UserQueryMenu(p: UserQueryMenuProps) {
       .then(uq => {
         if (uq?.id) {
           reloadList().then(() => {
-            applyUserQuery(toLite(uq));
+            applyUserQueryToSearchControl(toLite(uq));
           });
         }
       });
@@ -295,14 +311,14 @@ export default function UserQueryMenu(p: UserQueryMenuProps) {
               return (
                 <Dropdown.Item key={i}
                   className={classes("sf-userquery", is(uq, currentUserQuery) && "active")}
-                  onClick={() => handleOnClick(uq)}>
+                  onClick={() => handleSelectUserQuery(uq)}>
                   {getToString(uq)}
                 </Dropdown.Item>
               );
           })}
         </div>
         {userQueries && userQueries.length > 0 && <Dropdown.Divider />}
-        <Dropdown.Item onClick={handleBackToDefault} ><FontAwesomeIcon icon={"arrow-rotate-left"} className="me-2" />{UserQueryMessage.BackToDefault.niceToString()}</Dropdown.Item>
+        {p.searchControl.props.allowChangeColumns && <Dropdown.Item onClick={handleBackToDefault} > <FontAwesomeIcon icon={"arrow-rotate-left"} className="me-2" />{UserQueryMessage.BackToDefault.niceToString()}</Dropdown.Item>}
         {currentUserQuery && canSave && <Dropdown.Item onClick={handleApplyChanges} ><FontAwesomeIcon icon={"share-from-square"} className="me-2" />{UserQueryMessage.ApplyChanges.niceToString()}</Dropdown.Item>}
         {currentUserQuery && canSave && <Dropdown.Item onClick={handleEdit} ><FontAwesomeIcon icon={"pen-to-square"} className="me-2" />{UserQueryMessage.Edit.niceToString()}</Dropdown.Item>}
         {canSave && <Dropdown.Item onClick={handleCreateUserQuery}><FontAwesomeIcon icon={"plus"} className="me-2" />{UserQueryMessage.CreateNew.niceToString()}</Dropdown.Item>}</Dropdown.Menu>
@@ -337,7 +353,7 @@ export interface FilterPair {
 }
 
 export namespace UserQueryMerger {
-  export function mergeColumns(oldUqColumns: MList<QueryColumnEmbedded>, newUqColumns: MList<QueryColumnEmbedded>, sd: StringDistance) {
+  export function mergeColumns(oldUqColumns: MList<QueryColumnEmbedded>, newUqColumns: MList<QueryColumnEmbedded>, sd: StringDistance): MListElement<QueryColumnEmbedded>[] {
     const choices = sd.levenshteinChoices(oldUqColumns, newUqColumns, c => c.added == null ? 5 : c.removed == null ? 5 : distanceColumns(c.added.element, c.removed.element));
 
     return choices.flatMap(ch => {
@@ -398,7 +414,8 @@ export namespace UserQueryMerger {
       oldF.isGroup = newF.isGroup;
       oldF.groupOperation = newF.groupOperation;
       oldF.operation = newF.operation;
-      oldF.valueString = similarValues(ch.added.filter.value, ch.removed.filter.value) ? oldF.valueString : newF.valueString;
+      debugger;
+      oldF.valueString = similarValues(ch.added.filter.value, ch.removed.filter.value) || oldF.valueString?.startsWith("[") && oldF.valueString.endsWith("]") ? oldF.valueString : newF.valueString;
       if (newF.pinned == null)
         oldF.pinned = null;
       else {
@@ -420,7 +437,7 @@ export namespace UserQueryMerger {
     return result;
   }
 
-  function similarValues(val1: any, val2: any) {
+  export function similarValues(val1: any, val2: any): boolean {
     if (val1 == val2)
       return true;
 

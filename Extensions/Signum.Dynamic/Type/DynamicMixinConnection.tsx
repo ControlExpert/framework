@@ -1,12 +1,12 @@
 import * as React from 'react'
 import { Dic, classes } from '@framework/Globals'
-import * as Constructor from '@framework/Constructor'
-import * as Finder from '@framework/Finder'
-import * as Navigator from '@framework/Navigator'
+import { Constructor } from '@framework/Constructor'
+import { Finder } from '@framework/Finder'
+import { Navigator } from '@framework/Navigator'
 import { AutoLine, EntityLine, TypeContext } from '@framework/Lines'
 import { ModifiableEntity, Entity, Lite, JavascriptMessage, getToString } from '@framework/Signum.Entities'
 import { getTypeInfo, Binding, PropertyRoute, symbolNiceName, getQueryNiceName } from '@framework/Reflection'
-import * as DynamicTypeClient from '../DynamicTypeClient'
+import { DynamicTypeClient } from '../DynamicTypeClient'
 import { Typeahead } from '@framework/Components';
 import { useForceUpdate } from '@framework/Hooks'
 import { DynamicMixinConnectionEntity } from '../Signum.Dynamic.Mixins'
@@ -16,7 +16,7 @@ interface DynamicMixinConnectionComponentProps {
   ctx: TypeContext<DynamicMixinConnectionEntity>;
 }
 
-export default function DynamicMixinConnectionComponent(p : DynamicMixinConnectionComponentProps){
+export default function DynamicMixinConnectionComponent(p : DynamicMixinConnectionComponentProps): React.JSX.Element {
   const forceUpdate = useForceUpdate();
   const ctx = p.ctx;
 
@@ -39,7 +39,7 @@ export interface MixinComboProps {
   onChange?: () => void;
 }
 
-export function MixinCombo(p : MixinComboProps){
+export function MixinCombo(p : MixinComboProps): React.JSX.Element {
   const forceUpdate = useForceUpdate();
   function handleGetItems(query: string) {
     return Finder.fetchLites({

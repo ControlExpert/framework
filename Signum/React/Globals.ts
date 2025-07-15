@@ -1,3 +1,4 @@
+
 declare global {
 
   interface RegExpConstructor {
@@ -12,29 +13,41 @@ declare global {
     exploreGraphDebugMode: boolean;
   }
 
+  type Comparable = number | string | {valueOf: ()=> any };
+
 
   interface RegExpConstructor {
     escape(str: string): string;
   }
+  
 
   interface Array<T> {
-    groupBy<K extends string>(this: Array<T>, keySelector: (element: T) => K): { key: K; elements: T[] }[];
+    groupBy<K extends string>(this: Array<T>, keySelector: (element: T) => K): { key: K; elements: T[] } [];
     groupBy<K>(this: Array<T>, keySelector: (element: T) => K, keyStringifier?: (key: K) => string): { key: K; elements: T[] }[];
     groupBy<K, E>(this: Array<T>, keySelector: (element: T) => K, keyStringifier: ((key: K) => string) | undefined, elementSelector: (element: T) => E): { key: K; elements: E[] }[];
     groupToObject(this: Array<T>, keySelector: (element: T) => string): { [key: string]: T[] }; // Remove by Object.groupBy when safary supports it https://caniuse.com/?search=Object.groupby
     groupToObject<E>(this: Array<T>, keySelector: (element: T) => string, elementSelector: (element: T) => E): { [key: string]: E[] };
+    groupToMap<K>(this: Array<T>, keySelector: (element: T) => string): Map<K, T[]>; // Remove by MAp.groupBy when safary supports it https://caniuse.com/?search=Map.groupby
+    groupToMap<K, E>(this: Array<T>, keySelector: (element: T) => string, elementSelector: (element: T) => E): Map<K, E[]>;
     groupWhen(this: Array<T>, condition: (element: T) => boolean, includeKeyInGroup?: boolean, initialGroup?: boolean): { key: T, elements: T[] }[];
     groupWhenChange<K>(this: Array<T>, keySelector: (element: T) => K, keyStringifier?: (key: K) => string): { key: K, elements: T[] }[];
 
-    orderBy<V>(this: Array<T>, keySelector: (element: T) => V): T[];
-    orderByDescending<V>(this: Array<T>, keySelector: (element: T) => V): T[];
+    orderBy<V extends Comparable>(this: Array<T>, keySelector: (element: T) => V | null | undefined): T[];
+    orderByDescending<V extends Comparable>(this: Array<T>, keySelector: (element: T) => V | null | undefined): T[];
 
 
     toObject(this: Array<T>, keySelector: (element: T) => string): { [key: string]: T };
     toObject<V>(this: Array<T>, keySelector: (element: T) => string, valueSelector: (element: T) => V): { [key: string]: V };
     toObjectDistinct(this: Array<T>, keySelector: (element: T) => string): { [key: string]: T };
     toObjectDistinct<V>(this: Array<T>, keySelector: (element: T) => string, valueSelector: (element: T) => V): { [key: string]: V };
-    distinctBy(this: Array<T>, keySelector?: (element: T) => string): T[];
+
+
+    toMap<K>(this: Array<T>, keySelector: (element: T) => K): Map<K, T>;
+    toMap<K, V>(this: Array<T>, keySelector: (element: T) => string, valueSelector: (element: T) => V):  Map<K, V>;
+    toMapDistinct<K>(this: Array<T>, keySelector: (element: T) => K): Map<K, T>;
+    toMapDistinct<K, V>(this: Array<T>, keySelector: (element: T) => V, valueSelector: (element: T) => V): Map<K, V>;
+
+    distinctBy(this: Array<T>, keySelector?: (element: T) => unknown): T[];
 
     flatMap<R>(this: Array<T>, selector: (element: T, index: number, array: T[]) => R[]): R[];
 
@@ -43,11 +56,11 @@ declare global {
 
     minBy<V>(this: Array<T>, keySelector: (element: T) => V): T | undefined;
     maxBy<V>(this: Array<T>, keySelector: (element: T) => V): T | undefined;
-    max(this: Array<number | null | undefined>): number | null;
-    max(this: Array<T>, selector: (element: T, index: number, array: T[]) => number | null | undefined): number | null;
-    min(this: Array<number | null | undefined>): number | null;
-    min(this: Array<T>, selector: (element: T, index: number, array: T[]) => number | null | undefined): number | null;
-
+    max<V extends Comparable>(this: Array<V | null | undefined>): V | null;
+    max<V extends Comparable>(this: Array<T>, selector: (element: T, index: number, array: T[]) => V | null | undefined): V | null;
+    min<V extends Comparable>(this: Array<V | null | undefined>): V | null;
+    min<V extends Comparable>(this: Array<T>, selector: (element: T, index: number, array: T[]) => V | null | undefined): V | null;
+    
     sum(this: Array<number>): number;
     sum(this: Array<T>, selector: (element: T, index: number, array: T[]) => number): number;
 
@@ -166,8 +179,8 @@ Array.prototype.groupBy = function (this: any[],
   return result;
 };
 
-Array.prototype.groupToObject = function (this: any[], keySelector: (element: any) => string, elementSelector?: (element: any) => unknown): { [key: string]: any[] } {
-  const result: { [key: string]: any[] } = {};
+Array.prototype.groupToObject = function (this: any[], keySelector: (element: any) => string | number, elementSelector?: (element: any) => unknown): { [key: string | number]: any[] } {
+  const result: { [key: string | number]: any[] } = {};
 
   for (let i = 0; i < this.length; i++) {
     const element: any = this[i];
@@ -175,6 +188,20 @@ Array.prototype.groupToObject = function (this: any[], keySelector: (element: an
     if (!result[key])
       result[key] = [];
     result[key].push(elementSelector ? elementSelector(element) : element);
+  }
+  return result;
+};
+
+
+Array.prototype.groupToMap = function (this: any[], keySelector: (element: any) => string, elementSelector?: (element: any) => unknown): Map<any, any[]> {
+  const result = new Map<any, any[]>();
+
+  for (let i = 0; i < this.length; i++) {
+    const element: any = this[i];
+    const key = keySelector(element);
+    if (!result.has(key))
+      result.set(key, []);
+    result.get(key)!.push(elementSelector ? elementSelector(element) : element);
   }
   return result;
 };
@@ -323,18 +350,50 @@ Array.prototype.toObjectDistinct = function (this: any[], keySelector: (element:
   return obj;
 };
 
-Array.prototype.distinctBy = function (this: any[], keySelector: (element: any) => any): any[] {
-  const obj: any = {};
-
-  keySelector ??= a => a.toString();
+Array.prototype.toMap = function (this: any[], keySelector: (element: any) => any, valueSelector?: (element: any) => any): any {
+  const map = new Map();
 
   this.forEach(item => {
     const key = keySelector(item);
 
-    obj[key] = item;
+    if (map.has(key))
+      throw new Error("Repeated key {0}".formatWith(key));
+
+    map.set(key,  valueSelector ? valueSelector(item) : item);
   });
 
-  return Dic.getValues(obj);
+  return map;
+};
+
+Array.prototype.toMapDistinct = function (this: any[], keySelector: (element: any) => any, valueSelector?: (element: any) => any): any {
+  const map = new Map();
+
+  this.forEach(item => {
+    const key = keySelector(item);
+
+    map.set(key, valueSelector ? valueSelector(item) : item);
+  });
+
+  return map;
+};
+
+Array.prototype.distinctBy = function (this: any[], keySelector: (element: any) => unknown): any[] {
+  const keysFound = new Set<unknown>();
+
+  keySelector ??= a => a.toString();
+
+  const result: any[] = [];
+
+  this.forEach(item => {
+    const key = keySelector(item);
+
+    if (!keysFound.has(key)) {
+      result.push(item);
+      keysFound.add(key);
+    }
+  });
+
+  return result;
 };
 
 Array.prototype.flatMap = function (this: any[], selector: (element: any, index: number, array: any[]) => any[]): any {
@@ -966,7 +1025,7 @@ export module Dic {
     return akeys.every(k => equals((objA as any)[k], (objB as any)[k], deep, depth + 1, visited));
   }
 
-  export function assign<O extends P, P extends {}>(obj: O, other: P | undefined) {
+  export function assign<O extends P, P extends {}>(obj: O, other: P | undefined): void {
     if (!other)
       return;
 
@@ -1042,7 +1101,7 @@ export module Dic {
     return result;
   }
 
-  export function foreach<V>(obj: { [key: string]: V }, action: (key: string, value: V) => void) {
+  export function foreach<V>(obj: { [key: string]: V }, action: (key: string, value: V) => void): void {
 
     for (const name in obj) {
       if (obj.hasOwnProperty == null || obj.hasOwnProperty(name)) {
@@ -1052,7 +1111,7 @@ export module Dic {
   }
 
 
-  export function addOrThrow<V>(dic: { [key: string]: V }, key: string, value: V, errorContext?: string) {
+  export function addOrThrow<V>(dic: { [key: string]: V }, key: string, value: V, errorContext?: string): void {
     if (dic[key])
       throw new Error(`Key ${key} already added` + (errorContext ? "in " + errorContext : ""));
 
@@ -1094,18 +1153,9 @@ export function coalesce<T>(value: T | undefined | null, defaultValue: T): T {
   return value != null ? value : defaultValue;
 }
 
-export function classes(...classNames: (string | null | undefined | boolean /*false*/)[]) {
+export function classes(...classNames: (string | null | undefined | boolean /*false*/)[]): string {
   return classNames.filter(a => a && a != "").join(" ");
 }
-
-export function addClass(props: { className?: string } | null | undefined, newClasses?: string | null): string | undefined {
-  if (!props || !props.className)
-    return newClasses || undefined;
-
-  return classes(props.className, newClasses)
-}
-
-
 export function combineFunction<F extends Function>(func1?: F | null, func2?: F | null): F | null | undefined {
   if (!func1)
     return func2;
@@ -1213,9 +1263,9 @@ export module DomUtils {
 }
 
 export class KeyGenerator {
-  map = new Map<object, number>();
+  map: Map<object, number> = new Map<object, number>();
   maxIndex = 0;
-  getKey(o: object) {
+  getKey(o: object): number {
     var result = this.map.get(o);
     if (result == undefined) {
       result = this.maxIndex++;
@@ -1225,7 +1275,7 @@ export class KeyGenerator {
   }
 }
 
-export function roundTwoDecimals(num: number) {
+export function roundTwoDecimals(num: number): number {
 
   var round3 = Math.round(num * 1000000) / 1000000; //convert 0.0049999999999 -> 0.005
 
@@ -1239,7 +1289,7 @@ export function roundTwoDecimals(num: number) {
 }
 
 
-export function getColorContrasColorBWByHex (hexcolor: string) {
+export function getColorContrasColorBWByHex (hexcolor: string): "black" | "white" {
   hexcolor = hexcolor.replace("#", "");
   var r = parseInt(hexcolor.substr(0, 2), 16);
   var g = parseInt(hexcolor.substr(2, 2), 16);

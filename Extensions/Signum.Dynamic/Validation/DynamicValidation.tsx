@@ -4,15 +4,13 @@ import { Dic } from '@framework/Globals'
 import { PropertyRoute, Binding } from '@framework/Reflection'
 import { AutoLine, EntityLine, TypeContext, FormGroup, TextAreaLine } from '@framework/Lines'
 import { Entity } from '@framework/Signum.Entities'
-import * as Navigator from '@framework/Navigator'
-import { API, DynamicValidationTestResponse } from '../DynamicValidationClient'
+import { Navigator } from '@framework/Navigator'
+import { DynamicValidationClient } from '../DynamicValidationClient'
 import CSharpCodeMirror from '../../Signum.CodeMirror/CSharpCodeMirror'
 import TypeHelpComponent from '../../Signum.Eval/TypeHelp/TypeHelpComponent'
 import TypeHelpButtonBarComponent from '../../Signum.Eval/TypeHelp/TypeHelpButtonBarComponent'
 import AutoLineModal from '@framework/AutoLineModal'
 import PropertyRouteCombo from "@framework/Components/PropertyRouteCombo";
-import { ModifiableEntity } from '@framework/Signum.Entities';
-import { Lite } from '@framework/Signum.Entities';
 import { Dropdown, DropdownButton } from 'react-bootstrap';
 import { useForceUpdate, useAPI } from '@framework/Hooks'
 import { DynamicValidationEntity, DynamicValidationMessage } from '../Signum.Dynamic.Validations'
@@ -22,19 +20,19 @@ interface DynamicValidationProps {
   ctx: TypeContext<DynamicValidationEntity>;
 }
 
-export default function DynamicValidation(p: DynamicValidationProps) {
+export default function DynamicValidation(p: DynamicValidationProps): React.JSX.Element {
 
-  const exampleEntityRef = React.useRef<Entity | undefined>(undefined);
+  const exampleEntityRef = React.useRef<Entity | null>(null);
   const dv = p.ctx.value;
-  const routeTypeName = useAPI(() => dv.subEntity ? API.routeTypeName(dv.subEntity) : dv.entityType ? Promise.resolve(dv.entityType.className) : Promise.resolve(undefined), [dv.subEntity, dv.entityType]);
+  const routeTypeName = useAPI(() => dv.subEntity ? DynamicValidationClient.API.routeTypeName(dv.subEntity) : dv.entityType ? Promise.resolve(dv.entityType.className) : Promise.resolve(undefined), [dv.subEntity, dv.entityType]);
 
-  const [response, setResponse] = React.useState<DynamicValidationTestResponse | undefined>(undefined);
+  const [response, setResponse] = React.useState<DynamicValidationClient.DynamicValidationTestResponse | undefined>(undefined);
 
   const forceUpdate = useForceUpdate();
 
   function handleEntityTypeChange() {
     p.ctx.value.subEntity = null;
-    exampleEntityRef.current = undefined;
+    exampleEntityRef.current = null;
     setResponse(undefined);
     handleCodeChange("");
   }
@@ -84,7 +82,7 @@ export default function DynamicValidation(p: DynamicValidationProps) {
     if (exampleEntityRef.current == undefined)
       setResponse(undefined);
     else {
-      API.validationTest({
+      DynamicValidationClient.API.validationTest({
         dynamicValidation: p.ctx.value,
         exampleEntity: exampleEntityRef.current,
       })
@@ -105,7 +103,7 @@ export default function DynamicValidation(p: DynamicValidationProps) {
   }
 
   function renderExampleEntity(typeName: string) {
-    const exampleCtx = new TypeContext<Entity | undefined>(undefined, undefined, PropertyRoute.root(typeName), Binding.create(exampleEntityRef, s => s.current));
+    const exampleCtx = new TypeContext<Entity | null>(undefined, undefined, PropertyRoute.root(typeName), Binding.create(exampleEntityRef, s => s.current));
 
     return (
       <EntityLine ctx={exampleCtx} create={true} find={true} remove={true} view={true} onView={handleOnView} onChange={handleEvaluate}
@@ -113,11 +111,11 @@ export default function DynamicValidation(p: DynamicValidationProps) {
     );
   }
 
-  function handleOnView(exampleEntity: Lite<Entity> | ModifiableEntity) {
+  function handleOnView(exampleEntity: Entity) {
     return Navigator.view(exampleEntity, { requiresSaveOperation: false, isOperationVisible: eoc => false });
   }
 
-  function renderMessage(res: DynamicValidationTestResponse) {
+  function renderMessage(res: DynamicValidationClient.DynamicValidationTestResponse) {
     if (res.compileError)
       return <div className="alert alert-danger">COMPILE ERROR: {res.compileError}</div >;
 
@@ -175,7 +173,7 @@ interface PropertyIsHelpComponentProps {
   route: PropertyRoute;
 }
 
-export function PropertyIsHelpComponent(p: PropertyIsHelpComponentProps) {
+export function PropertyIsHelpComponent(p: PropertyIsHelpComponentProps): React.JSX.Element {
 
   return (
     <DropdownButton id="property_dropdown" variant="info" title={DynamicValidationMessage.PropertyIs.niceToString()}>

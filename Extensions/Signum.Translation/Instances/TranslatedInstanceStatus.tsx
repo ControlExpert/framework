@@ -2,20 +2,20 @@ import * as React from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { Dic, classes } from '@framework/Globals'
 import { getToString, JavascriptMessage } from '@framework/Signum.Entities'
-import { API, TranslatedTypeSummary } from '../TranslatedInstanceClient'
+import { TranslatedInstanceClient } from '../TranslatedInstanceClient'
 import { TranslationMessage } from '../Signum.Translation'
 import "../Translation.css"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { useAPI, useAPIWithReload } from '@framework/Hooks'
 import { getTypeInfo, reloadTypes } from '@framework/Reflection'
-import { notifySuccess } from '@framework/Operations'
+import { Operations } from '@framework/Operations'
 import MessageModal from '@framework/Modals/MessageModal'
-import * as CultureClient from '@framework/Basics/CultureClient'
+import { CultureClient } from '@framework/Basics/CultureClient'
 
-export default function TranslationCodeStatus() {
+export default function TranslationCodeStatus(): React.JSX.Element {
 
-  const [result, reload] = useAPIWithReload(() => API.status(), []);
-  const [file, setFile] = React.useState<API.FileUpload | undefined>(undefined);
+  const [result, reload] = useAPIWithReload(() => TranslatedInstanceClient.API.status(), []);
+  const [file, setFile] = React.useState<TranslatedInstanceClient.API.FileUpload | undefined>(undefined);
   const [fileVer, setFileVer] = React.useState<number>(0);
 
 
@@ -30,11 +30,11 @@ export default function TranslationCodeStatus() {
         let content = ((e.target as any).result as string).after("base64,");
         let fileName = f.name;
 
-        var file: API.FileUpload = { content, fileName };
+        var file: TranslatedInstanceClient.API.FileUpload = { content, fileName };
         setFile(file);
         setFileVer(fileVer + 1);
 
-        API.uploadFile(file!).then(model => { notifySuccess(); reload(); });
+        TranslatedInstanceClient.API.uploadFile(file!).then(model => { Operations.notifySuccess(); reload(); });
       };
       fileReader.readAsDataURL(f);
     }
@@ -61,7 +61,7 @@ export default function TranslationCodeStatus() {
 }
 
 
-function TranslationTable({ result, onRefreshView }: { result: TranslatedTypeSummary[], onRefreshView?: () => void }) {
+function TranslationTable({ result, onRefreshView }: { result: TranslatedInstanceClient.TranslatedTypeSummary[], onRefreshView?: () => void }) {
   const tree = result.groupBy(a => a.type)
     .toObject(gr => gr.key, gr => gr.elements.toObject(a => a.culture));
 
@@ -83,7 +83,7 @@ function TranslationTable({ result, onRefreshView }: { result: TranslatedTypeSum
             <th key={culture}>
               <span>{culture}</span>
               {result.some(r => !r.isDefaultCulture && r.culture == culture && r.state != "Completed") &&
-                <a href="#" className={classes("auto-translate-all", culture, "ms-2")} onClick={e => handleAutoTranslateClick(e, null, culture)}>{TranslationMessage.AutoTranslate.niceToString()}</a>}
+                <a href="#" className={classes("auto-translate-all", culture, "ms-2")} onClick={e => handleAutoTranslateClick(e, null, culture)}>{TranslationMessage.AutoSync.niceToString()}</a>}
             </th>)}
         </tr>
       </thead>
@@ -94,26 +94,33 @@ function TranslationTable({ result, onRefreshView }: { result: TranslatedTypeSum
             <td>
               <Link to={`/translatedInstance/view/${type}`}>{TranslationMessage.View.niceToString()}</Link>
             </td>
-            {cultures.map(culture =>
-            (tree[type][culture].isDefaultCulture ?
-              <td key={culture}>
-                {TranslationMessage.None.niceToString()}
-              </td>
-              :
-              <td key={culture}>
-                <Link to={`/translatedInstance/view/${type}/${culture}`}>{TranslationMessage.View.niceToString()}</Link>
-                <a href="#" className="ms-2" onClick={e => { e.preventDefault(); API.downloadView(type, culture); }}><FontAwesomeIcon icon="download" /></a>
-                <br />
-                <Link to={`/translatedInstance/sync/${type}/${culture}`} className={"status-" + tree[type][culture].state}>{TranslationMessage.Sync.niceToString()}</Link>
-                <a href="#" className={classes("status-" + tree[type][culture].state, "ms-2")} onClick={e => { e.preventDefault(); API.downloadSync(type, culture); }}><FontAwesomeIcon icon="download" /></a>
-                {tree[type][culture].state != "Completed" &&
-                  <>
-                    <br />
-                    <a href="#" className={classes("auto-translate", "status-" + tree[type][culture].state)} onClick={e => handleAutoTranslateClick(e, type, culture)}>{TranslationMessage.AutoTranslate.niceToString()}</a>
-                  </>}
-              </td>
-            )
-            )}
+            {cultures.map(culture => {
+
+              const typeSummary = tree[type][culture];
+
+              if (typeSummary.isDefaultCulture)
+                return (
+                  <td key={culture}>
+                    {TranslationMessage.None.niceToString()}
+                  </td>
+                );
+
+
+              return (
+                <td key={culture}>
+                  <Link to={`/translatedInstance/view/${type}/${culture}`}>{TranslationMessage.View.niceToString()}</Link>
+                  <a href="#" className="ms-2" onClick={e => { e.preventDefault(); TranslatedInstanceClient.API.downloadView(type, culture); }}><FontAwesomeIcon icon="download" /></a>
+                  <br />
+                  <Link to={`/translatedInstance/sync/${type}/${culture}`} className={"status-" + typeSummary.state}>{TranslationMessage.Sync.niceToString()}</Link>
+                  <a href="#" className={classes("status-" + typeSummary.state, "ms-2")} onClick={e => { e.preventDefault(); TranslatedInstanceClient.API.downloadSync(type, culture); }}><FontAwesomeIcon icon="download" /></a>
+                  {typeSummary.state != "Completed" &&
+                    <>
+                      <br />
+                      <a href="#" className={classes("auto-translate", "status-" + typeSummary.state)} onClick={e => handleAutoTranslateClick(e, type, culture)}>{TranslationMessage.AutoSync.niceToString()}</a>
+                    </>}
+                </td>
+              );
+            })}
           </tr>
         )}
       </tbody>
@@ -127,7 +134,7 @@ function TranslationTable({ result, onRefreshView }: { result: TranslatedTypeSum
       .then(cultures =>
         MessageModal.show(
           {
-            title: TranslationMessage.AutoTranslate.niceToString(),
+            title: TranslationMessage.AutoSync.niceToString(),
             message: type ? TranslationMessage.AreYouSureToContinueAutoTranslation0For1WithoutRevision.niceToString().formatHtml(<strong>{getTypeInfo(type).niceName}</strong>, <strong>{getToString(cultures[culture])}</strong>) :
               TranslationMessage.AreYouSureToContinueAutoTranslationAllTypesFor0WithoutRevision.niceToString().formatHtml(<strong>{getToString(cultures[culture])}</strong>),
             buttons: "yes_no",
@@ -136,7 +143,7 @@ function TranslationTable({ result, onRefreshView }: { result: TranslatedTypeSum
           })
           .then(mr => {
             if (mr == "yes")
-              (type ? API.autoTranslate(type, culture) : API.autoTranslateAll(culture))
+              (type ? TranslatedInstanceClient.API.autoTranslate(type, culture) : TranslatedInstanceClient.API.autoTranslateAll(culture))
                 .then(() => onRefreshView?.());
           })
       );

@@ -3,12 +3,11 @@ import { classes } from '@framework/Globals'
 import { SubTokensOptions } from '@framework/FindOptions'
 import { TypeContext, StyleContext } from '@framework/TypeContext'
 import { tryGetTypeInfos, TypeInfo, isTypeEnum } from '@framework/Reflection'
-import * as Navigator from '@framework/Navigator'
+import { Navigator } from '@framework/Navigator'
 import { AutoLine, FormGroup, TextBoxLine } from '@framework/Lines'
 import { ChartColumnEmbedded, ChartMessage, ChartColumnType, ChartParameterEmbedded } from '../Signum.Chart'
-import * as ChartClient from '../ChartClient'
-import { ChartScriptColumn, ChartScript } from '../ChartClient'
-import * as ColorPaletteClient from '../ColorPalette/ColorPaletteClient'
+import { ChartClient } from '../ChartClient'
+import { ColorPaletteClient } from '../ColorPalette/ColorPaletteClient'
 import { JavascriptMessage, toLite } from '@framework/Signum.Entities';
 import { useAPI, useAPIWithReload, useForceUpdate } from '@framework/Hooks'
 import { Parameters } from './ChartBuilder'
@@ -19,8 +18,8 @@ import QueryTokenEntityBuilder from '../../Signum.UserAssets/Templates/QueryToke
 export interface ChartColumnProps {
   ctx: TypeContext<ChartColumnEmbedded>;
   columnIndex: number;
-  scriptColumn: ChartScriptColumn;
-  chartScript: ChartScript;
+  scriptColumn: ChartClient.ChartScriptColumn;
+  chartScript: ChartClient.ChartScript;
   chartBase: IChartBase;
   queryKey: string;
   onRedraw: () => void;
@@ -30,7 +29,7 @@ export interface ChartColumnProps {
 }
 
 
-export function ChartColumn(p: ChartColumnProps) {
+export function ChartColumn(p: ChartColumnProps): React.JSX.Element {
 
   const forceUpdate = useForceUpdate();
 
@@ -112,7 +111,7 @@ export function ChartColumn(p: ChartColumnProps) {
   const sc = p.scriptColumn;
   const cb = p.chartBase;
 
-  const subTokenOptions = SubTokensOptions.CanElement | SubTokensOptions.CanAggregate;
+  var subTokenOptions = SubTokensOptions.CanElement | SubTokensOptions.CanAggregate | (p.chartBase.chartTimeSeries ? SubTokensOptions.CanTimeSeries : 0);
 
   const ctx = p.ctx;
 
@@ -194,7 +193,7 @@ export interface ChartPaletteLinkProps {
   ctx: StyleContext;
 }
 
-export function ChartPaletteLink(p: ChartPaletteLinkProps) {
+export function ChartPaletteLink(p: ChartPaletteLinkProps): React.JSX.Element {
 
   const [palette, reload] = useAPIWithReload(() => ColorPaletteClient.getColorPalette(p.type.name), [p.type.name]);
 

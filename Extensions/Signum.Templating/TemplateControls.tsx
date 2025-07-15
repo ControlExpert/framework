@@ -4,7 +4,7 @@ import { TemplateTokenMessage } from './Signum.Templating'
 import QueryTokenBuilder from '@framework/SearchControl/QueryTokenBuilder'
 import AutoLineModal from '@framework/AutoLineModal'
 import { useAPI } from '@framework/Hooks'
-import * as Finder from '@framework/Finder'
+import { Finder } from '@framework/Finder'
 import { getTypeInfos, TypeReference } from '@framework/Reflection'
 import { ajaxGet } from '@framework/Services'
 
@@ -14,7 +14,7 @@ export interface TemplateControlsProps {
   widgetButtons?: React.ReactElement;
 }
 
-export default function TemplateControls(p: TemplateControlsProps) {
+export default function TemplateControls(p: TemplateControlsProps): React.JSX.Element {
 
   const [currentToken, setCurrentToken] = React.useState<{ type: "Query", token?: QueryToken } | { type: "Global", expression?: GlobalVariable }>({ type: p.queryKey ? 'Query' : "Global" });
 
@@ -97,7 +97,7 @@ export default function TemplateControls(p: TemplateControlsProps) {
 
   return (
     <div className="d-flex">
-      <select className="form-select form-select-sm w-auto" onChange={(e: React.FormEvent<any>) => setCurrentToken({ type: (e.currentTarget as HTMLSelectElement).value as "Query" | "Global" })} >
+      <select className="form-select form-select-sm w-auto" value={currentToken?.type} onChange={e => setCurrentToken({ type: e.currentTarget.value as "Query" | "Global" })} >
         {p.queryKey && <option value="Query">Query</option>}
         <option value="Global">Global</option>
       </select>

@@ -1,9 +1,9 @@
 import * as React from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { Lite, toLite, Entity, EntityPack, getToString } from '@framework/Signum.Entities'
-import * as Navigator from '@framework/Navigator'
+import { Navigator } from '@framework/Navigator'
 import { WordTemplateEntity, WordTemplateMessage } from './Signum.Word'
-import * as WordClient from './WordClient'
+import { WordClient } from './WordClient'
 import { saveFile } from "@framework/Services";
 import { DropdownButton, Dropdown } from 'react-bootstrap';
 
@@ -11,7 +11,7 @@ export interface WordEntityMenuProps {
   entityPack: EntityPack<Entity>;
 }
 
-export default function WordEntityMenu(p : WordEntityMenuProps){
+export default function WordEntityMenu(p : WordEntityMenuProps): React.JSX.Element {
   function handleOnClick(wt: Lite<WordTemplateEntity>) {
     Navigator.API.fetch(wt)
       .then<string | undefined>(wordTemplate => wordTemplate.model ? WordClient.API.getConstructorType(wordTemplate.model) : undefined)

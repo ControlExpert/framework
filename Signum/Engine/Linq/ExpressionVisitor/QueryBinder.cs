@@ -216,7 +216,7 @@ internal class QueryBinder : ExpressionVisitor
             var expression = Visit(obj);
 
             var entityContext =
-                expression is EntityExpression ee ? new EntityContextInfo(ee.ExternalId, null) :
+                expression is EntityExpression ee ? new EntityContextInfo(ee.ExternalId, ee.GetPartitionId(), null) :
                 expression is EmbeddedEntityExpression eee ? eee.EntityContext :
                 expression is MixinEntityExpression mee ? mee.EntityContext :
                throw new InvalidOperationException($"EntityContext.${m.Method.Name} not supported for ${m.Arguments[0]}");
@@ -228,9 +228,37 @@ internal class QueryBinder : ExpressionVisitor
                 m.Method.Name == nameof(EntityContext.MListRowId) ? entityContext.MListRowId ?? new PrimaryKeyExpression(Expression.Constant(null, typeof(IComparable))) :
                  throw new InvalidOperationException($"EntityContext.${m.Method.Name} not supported for ${m.Arguments[0]}");
         }
+        else if (m.Method.DeclaringType == typeof(SystemTime) && m.Method.Name == nameof(SystemTime.OverrideInExpression))
+        {
+            SystemTime? old = this.systemTime;
+            this.systemTime = ToSystemTime(m.Arguments[0]);
+
+            Expression newValue = Visit(m.Arguments[1]);
+
+            this.systemTime = old;
+
+            return newValue;
+        }
 
         MethodCallExpression result = (MethodCallExpression)base.VisitMethodCall(m);
         return BindMethodCall(result);
+    }
+
+    private SystemTime ToSystemTime(Expression expression)
+    {
+        if (expression is ConstantExpression ce)
+            return (SystemTime)ce.Value!;
+
+        if(expression is NewExpression ne && ne.Type == typeof(SystemTime.AsOf))
+        {
+            var at = Visit(ne.Arguments[0]);
+
+            var at2 = DbExpressionNominator.FullNominate(at);
+
+            return new SystemTime.AsOfExpression(at2);
+        }
+
+        throw new InvalidOperationException("Unable to convert to SystemTime the expression:" + expression.ToString());
     }
 
     private ReadOnlyDictionary<Type, Type>? ToTypeDictionary(Expression? modelType, Type entityType)
@@ -1426,14 +1454,14 @@ internal class QueryBinder : ExpressionVisitor
 
         Expression exp =
             table is Table t ? t.GetProjectorExpression(tableAlias, this, st.DisableAssertAllowed) :
-            table is TableMList tml ? tml.GetProjectorExpression(tableAlias, this) :
+            table is TableMList tml ? tml.GetMListElementExpression(tableAlias, this) :
             throw new UnexpectedValueException(table);
 
         Type resultType = typeof(IQueryable<>).MakeGenericType(query.ElementType);
         TableExpression tableExpression = new TableExpression(tableAlias, table, st.SystemTime ?? (table.SystemVersioned != null ? this.systemTime : null), currentTableHint);
         currentTableHint = null;
 
-        if (this.systemTime is SystemTime.Interval inter && inter.JoinBehaviour == JoinBehaviour.Current)
+        if (this.systemTime is SystemTime.Interval inter && inter.JoinMode == SystemTimeJoinMode.Current)
             this.systemTime = null;
 
         Alias selectAlias = NextSelectAlias();
@@ -1613,6 +1641,11 @@ internal class QueryBinder : ExpressionVisitor
 
         if (source == null || m.Method.Name == "InSql" || m.Method.Name == "DisableQueryFilter")
             return m;
+
+        if (source is UnaryExpression ue && ue.NodeType == ExpressionType.Convert && !ue.Type.IsValueType && ue.Method == null)
+        {
+            source = ue.Operand;
+        }
 
         if (source.NodeType == ExpressionType.Conditional)
         {
@@ -2075,6 +2108,7 @@ internal class QueryBinder : ExpressionVisitor
                                         "RowId" => mle.RowId.UnNullify(),
                                         "Parent" => mle.Parent,
                                         "RowOrder" => mle.Order ?? throw new InvalidOperationException("{0} has no {1}".FormatWith(mle.Table.Name, m.Member.Name)),
+                                        "RowPartitionId" => mle.PartitionId ?? throw new InvalidOperationException("{0} has no {1}".FormatWith(mle.Table.Name, m.Member.Name)),
                                         "Element" => mle.Element,
                                         _ => throw new InvalidOperationException("The member {0} of MListElement is not accesible on queries".FormatWith(m.Member)),
                                     };
@@ -2280,7 +2314,7 @@ internal class QueryBinder : ExpressionVisitor
             throw new InvalidOperationException("MList on ImplementedBy are not supported yet");
 
         if (expressions.Any(e => e.Value is AdditionalFieldExpression))
-            throw new InvalidOperationException("MList on ImplementedBy are not supported yet");
+            return strategy.CombineValues(expressions, returnType);
 
         if (expressions.Any(e => e.Value is TypeImplementedByAllExpression || e.Value is TypeImplementedByExpression || e.Value is TypeEntityExpression))
         {
@@ -2640,7 +2674,7 @@ internal class QueryBinder : ExpressionVisitor
 
         Expression toUpdate =
             table is Table t ? t.GetProjectorExpression(alias, this) :
-            table is TableMList tml ? tml.GetProjectorExpression(alias, this) :
+            table is TableMList tml ? tml.GetMListElementExpression(alias, this) :
             throw new UnexpectedValueException(table);
 
         List<ColumnAssignment> assignments = new List<ColumnAssignment>();
@@ -2715,7 +2749,7 @@ internal class QueryBinder : ExpressionVisitor
 
         Expression toInsert =
             table is Table t ? t.GetProjectorExpression(alias, this) :
-            table is TableMList tml ? tml.GetProjectorExpression(alias, this) :
+            table is TableMList tml ? tml.GetMListElementExpression(alias, this) :
             throw new UnexpectedValueException(table);
 
         ParameterExpression param = constructor.Parameters[0];
@@ -2845,7 +2879,7 @@ internal class QueryBinder : ExpressionVisitor
         {
             return new[] { AssignColumn(SmartEqualizer.UnwrapPrimaryKey(colExpression), SmartEqualizer.UnwrapPrimaryKey(expression)) };
         }
-        else if (colExpression.NodeType == ExpressionType.Convert && colExpression.Type == ((UnaryExpression)colExpression).Operand.Type.UnNullify())
+        else if (colExpression.NodeType == ExpressionType.Convert && colExpression.Type.UnNullify() == ((UnaryExpression)colExpression).Operand.Type.UnNullify())
         {
             return new[] { AssignColumn(((UnaryExpression)colExpression).Operand, expression) };
         }
@@ -3036,7 +3070,8 @@ internal class QueryBinder : ExpressionVisitor
             var newAlias = NextTableAlias(table.Name);
             var id = table.GetIdExpression(newAlias)!;
             var period = table.GenerateSystemPeriod(newAlias, this);
-            var entityContext = new EntityContextInfo(entity.ExternalId, null);
+            var partitionId = table.PartitionId?.GetExpression(newAlias, this, id, null, null);
+            var entityContext = new EntityContextInfo(entity.ExternalId, partitionId, null);
             var bindings = table.GenerateBindings(newAlias, this, id, period, entityContext);
             var mixins = table.GenerateMixins(newAlias, this, id, period, entityContext);
 
@@ -3244,6 +3279,7 @@ internal class QueryBinder : ExpressionVisitor
 
         var where = DbExpressionNominator.FullNominate(
             SmartEqualizer.EqualNullable(mle.BackID, relationalTable.BackColumnExpression(tableAlias))
+            .And(mle.ExternalPartitionId == null || relationalTable.PartitionId == null ? null : SmartEqualizer.EqualNullable(mle.ExternalPartitionId, relationalTable.PartitionId.GetExpression(tableAlias, this, mle.BackID, null, null)))
             .And(mle.ExternalPeriod.Overlaps(relationalTable.GenerateSystemPeriod(tableAlias, this)))
             );
 
@@ -3601,11 +3637,12 @@ class QueryJoinExpander : DbExpressionVisitor
 
                 Expression equal = DbExpressionNominator.FullNominate(eq)!;
 
-                if (this.systemTime is SystemTime.Interval inter && inter.JoinBehaviour == JoinBehaviour.FirstCompatible && tr.CompleteEntity.ExternalPeriod != null)
+                if (this.systemTime is SystemTime.Interval inter && inter.JoinMode == SystemTimeJoinMode.FirstCompatible && tr.CompleteEntity.ExternalPeriod != null)
                 {
                     Alias newAlias = aliasGenerator.NextSelectAlias();
                     source = new JoinExpression(JoinType.OuterApply, source,
-                        new SelectExpression(newAlias, false, top: new SqlConstantExpression(1, typeof(int)), null, tr.Table, equal, new[] { new OrderExpression(OrderType.Ascending, tr.CompleteEntity.ExternalPeriod!.Min!) }, null, 0),
+                        new SelectExpression(newAlias, false, top: new SqlConstantExpression(1, typeof(int)), null, tr.Table, equal, 
+                        [new OrderExpression(OrderType.Ascending, tr.CompleteEntity.ExternalPeriod!.Min!)], null, 0),
                         null);
                 }
                 else

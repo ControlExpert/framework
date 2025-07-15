@@ -1,6 +1,6 @@
 import * as React from "react";
-import { DateTime, Duration } from 'luxon'
-import * as Navigator from "./Navigator"
+import { DateTime, DateTimeUnit, Duration } from 'luxon'
+import { Navigator } from "./Navigator"
 import { Dic, classes } from './Globals'
 import {
   FilterOptionParsed, 
@@ -14,7 +14,8 @@ import {
   TypeReference,
   tryGetTypeInfos, getEnumInfo, toLuxonFormat, toNumberFormat, 
   PropertyRoute, tryGetTypeInfo, 
-  toLuxonDurationFormat, toFormatWithFixes, IsByAll, getTypeInfos, Binding
+  toLuxonDurationFormat, toFormatWithFixes, IsByAll, getTypeInfos, Binding,
+  QueryTokenString
 } from './Reflection';
 import EntityLink from './SearchControl/EntityLink';
 import SearchControlLoaded from './SearchControl/SearchControlLoaded';
@@ -22,7 +23,7 @@ import { EntityBaseController, EntityCombo, EntityLine, EntityStrip, FormGroup, 
 import { similarToken } from "./Search";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { TextHighlighter } from "./Components/Typeahead";
-import { CellFormatter, EntityFormatRule, EntityFormatter, FilterValueFormatter, FormatRule, QuickFilterRule, filterValueFormatRules } from "./Finder";
+import { Finder } from "./Finder";
 import { OverlayTrigger, Popover } from "react-bootstrap";
 import { TypeEntity } from "./Signum.Basics";
 import { useForceUpdate } from "./Hooks";
@@ -31,16 +32,17 @@ import { TextBoxLine } from "./Lines/TextBoxLine";
 import { AutoLine } from "./Lines/AutoLine";
 import { EnumLine } from "./Lines/EnumLine";
 import { KeyNames } from "./Components";
+import QueryTokenBuilder from "./SearchControl/QueryTokenBuilder";
 
 
-export function isMultiline(pr?: PropertyRoute) {
+export function isMultiline(pr?: PropertyRoute): boolean {
   if (pr == null || pr.member == null)
     return false;
 
   return pr.member.isMultiline || pr.member.maxLength != null && pr.member.maxLength > 150;
 }
 
-export function initFormatRules(): FormatRule[] {
+export function initFormatRules(): Finder.FormatRule[] {
   return [
     {
       name: "Object",
@@ -49,20 +51,20 @@ export function initFormatRules(): FormatRule[] {
 
         var hl = new TextHighlighter(getKeywordsSC(qt, sc));
 
-        return new CellFormatter(cell => cell ? <span className="try-no-wrap">{hl.highlight(cell.toString())}</span> : undefined, true);
+        return new Finder.CellFormatter(cell => cell ? <span className="try-no-wrap">{hl.highlight(cell.toString())}</span> : undefined, true);
       }
     },
     {
       name: "Entity",
       isApplicable: qt => qt.filterType == "Embedded" || qt.filterType == "Model",
-      formatter: qt => new CellFormatter(cell => cell ? <span className="try-no-wrap">{getToString(cell)}</span> : undefined, true)
+      formatter: qt => new Finder.CellFormatter(cell => cell ? <span className="try-no-wrap">{getToString(cell)}</span> : undefined, true)
     },
     {
       name: "MultiLine",
       isApplicable: qt => {
         if (qt.type.name == "string" && qt.propertyRoute != null) {
           var pr = PropertyRoute.tryParseFull(qt.propertyRoute);
-          if (pr != null && pr.member != null && !pr.member.isPhone && !pr.member.isMail && isMultiline(pr))
+          if (pr != null && pr.member != null && isMultiline(pr))
             return true;
         }
 
@@ -71,7 +73,7 @@ export function initFormatRules(): FormatRule[] {
       formatter: (qt, sc) => {
         var hl = new TextHighlighter(getKeywordsSC(qt, sc));
 
-        return new CellFormatter(cell => cell ? <span className="multi-line">{hl.highlight(cell.toString())}</span> : undefined, true);
+        return new Finder.CellFormatter(cell => cell ? <span className="multi-line">{hl.highlight(cell.toString())}</span> : undefined, true);
       }
     },
     {
@@ -80,7 +82,7 @@ export function initFormatRules(): FormatRule[] {
       formatter: (qt, sc) => {
         var hl = new TextHighlighter(getKeywordsSC(qt, sc));
 
-        return new CellFormatter(cell => {
+        return new Finder.CellFormatter(cell => {
           if (!cell)
             return cell;
 
@@ -93,7 +95,7 @@ export function initFormatRules(): FormatRule[] {
       isApplicable: qt => {
         if (qt.type.name == "string" && qt.propertyRoute != null) {
           var pr = PropertyRoute.tryParseFull(qt.propertyRoute);
-          if (pr != null && pr.member != null && !pr.member.isPhone && !pr.member.isMail && (!pr.member.isMultiline && pr.member.maxLength != null && pr.member.maxLength <= 20))
+          if (pr != null && pr.member != null && !pr.member.isMultiline && pr.member.maxLength != null && pr.member.maxLength <= 150)
             return true;
         }
 
@@ -103,18 +105,18 @@ export function initFormatRules(): FormatRule[] {
       
         var hl = new TextHighlighter(getKeywords(qt, sc?.state.resultFindOptions?.filterOptions));
 
-        return new CellFormatter(cell => cell ? <span className="try-no-wrap">{hl.highlight(cell.toString())}</span> : undefined, false);
+        return new Finder.CellFormatter(cell => cell ? <span className="try-no-wrap">{hl.highlight(cell.toString())}</span> : undefined, false);
       }
     },
     {
       name: "Password",
       isApplicable: qt => qt.format == "Password",
-      formatter: qt => new CellFormatter(cell => cell ? <span className="try-no-wrap">•••••••</span> : undefined, false)
+      formatter: qt => new Finder.CellFormatter(cell => cell ? <span className="try-no-wrap">•••••••</span> : undefined, false)
     },
     {
       name: "Enum",
       isApplicable: qt => qt.filterType == "Enum",
-      formatter: qt => new CellFormatter(cell => {
+      formatter: qt => new Finder.CellFormatter(cell => {
         if (cell == undefined)
           return undefined;
 
@@ -126,14 +128,14 @@ export function initFormatRules(): FormatRule[] {
     {
       name: "Lite",
       isApplicable: qt => qt.filterType == "Lite",
-      formatter: qt => new CellFormatter((cell: Lite<Entity> | undefined, ctx) => !cell ? undefined : <EntityLink lite={cell} onNavigated={ctx.refresh} inSearch="related" />, true)
+      formatter: qt => new Finder.CellFormatter((cell: Lite<Entity> | undefined, ctx) => !cell ? undefined : <EntityLink lite={cell} onNavigated={ctx.refresh} inSearch="related" shy />, true)
     },
     {
       name: "LiteNoFill",
       isApplicable: qt => {
         return qt.filterType == "Lite" && tryGetTypeInfos(qt.type)?.every(ti => ti && Navigator.getSettings(ti)?.avoidFillSearchColumnWidth);
       },
-      formatter: qt => new CellFormatter((cell: Lite<Entity> | undefined, ctx) => !cell ? undefined : <EntityLink lite={cell} onNavigated={ctx.refresh} inSearch="related" />, false)
+      formatter: qt => new Finder.CellFormatter((cell: Lite<Entity> | undefined, ctx) => !cell ? undefined : <EntityLink lite={cell} onNavigated={ctx.refresh} inSearch="related" shy />, false)
     },
     {
       name: "Guid",
@@ -142,7 +144,7 @@ export function initFormatRules(): FormatRule[] {
 
         var kw = getKeywordsSC(qt, sc)?.map(a => a.toLowerCase());
 
-        return new CellFormatter((cell: string | undefined) => {
+        return new Finder.CellFormatter((cell: string | undefined) => {
           if (!cell)
             return cell;
 
@@ -161,7 +163,7 @@ export function initFormatRules(): FormatRule[] {
       isApplicable: qt => qt.filterType == "DateTime",
       formatter: qt => {
         const luxonFormat = toLuxonFormat(qt.format, qt.type.name as "DateOnly" | "DateTime");
-        return new CellFormatter((cell: string | undefined) => cell == undefined || cell == "" ? "" : <bdi className="date try-no-wrap">{toFormatWithFixes(DateTime.fromISO(cell), luxonFormat)}</bdi>, false, "date-cell") //To avoid flippig hour and date (L LT) in RTL cultures
+        return new Finder.CellFormatter((cell: string | undefined) => cell == undefined || cell == "" ? "" : <bdi className="date try-no-wrap">{toFormatWithFixes(DateTime.fromISO(cell), luxonFormat)}</bdi>, false, "date-cell") //To avoid flippig hour and date (L LT) in RTL cultures
       }
     },
     {
@@ -170,14 +172,35 @@ export function initFormatRules(): FormatRule[] {
       formatter: qt => {
         const durationFormat = toLuxonDurationFormat(qt.format) ?? "hh:mm:ss";
 
-        return new CellFormatter((cell: string | undefined) => cell == undefined || cell == "" ? "" : <bdi className="date try-no-wrap">{Duration.fromISOTime(cell).toFormat(durationFormat)}</bdi>, false, "date-cell") //To avoid flippig hour and date (L LT) in RTL cultures
+        return new Finder.CellFormatter((cell: string | undefined) => cell == undefined || cell == "" ? "" : <bdi className="date try-no-wrap">{Duration.fromISOTime(cell).toFormat(durationFormat)}</bdi>, false, "date-cell") //To avoid flippig hour and date (L LT) in RTL cultures
+      }
+    },
+    {
+      name: "TimeSeries",
+      isApplicable: qt => qt.fullKey == QueryTokenString.timeSeries.token,
+      formatter: (qt, scl) => {
+        let luxonFormat = toLuxonFormat(qt.format, qt.type.name as "DateOnly" | "DateTime");
+        const st = scl?.props.findOptions.systemTime;
+        if (st) {
+          var start = DateTime.fromISO(st.startDate!);
+
+          if (start.equals(start.startOf(st.timeSeriesUnit?.firstLower() as DateTimeUnit))) {
+            luxonFormat = toLuxonFormat(st.timeSeriesUnit == "Year" ? "YYYY" :
+              st.timeSeriesUnit == "Month" ? "LLLL YYYY" :
+                st.timeSeriesUnit == "Day" ? "d" :
+                  qt.format, "DateTime");
+          }
+        }
+
+        
+        return new Finder.CellFormatter((cell: string | undefined) => cell == undefined || cell == "" ? "" : <bdi className="date try-no-wrap">{toFormatWithFixes(DateTime.fromISO(cell), luxonFormat)}</bdi>, false, "date-cell") //To avoid flippig hour and date (L LT) in RTL cultures
       }
     },
     {
       name: "SystemValidFrom",
       isApplicable: qt => qt.fullKey.tryAfterLast(".") == "SystemValidFrom",
       formatter: qt => {
-        return new CellFormatter((cell: string | undefined, ctx) => {
+        return new Finder.CellFormatter((cell: string | undefined, ctx) => {
 
           if (cell == undefined || cell == "")
             return "";
@@ -191,7 +214,7 @@ export function initFormatRules(): FormatRule[] {
           const luxonFormat = toLuxonFormat(qt.format, qt.type.name as "DateOnly" | "DateTime");
           return (
             <bdi className={classes("date", "try-no-wrap", className)}>
-              {c.toFormat(luxonFormat)}
+              {toFormatWithFixes(c, luxonFormat)}
             </bdi>);
         }, false, "date-cell"); //To avoid flippig hour and date (L LT) in RTL cultures
       }
@@ -200,7 +223,7 @@ export function initFormatRules(): FormatRule[] {
       name: "SystemValidTo",
       isApplicable: qt => qt.fullKey.tryAfterLast(".") == "SystemValidTo",
       formatter: qt => {
-        return new CellFormatter((cell: string | undefined, ctx) => {
+        return new Finder.CellFormatter((cell: string | undefined, ctx) => {
           if (cell == undefined || cell == "")
             return "";
 
@@ -211,7 +234,7 @@ export function initFormatRules(): FormatRule[] {
               undefined;
 
           const luxonFormat = toLuxonFormat(qt.format, qt.type.name as "DateOnly" | "DateTime");
-          return <bdi className={classes("date", "try-no-wrap", className)}>{c.toFormat(luxonFormat)}</bdi>;
+          return <bdi className={classes("date", "try-no-wrap", className)}>{toFormatWithFixes(c, luxonFormat)}</bdi>;
         }, false, "date-cell");//To avoid flippig hour and date (L LT) in RTL cultures
       }
     },
@@ -221,7 +244,7 @@ export function initFormatRules(): FormatRule[] {
       formatter: (qt, sc) => {
         var values = getKeywordsSC(qt, sc)?.map(a => a.toLowerCase());
         const numberFormat = toNumberFormat(qt.format);
-        return new CellFormatter((cell: number | undefined) => {
+        return new Finder.CellFormatter((cell: number | undefined) => {
           if (cell == null)
             return cell;
 
@@ -240,7 +263,7 @@ export function initFormatRules(): FormatRule[] {
       isApplicable: qt => qt.filterType == "Decimal",
       formatter: (qt, hl) => {
         const numberFormat = toNumberFormat(qt.format);
-        return new CellFormatter((cell: number | undefined) => cell == undefined ? "" : <span className="try-no-wrap">{numberFormat.format(cell)}</span>, false, "numeric-cell");
+        return new Finder.CellFormatter((cell: number | undefined) => cell == undefined ? "" : <span className="try-no-wrap">{numberFormat.format(cell)}</span>, false, "numeric-cell");
       }
     },
     {
@@ -248,13 +271,13 @@ export function initFormatRules(): FormatRule[] {
       isApplicable: qt => (qt.filterType == "Integer" || qt.filterType == "Decimal") && Boolean(qt.unit),
       formatter: qt => {
         const numberFormat = toNumberFormat(qt.format);
-        return new CellFormatter((cell: number | undefined) => cell == undefined ? "" : <span className="try-no-wrap">{numberFormat.format(cell) + "\u00a0" + qt.unit}</span>, false, "numeric-cell");
+        return new Finder.CellFormatter((cell: number | undefined) => cell == undefined ? "" : <span className="try-no-wrap">{numberFormat.format(cell) + "\u00a0" + qt.unit}</span>, false, "numeric-cell");
       }
     },
     {
       name: "Bool",
       isApplicable: qt => qt.filterType == "Boolean",
-      formatter: col => new CellFormatter((cell: boolean | undefined) => cell == undefined ? undefined : <input type="checkbox" className="form-check-input" disabled={true} checked={cell} />, false, "centered-cell")
+      formatter: col => new Finder.CellFormatter((cell: boolean | undefined) => cell == undefined ? undefined : <input type="checkbox" className="form-check-input" disabled={true} checked={cell} />, false, "centered-cell")
     },
     {
       name: "Phone",
@@ -271,7 +294,7 @@ export function initFormatRules(): FormatRule[] {
 
         var hl = new TextHighlighter(getKeywords(qt, sc?.state.resultFindOptions?.filterOptions));
 
-        return new CellFormatter((cell: string | undefined) => {
+        return new Finder.CellFormatter((cell: string | undefined) => {
           if (!cell)
             return cell;
 
@@ -301,7 +324,7 @@ export function initFormatRules(): FormatRule[] {
 
         var hl = new TextHighlighter(getKeywords(qt, sc?.state.resultFindOptions?.filterOptions));
 
-        return new CellFormatter((cell: string | undefined) => {
+        return new Finder.CellFormatter((cell: string | undefined) => {
           if (!cell)
             return cell;
 
@@ -398,7 +421,7 @@ export function getKeywords(token: QueryToken, filters?: FilterOptionParsed[]): 
   return filters.notNull().flatMap(f => getFiltersKeywords(f)).distinctBy(a => a);
 }
 
-export function similarTokenToStr(tokenA: QueryToken, tokenB: QueryToken) {
+export function similarTokenToStr(tokenA: QueryToken, tokenB: QueryToken): boolean {
   if (similarToken(tokenA.fullKey, tokenB.fullKey))
     return true;
 
@@ -424,7 +447,7 @@ export function similarTokenToStr(tokenA: QueryToken, tokenB: QueryToken) {
 
 const toStringFunctionTokensCache: { [typeName: string]: string[] | null } = {};
 
-export function getToStringDependencies(tr: TypeReference) {
+export function getToStringDependencies(tr: TypeReference): string[] | null {
 
   var ti = tryGetTypeInfo(tr.name);
   if (ti == null)
@@ -449,12 +472,12 @@ export function getToStringDependencies(tr: TypeReference) {
 
 
 
-export function initEntityFormatRules(): EntityFormatRule[] {
+export function initEntityFormatRules(): Finder.EntityFormatRule[] {
   return [
     {
       name: "View",
       isApplicable: sc => true,
-      formatter: new EntityFormatter(({ row, columns, searchControl: sc }) => !row.entity || !Navigator.isViewable(row.entity.EntityType, { isSearch: "main" }) ? undefined :
+      formatter: new Finder.EntityFormatter(({ row, columns, searchControl: sc }) => !row.entity || !Navigator.isViewable(row.entity.EntityType, { isSearch: "main" }) ? undefined :
         <EntityLink lite={row.entity}
           inSearch="main"
           onNavigated={sc?.handleOnNavigated}
@@ -469,7 +492,7 @@ export function initEntityFormatRules(): EntityFormatRule[] {
     {
       name: "View",
       isApplicable: sc => sc?.state.resultFindOptions?.groupResults == true,
-      formatter: new EntityFormatter(({ row, columns, searchControl: sc }) =>
+      formatter: new Finder.EntityFormatter(({ row, columns, searchControl: sc }) =>
         <a href="#"
           className="sf-line-button sf-view"
           onClick={e => { e.preventDefault(); sc!.openRowGroup(row); }}
@@ -484,7 +507,7 @@ export function initEntityFormatRules(): EntityFormatRule[] {
 
 
 
-export function initQuickFilterRules(): QuickFilterRule[] {
+export function initQuickFilterRules(): Finder.QuickFilterRule[] {
   return ([
 
     {
@@ -544,7 +567,7 @@ export function initQuickFilterRules(): QuickFilterRule[] {
 
 
 
-export function initFilterValueFormatRules(): FilterValueFormatter[]{
+export function initFilterValueFormatRules(): Finder.FilterValueFormatter[]{
   return [
 
     {
@@ -631,7 +654,7 @@ export function initFilterValueFormatRules(): FilterValueFormatter[]{
         const fc = f as FilterConditionOptionParsed;
 
         var pseudoFilter = { ...f, operation: "EqualTo" } as FilterConditionOptionParsed
-        var rule = filterValueFormatRules.filter(r => r.applicable(pseudoFilter, ffc)).last();
+        var rule = Finder.filterValueFormatRules.filter(r => r.applicable(pseudoFilter, ffc)).last();
         return (
           <FormGroup ctx={ffc.ctx} label={ffc.label}>
             {inputId => <MultiValue values={f.value} readOnly={f.frozen} onChange={() => ffc.handleValueChange(f)}
@@ -701,12 +724,12 @@ export function initFilterValueFormatRules(): FilterValueFormatter[]{
 
 export interface MultiValueProps {
   values: any[],
-  onRenderItem: (ctx: TypeContext<any>) => React.ReactElement<any>;
+  onRenderItem: (ctx: TypeContext<any>) => React.ReactElement;
   readOnly: boolean;
   onChange: () => void;
 }
 
-export function MultiValue(p: MultiValueProps) {
+export function MultiValue(p: MultiValueProps): React.JSX.Element {
 
   const forceUpdate = useForceUpdate();
 
@@ -766,7 +789,7 @@ export function MultiValue(p: MultiValueProps) {
 }
 
 
-export function MultiEntity(p: { values: Lite<Entity>[], readOnly: boolean, type: string, onChange: () => void, vertical?: boolean }) {
+export function MultiEntity(p: { values: Lite<Entity>[], readOnly: boolean, type: string, onChange: () => void, vertical?: boolean }): React.JSX.Element {
   const mListEntity = React.useRef<MList<Lite<Entity>>>([]);
 
 
@@ -785,7 +808,7 @@ export function MultiEntity(p: { values: Lite<Entity>[], readOnly: boolean, type
 
 
 
-export function FilterTextArea(p: { ctx: TypeContext<string>, isComplex: boolean, onChange: () => void, label?: string }) {
+export function FilterTextArea(p: { ctx: TypeContext<string>, isComplex: boolean, onChange: () => void, label?: string }): React.JSX.Element {
   return <TextAreaLine ctx={p.ctx}
     type={{ name: "string" }}
     label={p.label}
@@ -808,7 +831,7 @@ export function FilterTextArea(p: { ctx: TypeContext<string>, isComplex: boolean
   />
 }
 
-export function ComplexConditionSyntax() {
+export function ComplexConditionSyntax(): React.JSX.Element {
   const popover = (
     <Popover id="popover-basic">
       <Popover.Header as="h3">Full-Text Search Syntax</Popover.Header>
@@ -827,6 +850,9 @@ export function ComplexConditionSyntax() {
     </OverlayTrigger>
   );
 
+}
+export declare namespace ComplexConditionSyntax {
+    export var examples: string[];
 }
 
 

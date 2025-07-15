@@ -2,9 +2,9 @@ import * as React from 'react'
 import { DateTime } from 'luxon'
 import { useLocation, useParams } from 'react-router'
 import * as AppContext from '@framework/AppContext'
-import * as Navigator from '@framework/Navigator'
+import { Navigator } from '@framework/Navigator'
 import { SearchControl } from '@framework/Search'
-import { API, WorkflowScriptRunnerState } from '../WorkflowClient'
+import { WorkflowClient } from '../WorkflowClient'
 import { CaseActivityEntity, WorkflowActivityType, WorkflowPermission, CaseActivityOperation, WorkflowActivityEntity } from '../Signum.Workflow'
 import { Tabs, Tab } from 'react-bootstrap';
 import { useAPIWithReload, useInterval } from '@framework/Hooks'
@@ -12,7 +12,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { classes } from '@framework/Globals'
 import { OperationLogEntity } from '@framework/Signum.Operations'
 
-export default function WorkflowPanelPage(){
+export default function WorkflowPanelPage(): React.JSX.Element {
 
   return (
     <div>
@@ -31,11 +31,11 @@ export default function WorkflowPanelPage(){
 }
 
 
-export function WorkflowScriptRunnerTab(p: {}) {
+export function WorkflowScriptRunnerTab(p: {}): React.JSX.Element {
 
   const [state, reloadState] = useAPIWithReload(() => {
     AppContext.assertPermissionAuthorized(WorkflowPermission.ViewWorkflowPanel);
-    return API.view();
+    return WorkflowClient.API.view();
   }, [], { avoidReset: true });
 
   const tick = useInterval(state == null || state.running ? 500 : null, 0, n => n + 1);
@@ -46,12 +46,12 @@ export function WorkflowScriptRunnerTab(p: {}) {
 
   function handleStop(e: React.MouseEvent<any>) {
     e.preventDefault();
-    API.stop().then(() => reloadState());
+    WorkflowClient.API.stop().then(() => reloadState());
   }
 
   function handleStart(e: React.MouseEvent<any>) {
     e.preventDefault();
-    API.start().then(() => reloadState());
+    WorkflowClient.API.start().then(() => reloadState());
   }
 
   var title =  "WorkflowScriptRunner State";

@@ -1,12 +1,12 @@
 import * as React from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { Dic, classes } from '@framework/Globals'
-import * as Navigator from '@framework/Navigator'
-import * as Operations from '@framework/Operations'
+import { Navigator } from '@framework/Navigator'
+import { Operations } from '@framework/Operations'
 import { getToString, Lite, newMListElement } from '@framework/Signum.Entities'
 import { CaseTagTypeEntity, CaseEntity, CaseTagsModel, CaseOperation, CaseMessage } from '../Signum.Workflow'
 import Tag from './Tag'
-import * as WorkflowClient from '../WorkflowClient'
+import { WorkflowClient } from '../WorkflowClient'
 
 import "./Tag.css"
 
@@ -17,7 +17,7 @@ export interface InlineCaseTagsProps {
   wrap?: boolean;
 }
 
-export default function InlineCaseTags(p: InlineCaseTagsProps) {
+export default function InlineCaseTags(p: InlineCaseTagsProps): React.JSX.Element {
 
   const [tags, setTags] = React.useState<CaseTagTypeEntity[]>(() => p.defaultTags ?? []);
 

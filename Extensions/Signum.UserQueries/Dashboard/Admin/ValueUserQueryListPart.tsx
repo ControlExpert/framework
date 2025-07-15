@@ -6,14 +6,14 @@ import { IsQueryCachedLine } from '../../../Signum.Dashboard/Admin/Dashboard';
 import { ValueUserQueryElementEmbedded, ValueUserQueryListPartEntity } from '../../Signum.UserQueries';
 import { DashboardEntity } from '../../../Signum.Dashboard/Signum.Dashboard';
 
-export default function ValueUserQueryListPart(p : { ctx: TypeContext<ValueUserQueryListPartEntity> }){
+export default function ValueUserQueryListPart(p : { ctx: TypeContext<ValueUserQueryListPartEntity> }): React.JSX.Element {
   
   const ctx = p.ctx;
 
   const db = ctx.findParentCtx(DashboardEntity).value.cacheQueryConfiguration;
   return (
     <div>
-      <EntityTable ctx={ctx.subCtx(p => p.userQueries)} columns={EntityTable.typedColumns<ValueUserQueryElementEmbedded>([
+      <EntityTable ctx={ctx.subCtx(p => p.userQueries)} columns={[
         {
           property: p => p.userQuery,
           headerHtmlAttributes: { style: { width: "35%" } },
@@ -28,7 +28,7 @@ export default function ValueUserQueryListPart(p : { ctx: TypeContext<ValueUserQ
           property: p => p.isQueryCached,
           template: rctx => db && <IsQueryCachedLine ctx={rctx.subCtx(p => p.isQueryCached)} />
         }
-      ])}
+      ]}
       />
     </div>
   );

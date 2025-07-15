@@ -1,26 +1,25 @@
 import * as React from 'react'
 import { useLocation, useParams, Link } from 'react-router-dom'
-import * as Navigator from '@framework/Navigator'
+import { Navigator } from '@framework/Navigator'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { API, Urls } from '../HelpClient'
+import { HelpClient } from '../HelpClient'
 import { useAPI, useForceUpdate, useAPIWithReload } from '@framework/Hooks';
 import { HelpMessage, NamespaceHelpEntity, NamespaceHelpOperation } from '../Signum.Help';
 import { getTypeInfo, GraphExplorer, symbolNiceName, tryGetOperationInfo, tryGetTypeInfo } from '@framework/Reflection';
 import { JavascriptMessage, Entity } from '@framework/Signum.Entities';
-import * as Operations from '@framework/Operations';
+import { Operations } from '@framework/Operations';
 import { TypeContext } from '@framework/Lines';
 import { EditableHtmlComponent, EditableTextComponent } from './EditableText';
-import { notifySuccess } from '@framework/Operations';
 import { useTitle } from '@framework/AppContext';
 import { classes } from '@framework/Globals';
 import { Shortcut } from './TypeHelpPage'
 
 
-export default function NamespaceHelpPage() {
+export default function NamespaceHelpPage(): React.JSX.Element {
   const params = useParams() as { namespace: string };
 
   var [count, setCount] = React.useState(0);
-  var [namespace, reloadNamespace] = useAPIWithReload(() => API.namespace(params.namespace), [count]);
+  var [namespace, reloadNamespace] = useAPIWithReload(() => HelpClient.API.namespace(params.namespace), [count]);
   useTitle(HelpMessage.Help.niceToString() + (namespace && (" > " + namespace.title)));
   var forceUpdate = useForceUpdate();
   if (namespace == null)
@@ -31,7 +30,7 @@ export default function NamespaceHelpPage() {
   return (
     <div className="container">
       <div className={classes("mb-2 shortcut-container")}>
-        <h1 className="display-6"><Link to={Urls.indexUrl()}>
+        <h1 className="display-6"><Link to={HelpClient.Urls.indexUrl()}>
           {HelpMessage.Help.niceToString()}</Link>
           {" > "}
           <EditableTextComponent ctx={ctx.subCtx(a => a.title, { formSize: "lg" })} defaultText={namespace.title} onChange={forceUpdate} />
@@ -46,7 +45,7 @@ export default function NamespaceHelpPage() {
       </div>
       <h2 className="display-7 mt-4">Types</h2>
       <ul className="mt-4">
-        {namespace.allowedTypes.map(t => <li key={t.cleanName}><Link to={Urls.typeUrl(t.cleanName)} >{getTypeInfo(t.cleanName).niceName}</Link></li>)}
+        {namespace.allowedTypes.map(t => <li key={t.cleanName}><Link to={HelpClient.Urls.typeUrl(t.cleanName)} >{getTypeInfo(t.cleanName).niceName}</Link></li>)}
       </ul>
     </div>
   );
@@ -60,10 +59,10 @@ function SaveButton({ ctx, onSuccess }: { ctx: TypeContext<NamespaceHelpEntity>,
     return null;
 
   function onClick() {
-    API.saveNamespace(ctx.value)
+    HelpClient.API.saveNamespace(ctx.value)
       .then((() => {
         onSuccess();
-        notifySuccess();
+        Operations.notifySuccess();
       }));
   }
 

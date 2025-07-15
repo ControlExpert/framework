@@ -1,14 +1,12 @@
 import * as React from 'react'
-import { IsByAll, MemberInfo, PropertyRoute, PseudoType, Type, TypeInfo, TypeReference, isTypeEnum, isTypeModel, tryGetTypeInfos } from '../Reflection'
+import { IsByAll, MemberInfo, PropertyRoute, PseudoType, Type, TypeInfo, TypeReference, isNumberType, isTypeEnum, isTypeModel, tryGetTypeInfos } from '../Reflection'
 import { LineBaseController, LineBaseProps, tasks } from '../Lines/LineBase'
 import { CheckboxLine, ColorLine, DateTimeLine, DateTimeLineController, EntityCheckboxList, EntityCombo, EntityDetail, EntityLine, EntityMultiSelect, EntityRepeater, EntityStrip, EntityTable, EnumCheckboxList, EnumLine, GuidLine, MultiValueLine, NumberLine, NumberLineController, PasswordLine, TextAreaLine, TextBoxLine, TimeLine, TypeContext } from '../Lines'
 import { Entity, Lite, ModifiableEntity } from '../Signum.Entities'
+import { isNumber } from '../Globals'
 
-export interface AutoLineProps extends LineBaseProps {
-  unit?: React.ReactNode;
-  format?: string;
-  extraButtons?: (vl: any) => React.ReactNode; /* Not always implemented */
-  extraButtonsBefore?: (vl: any) => React.ReactNode; /* Not always implemented */
+export interface AutoLineProps extends LineBaseProps<any> {
+  propertyRoute?: PropertyRoute; //For AutoLineModal
 }
 
 
@@ -20,14 +18,14 @@ export function AutoLine(p: AutoLineProps): React.ReactElement | null {
     return null;
 
 
-  const factory = React.useMemo(() => AutoLine.getComponentFactory(p.type ?? pr!.typeReference(), pr), [pr?.propertyPath(), p.type?.name]);
+  const factory = React.useMemo(() => AutoLine.getComponentFactory(p.type ?? pr!.typeReference(), p.propertyRoute ?? pr), [(p.propertyRoute ?? pr)?.propertyPath(), p.type?.name]);
 
   return factory(p);
 }
 
 export interface AutoLineFactoryRule {
   name: string;
-  factory: (tr: TypeReference, pr?: PropertyRoute) => undefined | ((p: AutoLineProps) => React.ReactElement<any>);
+  factory: (tr: TypeReference, pr?: PropertyRoute) => undefined | ((p: AutoLineProps) => React.ReactElement);
 }
 
 export namespace AutoLine {
@@ -35,11 +33,11 @@ export namespace AutoLine {
     [typeName: string]: AutoLineFactoryRule[];
   } = {};
 
-  export function registerComponent(type: string, factory: (tr: TypeReference, pr?: PropertyRoute) => undefined | ((p: AutoLineProps) => React.ReactElement<any>), name?: string) {
+  export function registerComponent(type: string, factory: (tr: TypeReference, pr?: PropertyRoute) => undefined | ((p: AutoLineProps) => React.ReactElement), name?: string): void {
     (customTypeComponent[type] ??= []).push({ name: name ?? type, factory });
   }
 
-  export function getComponentFactory(tr: TypeReference, pr?: PropertyRoute): (props: AutoLineProps) => React.ReactElement<any> {
+  export function getComponentFactory(tr: TypeReference, pr?: PropertyRoute, options?: { format?: string, multiLine?: boolean }): (props: AutoLineProps) => React.ReactElement {
 
     const customs = customTypeComponent[tr.name]?.map(rule => rule.factory(tr, pr)).notNull().first();
 
@@ -122,7 +120,7 @@ export namespace AutoLine {
       if (tr.name == "Guid")
         return p => <GuidLine {...p} />;
 
-      if (tr.name == "number" || tr.name == "decimal")
+      if (isNumberType(tr.name))
         return p => <NumberLine {...p} />;
 
       if (tr.name == "TimeSpan" || tr.name == "TimeOnly")

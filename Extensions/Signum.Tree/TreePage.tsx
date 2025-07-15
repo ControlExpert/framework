@@ -1,21 +1,24 @@
 import * as React from 'react'
-import { getTypeInfo, tryGetOperationInfo } from '@framework/Reflection'
+import { getQueryNiceName, getTypeInfo, tryGetOperationInfo } from '@framework/Reflection'
 import * as AppContext from '@framework/AppContext'
-import * as Finder from '@framework/Finder'
-import * as Operations from '@framework/Operations'
+import { Finder } from '@framework/Finder'
+import { Operations } from '@framework/Operations'
 import { TreeViewer } from './TreeViewer'
 import { useLocation, useParams } from "react-router";
 import { TreeOperation } from "./Signum.Tree";
 import { QueryString } from '@framework/QueryString'
 import { FrameMessage } from '@framework/Signum.Entities'
+import { TreeClient, TreeOptions } from './TreeClient'
+import { useTitle } from '@framework/AppContext'
 
 
-export default function TreePage() {
+export default function TreePage(): React.JSX.Element {
   const params = useParams() as { typeName: string };
   const location = useLocation();
-  var query = QueryString.parse(location.search);
 
-  const filterOptions = React.useMemo(() => Finder.Decoder.decodeFilters(query), [query]);
+  useTitle(getQueryNiceName(params.typeName));
+
+  const to = TreeClient.parseTreeOptionsPath(params.typeName, QueryString.parse(location.search));
 
   const treeViewRef = React.useRef<TreeViewer>(null);
 
@@ -39,13 +42,13 @@ export default function TreePage() {
         </a>
       </h2>
       <TreeViewer ref={treeViewRef}
+        treeOptions={to}
         initialShowFilters={true}
-        typeName={ti.name}
         allowMove={tryGetOperationInfo(TreeOperation.Move, ti.name) != null}
-        filterOptions={filterOptions}
         showToolbar={true}
+        showExpandCollapseButtons={true}
         key={ti.name}
-        onSearch={() => changeUrl()} />
+        onSearch={(top) => changeUrl()} />
     </div>
   );
 }

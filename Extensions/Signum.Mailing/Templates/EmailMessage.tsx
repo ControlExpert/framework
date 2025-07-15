@@ -9,7 +9,7 @@ import { useForceUpdate } from '@framework/Hooks'
 import { EmailTemplateMessage } from '../Signum.Mailing.Templates'
 import IFrameRenderer from './IframeRenderer'
 
-export default function EmailMessage(p: { ctx: TypeContext<EmailMessageEntity> }) {
+export default function EmailMessage(p: { ctx: TypeContext<EmailMessageEntity> }): React.JSX.Element {
   const forceUpdate = useForceUpdate();
 
   let ctx = p.ctx.subCtx({ formGroupStyle: "Basic", readOnly: p.ctx.value.state == "Created" || p.ctx.value.state == "Draft" ? undefined  : true });
@@ -54,11 +54,11 @@ export default function EmailMessage(p: { ctx: TypeContext<EmailMessageEntity> }
           </span>
           }
           onChange={() => forceUpdate()} />
-        <EntityTable ctx={ctx.subCtx(p => p.attachments)} hideIfNull columns={EntityTable.typedColumns<EmailAttachmentEmbedded>([
+        <EntityTable ctx={ctx.subCtx(p => p.attachments)} hideIfNull columns={[
           { property: p => p.file },
           { property: p => p.type },
           { property: p => p.contentId }
-        ])} />
+        ]} />
 
         <AutoLine ctx={ctx.subCtx(f => f.subject, { labelColumns: 1 })} />
         <CheckboxLine ctx={ctx.subCtx(f => f.isBodyHtml)} inlineCheckbox={true} onChange={() => forceUpdate()} />
@@ -80,7 +80,7 @@ export interface EmailMessageComponentProps {
   invalidate: () => void;
 }
 
-export function EmailMessageComponent(p: EmailMessageComponentProps) {
+export function EmailMessageComponent(p: EmailMessageComponentProps): React.JSX.Element {
   const [showPreview, setShowPreview] = React.useState(true);
 
   function handlePreviewClick(e: React.FormEvent<any>) {

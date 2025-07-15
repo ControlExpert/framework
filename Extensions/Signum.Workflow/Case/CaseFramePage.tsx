@@ -3,22 +3,21 @@ import { useLocation, useParams } from 'react-router'
 import { TypeContext, StyleOptions, EntityFrame, FunctionalFrameComponent } from '@framework/TypeContext'
 import { TypeInfo, getTypeInfo, parseId, GraphExplorer, PropertyRoute, ReadonlyBinding, } from '@framework/Reflection'
 import * as AppContext from '@framework/AppContext'
-import * as Navigator from '@framework/Navigator'
+import { Navigator } from '@framework/Navigator'
 import { Entity, JavascriptMessage, entityInfo, getToString, toLite, EntityPack } from '@framework/Signum.Entities'
 import { renderWidgets, WidgetContext } from '@framework/Frames/Widgets'
 import { ValidationErrors, ValidationErrorsHandle } from '@framework/Frames/ValidationErrors'
 import { ButtonBar, ButtonBarHandle } from '@framework/Frames/ButtonBar'
 import { CaseActivityEntity, WorkflowEntity, ICaseMainEntity, WorkflowMainEntityStrategy, WorkflowActivityEntity, WorkflowPermission } from '../Signum.Workflow'
-import * as WorkflowClient from '../WorkflowClient'
 import CaseButtonBar from './CaseButtonBar'
 import CaseFlowButton from './CaseFlowButton'
 import InlineCaseTags from './InlineCaseTags'
-import { IHasCaseActivity } from '../WorkflowClient';
+import { WorkflowClient } from '../WorkflowClient';
 import { ErrorBoundary } from '@framework/Components';
 import "@framework/Frames/Frames.css"
 import "./CaseAct.css"
 import { AutoFocus } from '@framework/Components/AutoFocus';
-import * as AuthClient from '../../Signum.Authorization/AuthClient'
+import { AuthClient } from '../../Signum.Authorization/AuthClient'
 import { FunctionalAdapter } from '@framework/Modals'
 import { useForceUpdate, useStateWithPromise } from '@framework/Hooks'
 
@@ -31,7 +30,7 @@ interface CaseFramePageState {
   executing?: boolean;
 }
 
-export default function CaseFramePage() {
+function CaseFramePage(): React.JSX.Element {
 
   var params = useParams() as { workflowId: string; mainEntityStrategy: string; caseActivityId?: string };
   let [state, setState] = useStateWithPromise<CaseFramePageState | undefined>(undefined);
@@ -41,7 +40,7 @@ export default function CaseFramePage() {
   const validationErrorsTop = React.useRef<ValidationErrorsHandle>(null);
   const validationErrorsBottom = React.useRef<ValidationErrorsHandle>(null);
   const forceUpdate = useForceUpdate();
-  
+
   React.useEffect(() => {
 
     function loadEntity(): Promise<WorkflowClient.CaseEntityPack | undefined> {
@@ -112,7 +111,7 @@ export default function CaseFramePage() {
 
   var pack = state.pack;
 
-  var frameComponent: FunctionalFrameComponent & IHasCaseActivity = {
+  var frameComponent: FunctionalFrameComponent & WorkflowClient.IHasCaseActivity = {
     forceUpdate,
     type: CaseFramePage,
     getCaseActivity(): CaseActivityEntity | undefined {
@@ -270,4 +269,8 @@ export default function CaseFramePage() {
   }
 }
 
-CaseFramePage.showSubTitle = true;
+namespace CaseFramePage {
+  export let showSubTitle = true;
+}
+
+export default CaseFramePage;

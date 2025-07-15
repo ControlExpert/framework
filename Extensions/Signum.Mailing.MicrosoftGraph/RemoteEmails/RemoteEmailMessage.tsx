@@ -3,17 +3,17 @@ import { EntityDetail, EntityLine, EntityStrip, FormGroup, AutoLine } from '@fra
 import { SearchControl } from '@framework/Search'
 import { TypeContext } from '@framework/TypeContext'
 import * as AppContext from '@framework/AppContext'
-import * as FilesClient from '../../Signum.Files/FilesClient'
+import { FilesClient } from '../../Signum.Files/FilesClient'
 import { EmailMessageEntity } from '../../Signum.Mailing/Signum.Mailing';
 import IFrameRenderer from '../../Signum.Mailing/Templates/IframeRenderer';
 import { RemoteAttachmentEmbedded, RemoteEmailMessageModel } from './Signum.Mailing.MicrosoftGraph.RemoteEmails';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import * as RemoteEmailsClient from './RemoteEmailsClient'
+import { RemoteEmailsClient } from './RemoteEmailsClient'
 import { UserLiteModel } from '../../Signum.Authorization/Signum.Authorization'
 import { saveFile } from '@framework/Services'
 import { getToString } from '@framework/Signum.Entities'
 
-export default function RemoteEmailMessage(p: { ctx: TypeContext<RemoteEmailMessageModel> }) {
+export default function RemoteEmailMessage(p: { ctx: TypeContext<RemoteEmailMessageModel> }): React.JSX.Element {
   const ctx = p.ctx.subCtx({ readOnly: true });
 
   var oid = (ctx.value.user.model as UserLiteModel).oID!;
@@ -89,7 +89,7 @@ export default function RemoteEmailMessage(p: { ctx: TypeContext<RemoteEmailMess
   );
 }
 
-export function RemoteEmailRenderer(p: { remoteEmail: RemoteEmailMessageModel }) {
+export function RemoteEmailRenderer(p: { remoteEmail: RemoteEmailMessageModel }): React.JSX.Element {
 
   var oid = (p.remoteEmail.user.model as UserLiteModel).oID!;
 

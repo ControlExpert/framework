@@ -3,11 +3,10 @@ import { WorkflowReplacementModel, WorkflowReplacementItemEmbedded, CaseActivity
 import { TypeContext } from '@framework/Lines'
 import { SearchValueLine } from '@framework/Search'
 import { symbolNiceName } from '@framework/Reflection'
-import { PreviewTask } from '../WorkflowClient'
 import { getToString, is } from "@framework/Signum.Entities";
 import { useForceUpdate } from '@framework/Hooks'
 
-export default function WorkflowReplacementComponent(p: { ctx: TypeContext<WorkflowReplacementModel> }) {
+export default function WorkflowReplacementComponent(p: { ctx: TypeContext<WorkflowReplacementModel> }): React.JSX.Element {
   var ctx = p.ctx;
   var newTasks = ctx.value.newTasks.map(a => a.element);
   return (
@@ -47,7 +46,7 @@ export default function WorkflowReplacementComponent(p: { ctx: TypeContext<Workf
   );
 }
 
-export function WorkflowReplacementItemCombo(p: { ctx: TypeContext<WorkflowReplacementItemEmbedded>, previewTasks: NewTasksEmbedded[] }) {
+export function WorkflowReplacementItemCombo(p: { ctx: TypeContext<WorkflowReplacementItemEmbedded>, previewTasks: NewTasksEmbedded[] }): React.JSX.Element {
   const forceUpdate = useForceUpdate();
   function handleChange(e: React.FormEvent<any>) {
     p.ctx.subCtx(a => a.newNode).value = (e.currentTarget as HTMLSelectElement).value;

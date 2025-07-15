@@ -4,17 +4,17 @@ import { AutoLine, Binding, ColorLine, EntityBaseController, EntityCombo, Entity
 import { TypeContext } from '@framework/TypeContext'
 import { colorSchemes } from './ColorUtils';
 import { classes, Dic } from '@framework/Globals';
-import * as Navigator from '@framework/Navigator';
+import { Navigator, EnumConverter } from '@framework/Navigator';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import * as Finder from '@framework/Finder';
+import { Finder } from '@framework/Finder';
 import { useAPI, useForceUpdate } from '@framework/Hooks';
 import { getTypeInfo, IBinding, tryGetTypeInfo } from '@framework/Reflection';
 import { Entity, EntityControlMessage, Lite, newMListElement, toLite } from '@framework/Signum.Entities';
 import { EntityLink } from '@framework/Search';
-import { calculateColor, ColorScheme } from './ColorPaletteClient';
+import { ColorPaletteClient, ColorScheme } from './ColorPaletteClient';
 import { ColorPaletteEntity, ColorPaletteMessage, SpecificColorEmbedded } from './Signum.Chart.ColorPalette';
 
-export default function ColorPalette(p: { ctx: TypeContext<ColorPaletteEntity> }) {
+export default function ColorPalette(p: { ctx: TypeContext<ColorPaletteEntity> }): React.JSX.Element {
   const ctx = p.ctx;
   const forceUpdate = useForceUpdate();
   const ctx4 = ctx.subCtx({ formGroupStyle: "Basic" });
@@ -71,7 +71,7 @@ export default function ColorPalette(p: { ctx: TypeContext<ColorPaletteEntity> }
               getViewPromise={sc && (sc.props.getViewPromise ?? sc.props.querySettings?.getViewPromise)}
               inPlaceNavigation={sc?.props.view == "InPlace"} className="sf-line-button sf-view">
               <div title={EntityControlMessage.View.niceToString()} className="d-inline-flex align-items-center">
-                <span style={{ backgroundColor: !colors ? undefined : calculateColor(row.entity.id!.toString(), colors, ctx.value.seed ?? 0), height: "20px", width: "20px", display: "inline-block", marginBottom: "-6px" }} className="me-2" />
+                <span style={{ backgroundColor: !colors ? undefined : ColorPaletteClient.calculateColor(row.entity.id!.toString(), colors, ctx.value.seed ?? 0), height: "20px", width: "20px", display: "inline-block", marginBottom: "-6px" }} className="me-2" />
                 {EntityBaseController.getViewIcon()}
               </div>
             </EntityLink>)
@@ -82,7 +82,7 @@ export default function ColorPalette(p: { ctx: TypeContext<ColorPaletteEntity> }
 
         ctx.value.specificColors = [...chooseEntities.map(e => newMListElement(SpecificColorEmbedded.New({
           entity: e,
-          color: !colors ? undefined : calculateColor(e.id!.toString(), colors!, ctx.value.seed ?? 0)
+          color: !colors ? undefined : ColorPaletteClient.calculateColor(e.id!.toString(), colors!, ctx.value.seed ?? 0)
         })))];
 
         forceUpdate();
@@ -117,7 +117,7 @@ export default function ColorPalette(p: { ctx: TypeContext<ColorPaletteEntity> }
             onClick={handleMagicWand}>
             <FontAwesomeIcon icon="wand-magic-sparkles" />
           </a>}
-          columns={EntityTable.typedColumns<SpecificColorEmbedded>([
+          columns={[
             {
               property: p => p.entity,
               template: (ectx) =>
@@ -131,7 +131,7 @@ export default function ColorPalette(p: { ctx: TypeContext<ColorPaletteEntity> }
               template: (ectx) => <ColorSelector ctx={ectx.subCtx(a => a.color)} colors={colors as (string[] | null)} />,
               headerHtmlAttributes: { style: { width: "40%" } },
             },
-          ])}
+          ]}
         />
       }
     </div>
@@ -178,9 +178,9 @@ function ColorSelector(p: { ctx: TypeContext<string>, colors: string[] | null })
 class ConvertBinding implements IBinding<string | null> {
 
   parent: IBinding<Lite<Entity> | null>;
-  converter: Navigator.EnumConverter<string>;
+  converter: EnumConverter<string>;
 
-  constructor(binding: IBinding<Lite<Entity>>, enumEntities: Navigator.EnumConverter<string>) {
+  constructor(binding: IBinding<Lite<Entity>>, enumEntities: EnumConverter<string>) {
     this.parent = binding;
     this.suffix = this.parent.suffix;
     this.converter = enumEntities;

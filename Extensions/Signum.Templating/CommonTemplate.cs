@@ -11,11 +11,11 @@ namespace Signum.Templating;
 
 public static class TemplateUtils
 {
-    public static readonly Regex KeywordsRegex = new Regex(@"\@(((?<keyword>(foreach|if|raw|global|model|modelraw|any|declare|))\[(?<expr>[^\]\}]+)\](\s+as\s+(?<dec>\$\w*))?)|(?<keyword>endforeach|else|endif|notany|endany))");
+    public static readonly Regex KeywordsRegex = new Regex(@"\@(((?<keyword>(foreach|if|raw|global|model|modelraw|any|declare|))\[(?<expr>((\[[^\[\]]+\])|([^\[\]]+))+)\](\s+as\s+(?<dec>\$\w*))?)|(?<keyword>endforeach|else|endif|notany|endany))");
 
     public static readonly Regex TokenOperationValueRegex = new Regex(@"(?<token>((?<type>[\w]):)?.+?)(?<operation>(" + FilterValueConverter.OperationRegex + @"))(?<value>[^\]]+)");
 
-    public static readonly Regex TokenFormatRegex = new Regex(@"(?<token>((?<type>[\w]):)?(\\\]|\\\:|[^\:\]])+)(\:(?<format>.*))?");
+    public static readonly Regex TokenFormatRegex = new Regex(@"(?<token>((?<type>[\w]):)?((\[[^\[\]]+\])|([^\[\]\:]+))+)(\:(?<format>.*))?");
     
     public struct SplittedToken
     {
@@ -33,7 +33,7 @@ public static class TemplateUtils
 
         return new SplittedToken
         {
-            Token = tok.Groups["token"].Value.Replace(@"\:", ":").Replace(@"\]", "]"),
+            Token = tok.Groups["token"].Value,
             Format = tok.Groups["format"].Value.DefaultText("").Replace(@"\:", ":").Replace(@"\]", "]").DefaultToNull()
         };
     }
@@ -377,7 +377,7 @@ public class TemplateSynchronizationContext
                     break;
                 case FixTokenResult.SkipEntity:
                 case FixTokenResult.RemoveToken:
-                 case FixTokenResult.RegenerateEntity:
+                case FixTokenResult.RegenerateEntity:
                     throw new TemplateSyncException(result);
             }
         }
@@ -400,8 +400,9 @@ public class TemplateSynchronizationContext
     }
 
 
-    internal List<MemberWithArguments>? GetMembers(string fieldOrPropertyChain, Type initialType)
+    internal List<MemberWithArguments>? GetMembers(string fieldOrPropertyChain, Type initialType, ref bool hasChanges)
     {
+        hasChanges = false;
         List<MemberWithArguments> fields = new List<MemberWithArguments>();
 
         Type type = initialType;
@@ -415,7 +416,13 @@ public class TemplateSynchronizationContext
             string? s = this.Replacements.SelectInteractive(field, allMembers.Keys, "Members {0}".FormatWith(type.FullName), this.StringDistance);
 
             if (s == null)
+            {
+                hasChanges = true;
                 return null;
+            }
+
+            if (s != field)
+                hasChanges = true;
 
             var member = allMembers.GetOrThrow(s);
 

@@ -4,26 +4,25 @@ import { openModal, IModalProps, IHandleKeyboard } from '@framework/Modals'
 import { TypeContext, StyleOptions, EntityFrame, FunctionalFrameComponent } from '@framework/TypeContext'
 import { TypeInfo, getTypeInfo, GraphExplorer, PropertyRoute, ReadonlyBinding, } from '@framework/Reflection'
 import * as AppContext from '@framework/AppContext'
-import * as Navigator from '@framework/Navigator'
+import { Navigator } from '@framework/Navigator'
 import MessageModal from '@framework/Modals/MessageModal'
 import { Lite, JavascriptMessage, entityInfo, getToString, toLite, EntityPack, ModifiableEntity, SaveChangesMessage, FrameMessage } from '@framework/Signum.Entities'
 import { renderWidgets, WidgetContext } from '@framework/Frames/Widgets'
 import { ValidationErrors, ValidationErrorsHandle } from '@framework/Frames/ValidationErrors'
 import { ButtonBar, ButtonBarHandle } from '@framework/Frames/ButtonBar'
 import { CaseActivityEntity, ICaseMainEntity, WorkflowActivityEntity, WorkflowPermission } from '../Signum.Workflow'
-import * as WorkflowClient from '../WorkflowClient'
 import CaseFromSenderInfo from './CaseFromSenderInfo'
 import CaseButtonBar from './CaseButtonBar'
 import CaseFlowButton from './CaseFlowButton'
 import InlineCaseTags from './InlineCaseTags'
-import { IHasCaseActivity } from '../WorkflowClient';
+import { WorkflowClient } from '../WorkflowClient';
 import { ErrorBoundary, ModalHeaderButtons } from '@framework/Components';
 import { Modal } from 'react-bootstrap';
 import "@framework/Frames/Frames.css"
 import "./CaseAct.css"
 import { AutoFocus } from '@framework/Components/AutoFocus';
 import { FunctionalAdapter } from '@framework/Modals';
-import * as AuthClient from '../../Signum.Authorization/AuthClient'
+import { AuthClient } from '../../Signum.Authorization/AuthClient'
 import { useForceUpdate, useStateWithPromise } from '@framework/Hooks'
 
 interface CaseFrameModalProps extends IModalProps<CaseActivityEntity | undefined> {
@@ -43,7 +42,8 @@ interface CaseFrameModalState {
 
 var modalCount = 0;
 
-export const CaseFrameModal = React.forwardRef(function CaseFrameModal(p: CaseFrameModalProps, ref: React.Ref<IHandleKeyboard>) {
+export const CaseFrameModal: React.ForwardRefExoticComponent<CaseFrameModalProps & React.RefAttributes<IHandleKeyboard>> =
+  React.forwardRef(function CaseFrameModal(p: CaseFrameModalProps, ref: React.Ref<IHandleKeyboard>) {
 
   const [state, setState] = useStateWithPromise<CaseFrameModalState | undefined>(undefined);
   const [show, setShow] = React.useState(true);
@@ -192,7 +192,7 @@ export const CaseFrameModal = React.forwardRef(function CaseFrameModal(p: CaseFr
 
   var { activity, canExecuteActivity, canExecuteMainEntity, ...extension } = pack;
 
-  var frameComponent: FunctionalFrameComponent & IHasCaseActivity = {
+  var frameComponent: FunctionalFrameComponent & WorkflowClient.IHasCaseActivity = {
     forceUpdate,
     type: CaseFrameModalExt,
     getCaseActivity(): CaseActivityEntity | undefined {
@@ -333,7 +333,7 @@ export const CaseFrameModal = React.forwardRef(function CaseFrameModal(p: CaseFr
 const CaseFrameModalExt = CaseFrameModal;
 
 export namespace CaseFrameModalManager {
-  export function openView(entityOrPack: Lite<CaseActivityEntity> | CaseActivityEntity | WorkflowClient.CaseEntityPack, options?: Navigator.ViewOptions): Promise<CaseActivityEntity | undefined> {
+  export function openView(entityOrPack: Lite<CaseActivityEntity> | CaseActivityEntity | WorkflowClient.CaseEntityPack, options?: { readOnly?: boolean }): Promise<CaseActivityEntity | undefined> {
 
     return openModal<CaseActivityEntity>(<CaseFrameModal
       entityOrPack={entityOrPack}

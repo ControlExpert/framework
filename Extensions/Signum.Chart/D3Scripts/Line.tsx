@@ -2,7 +2,7 @@ import * as React from 'react'
 import * as d3 from 'd3'
 import * as ChartUtils from './Components/ChartUtils';
 import { translate, scale, scaleFor } from './Components/ChartUtils';
-import { ChartTable, ChartColumn, ChartRow, ChartScriptProps, getActiveDetector } from '../ChartClient';
+import { ChartClient, ChartTable, ChartColumn, ChartRow, ChartScriptProps } from '../ChartClient';
 import { XKeyTicks, XScaleTicks, YScaleTicks } from './Components/Ticks';
 import { XAxis, YAxis } from './Components/Axis';
 import { Rule } from './Components/Rule';
@@ -60,7 +60,7 @@ export default function renderLine({ data, width, height, parameters, loading, c
 
   var y = scaleFor(valueColumn, data.rows.map(r => valueColumn.getValue(r)), 0, yRule.size('content'), parameters["VerticalScale"]);
 
-  var detector = getActiveDetector(dashboardFilter, chartRequest);
+  var detector = ChartClient.getActiveDetector(dashboardFilter, chartRequest);
 
   return (
     <svg direction="ltr" width={width} height={height}>
@@ -99,7 +99,7 @@ export interface ChartScriptHorizontalProps {
   detector?: (row: ChartRow) => boolean;
 }
 
-export function paintLine({ xRule, yRule, x, y, keyValues, data, hasHorizontalScale, parameters, onDrillDown, initialLoad, detector }: ChartScriptHorizontalProps) {
+export function paintLine({ xRule, yRule, x, y, keyValues, data, hasHorizontalScale, parameters, onDrillDown, initialLoad, detector }: ChartScriptHorizontalProps): React.JSX.Element {
 
   var keyColumn = data.columns.c0! as ChartColumn<unknown>;
   var valueColumn = data.columns.c1! as ChartColumn<number>;

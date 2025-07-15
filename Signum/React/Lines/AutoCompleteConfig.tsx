@@ -1,13 +1,11 @@
 import * as React from 'react'
-import * as Finder from '../Finder'
+import { Finder } from '../Finder'
 import { AbortableRequest } from '../Services'
 import { FindOptions, FilterOptionParsed, OrderOptionParsed, OrderRequest, ResultRow, ColumnOptionParsed, ColumnRequest, QueryDescription, QueryRequest, FilterOption, ResultTable } from '../FindOptions'
 import { getTypeInfo, getQueryKey, QueryTokenString, getTypeName, getTypeInfos, TypeInfo } from '../Reflection'
 import { ModifiableEntity, Lite, Entity, toLite, is, isLite, isEntity, getToString, liteKey, SearchMessage, parseLiteList } from '../Signum.Entities'
-import { toFilterRequests } from '../Finder';
 import { TextHighlighter, TypeaheadController, TypeaheadOptions } from '../Components/Typeahead'
-import { AutocompleteConstructor } from '../Navigator';
-import * as Navigator from '../Navigator';
+import { Navigator, AutocompleteConstructor } from '../Navigator';
 import { Dic } from '../Globals'
 
 export interface AutocompleteConfig<T> {
@@ -55,21 +53,21 @@ export class LiteAutocompleteConfig<T extends Entity> implements AutocompleteCon
   itemsDelay?: number | undefined;
   minLength?: number | undefined;
 
-  abortableRequest = new AbortableRequest((signal, subStr: string) => this.getItemsFunction(signal, subStr));
+  abortableRequest: AbortableRequest<string, (Lite<T> | AutocompleteConstructor<T>)[]> = new AbortableRequest((signal, subStr: string) => this.getItemsFunction(signal, subStr));
 
-  getItemsDelay() {
+  getItemsDelay(): number | undefined {
     return this.itemsDelay;
   }
 
-  getMinLength() {
+  getMinLength(): number | undefined {
     return this.minLength;
   }
 
-  abort() {
+  abort(): void {
     this.abortableRequest.abort();
   }
 
-  getItems(subStr: string) {
+  getItems(subStr: string): Promise<(Lite<T> | AutocompleteConstructor<T>)[]> {
     return this.abortableRequest.getData(subStr);
   }
 
@@ -204,19 +202,19 @@ export class FindOptionsAutocompleteConfig implements AutocompleteConfig<ResultR
     Dic.assign(this, options);
   }
 
-  getItemsDelay() {
+  getItemsDelay(): number | undefined {
     return this.itemsDelay;
   }
 
-  getMinLength() {
+  getMinLength(): number | undefined {
     return this.minLength;
   }
 
-  abort() {
+  abort(): void {
     this.abortableRequest.abort();
   }
 
-  abortableRequest = new AbortableRequest((abortController, request: QueryRequest) => Finder.API.executeQuery(request, abortController));
+  abortableRequest: AbortableRequest<QueryRequest, ResultTable> = new AbortableRequest((abortController, request: QueryRequest) => Finder.API.executeQuery(request, abortController));
 
   static filtersWithSubStr(fo: FindOptions, qd: QueryDescription, qs: Finder.QuerySettings | undefined, subStr: string): FilterOption[] {
 
@@ -362,7 +360,7 @@ export class FindOptionsAutocompleteConfig implements AutocompleteConfig<ResultR
       );
   }
 
-  convertToLite(entity: Lite<Entity> | ModifiableEntity) {
+  convertToLite(entity: Lite<Entity> | ModifiableEntity): Lite<Entity> {
 
     if (isLite(entity))
       return entity;
@@ -386,9 +384,16 @@ export class FindOptionsAutocompleteConfig implements AutocompleteConfig<ResultR
   }
 }
 
-export function TypeBadge(p: { entity: Lite<Entity> | Entity }) {
+export function TypeBadge(p: { entity: Lite<Entity> | ModifiableEntity }): React.JSX.Element {
 
-  const ti = getTypeInfo(isEntity(p.entity) ? p.entity.Type : p.entity.EntityType);
+  var typeName = isEntity(p.entity) ? p.entity.Type :
+    isLite(p.entity) ? p.entity.EntityType :
+      null;
+
+  if (typeName == null)
+    return <span className="text-danger">Embedded?</span>;
+
+  const ti = getTypeInfo(typeName);
 
   return <span className="sf-type-badge ms-1">{ti.niceName}</span>;
 }
@@ -419,11 +424,11 @@ export class MultiAutoCompleteConfig implements AutocompleteConfig<unknown>{
     ];
   }
 
-  getItemsDelay() {
+  getItemsDelay(): number | undefined {
     return Object.values(this.implementations).map(a => a.getItemsDelay()).notNull().max() ?? undefined;
   }
 
-  getMinLength() {
+  getMinLength(): number | undefined {
     return Object.values(this.implementations).map(a => a.getMinLength()).notNull().max() ?? undefined;
   }
 

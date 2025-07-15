@@ -49,6 +49,7 @@ public static class DashboardLogic
                 {"LinkListPart", typeof(LinkListPartEntity)},
                 {"ImagePart", typeof(ImagePartEntity)},
                 {"SeparatorPart", typeof(SeparatorPartEntity)},
+                {"HealthCheckPart", typeof(HealthCheckPartEntity)},
             });
 
 
@@ -75,12 +76,14 @@ public static class DashboardLogic
 
             sb.Schema.WhenIncluded<ToolbarEntity>(() =>
             {
-                sb.Schema.Settings.AssertImplementedBy((ToolbarEntity t) => t.Elements.First().Content, typeof(DashboardEntity));
+            sb.Schema.Settings.AssertImplementedBy((ToolbarEntity t) => t.Elements.First().Content, typeof(DashboardEntity));
 
-                ToolbarLogic.RegisterDelete<DashboardEntity>(sb);
-                ToolbarLogic.RegisterContentConfig<DashboardEntity>(
-                  lite => ToolbarLogic.InMemoryFilter(Dashboards.Value.GetOrCreate(lite)),
-                  lite => PropertyRouteTranslationLogic.TranslatedField(Dashboards.Value.GetOrCreate(lite), a => a.DisplayName));
+            ToolbarLogic.RegisterDelete<DashboardEntity>(sb);
+            ToolbarLogic.RegisterContentConfig<DashboardEntity>(
+              lite => ToolbarLogic.InMemoryFilter(Dashboards.Value.GetOrCreate(lite)),
+              lite => PropertyRouteTranslationLogic.TranslatedField(Dashboards.Value.GetOrCreate(lite), a => a.DisplayName),
+              lite => Dashboards.Value.GetOrCreate(lite).IconName,
+              lite => Dashboards.Value.GetOrCreate(lite).IconColor);
             });
 
             sb.Include<CachedQueryEntity>()
@@ -140,16 +143,6 @@ public static class DashboardLogic
 
 
         return part;
-    }
-
-    public static void UpdateDashboardIconNameInDB()
-    {
-        Database.Query<DashboardEntity>().Where(db => db.Parts.Any(p => p.IconName.HasText())).ToList().ForEach(db => {
-            db.Parts.Where(p => p.IconName.HasText()).ToList().ForEach(p => {
-                p.IconName = FontAwesomeV6Upgrade.UpdateIconName(p.IconName!);
-            });
-            db.Save();
-        });
     }
 
     private static void DashboardLogic_Retrieved(DashboardEntity db, PostRetrievingContext ctx)
@@ -420,6 +413,9 @@ public static class DashboardLogic
             uqp => Database.Query<DashboardEntity>().WhereCondition(typeCondition).Any(d => d.ContainsContent(uqp)));
 
         TypeConditionLogic.Register<SeparatorPartEntity>(typeCondition,
+            uqp => Database.Query<DashboardEntity>().WhereCondition(typeCondition).Any(d => d.ContainsContent(uqp)));
+
+        TypeConditionLogic.Register<HealthCheckPartEntity>(typeCondition,
             uqp => Database.Query<DashboardEntity>().WhereCondition(typeCondition).Any(d => d.ContainsContent(uqp)));
     }
 

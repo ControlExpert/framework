@@ -1,8 +1,8 @@
 import * as React from 'react'
 import { Lite } from '@framework/Signum.Entities'
-import { OmniboxResult, OmniboxMatch } from '../Signum.Omnibox/OmniboxClient'
+import { OmniboxClient, OmniboxResult, OmniboxMatch } from '../Signum.Omnibox/OmniboxClient'
 import { OmniboxProvider } from '../Signum.Omnibox/OmniboxProvider'
-import * as DashboardClient from './DashboardClient'
+import { DashboardClient } from './DashboardClient'
 import { DashboardEntity } from './Signum.Dashboard'
 
 export default class DashboardOmniboxProvider extends OmniboxProvider<DashboardOmniboxResult>
@@ -11,7 +11,7 @@ export default class DashboardOmniboxProvider extends OmniboxProvider<DashboardO
     return "DashboardOmniboxResult";
   }
 
-  icon() {
+  icon(): React.ReactElement<any, string | React.JSXElementConstructor<any>> {
     return this.coloredIcon("tachometer-alt", "darkslateblue");
   }
 
@@ -26,7 +26,7 @@ export default class DashboardOmniboxProvider extends OmniboxProvider<DashboardO
     return array;
   }
 
-  navigateTo(result: DashboardOmniboxResult) {
+  navigateTo(result: DashboardOmniboxResult): Promise<string> | undefined {
 
     if (result.dashboard == undefined)
       return undefined;
@@ -34,7 +34,7 @@ export default class DashboardOmniboxProvider extends OmniboxProvider<DashboardO
     return Promise.resolve(DashboardClient.dashboardUrl(result.dashboard));
   }
 
-  toString(result: DashboardOmniboxResult) {
+  toString(result: DashboardOmniboxResult): string {
     return "\"{0}\"".formatWith(result.toStrMatch.text);
   }
 }

@@ -1,10 +1,10 @@
 import * as React from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { getToString, Lite } from '@framework/Signum.Entities'
-import * as Navigator from '@framework/Navigator'
+import { Navigator } from '@framework/Navigator'
 import SearchControlLoaded from '@framework/SearchControl/SearchControlLoaded'
 import { EmailMessageEntity } from './Signum.Mailing'
-import * as MailingClient from './MailingClient'
+import { MailingClient } from './MailingClient'
 import { DropdownButton, Dropdown } from 'react-bootstrap';
 import { EmailTemplateEntity } from './Signum.Mailing.Templates'
 
@@ -12,7 +12,7 @@ export interface MailingMenuProps {
   searchControl: SearchControlLoaded;
 }
 
-export default function MailingMenu(p : MailingMenuProps){
+export default function MailingMenu(p : MailingMenuProps): React.JSX.Element | null {
   function handleClick(et: Lite<EmailTemplateEntity>) {
     Navigator.API.fetch(et)
       .then(emailTemplate => MailingClient.API.getConstructorType(emailTemplate.model!))

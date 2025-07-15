@@ -3,19 +3,19 @@ import { AutoLine, EntityLine, EntityRepeater, EntityTable } from '@framework/Li
 import { TypeContext } from '@framework/TypeContext'
 import { ToolbarEntity, ToolbarElementEmbedded, ToolbarMenuEntity } from '../Signum.Toolbar'
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { MList } from '@framework/Signum.Entities';
-import { parseIcon } from '@framework/Components/IconTypeahead';
-import * as ToolbarClient from '../ToolbarClient';
+import { Entity, MList } from '@framework/Signum.Entities';
+import { fallbackIcon, parseIcon } from '@framework/Components/IconTypeahead';
+import { ToolbarClient } from '../ToolbarClient';
 import SelectorModal from '@framework/SelectorModal';
 import { getTypeInfos, TypeInfo } from '@framework/Reflection';
-import * as Finder from '@framework/Finder';
-import * as Constructor from '@framework/Constructor';
-import * as Navigator from '@framework/Navigator';
+import { Finder } from '@framework/Finder';
+import { Constructor } from '@framework/Constructor';
+import { Navigator } from '@framework/Navigator';
 import { ToolbarCount } from '../QueryToolbarConfig';
 import { PermissionSymbol } from '@framework/Signum.Basics';
 import { IconColor } from '../ToolbarConfig';
 
-export default function Toolbar(p: { ctx: TypeContext<ToolbarEntity> }) {
+export default function Toolbar(p: { ctx: TypeContext<ToolbarEntity> }): React.JSX.Element {
   const ctx = p.ctx;
   const ctx3 = ctx.subCtx({ labelColumns: 3 });
   return (
@@ -55,7 +55,7 @@ function getDefaultIcon(ti: TypeInfo): IconColor | null {
   return  conf.first().getDefaultIcon();
 }
 
-export function ToolbarElementTable({ ctx }: { ctx: TypeContext<MList<ToolbarElementEmbedded>> }) {
+export function ToolbarElementTable({ ctx }: { ctx: TypeContext<MList<ToolbarElementEmbedded>> }): React.JSX.Element {
 
   function selectContentType(filter: (ti: TypeInfo) => boolean) {
     const pr = ctx.memberInfo(ml => ml[0].element.content);
@@ -76,7 +76,7 @@ export function ToolbarElementTable({ ctx }: { ctx: TypeContext<MList<ToolbarEle
   return (
     <EntityTable ctx={ctx} view
       onCreate={() => Promise.resolve(ToolbarElementEmbedded.New({ type: "Item" }))}
-      columns={EntityTable.typedColumns<ToolbarElementEmbedded>([
+      columns={[
         {
           header: "Icon",
           headerHtmlAttributes: { style: { width: "5%" } },
@@ -84,7 +84,7 @@ export function ToolbarElementTable({ ctx }: { ctx: TypeContext<MList<ToolbarEle
             var icon = parseIcon(ctx.value.iconName);
             var bgColor = (ctx.value.iconColor && ctx.value.iconColor.toLowerCase() == "white" ? "black" : undefined)
             return icon && <div>
-              <FontAwesomeIcon icon={icon} style={{ backgroundColor: bgColor, color: ctx.value.iconColor ?? undefined, fontSize: "25px" }} />
+              <FontAwesomeIcon icon={fallbackIcon(icon)} style={{ backgroundColor: bgColor, color: ctx.value.iconColor ?? undefined, fontSize: "25px" }} />
               {ctx.value.showCount && <ToolbarCount showCount={ctx.value.showCount} num={ctx.value.showCount == "Always" ? 0 : 1} />}
             </div>
         },
@@ -93,12 +93,12 @@ export function ToolbarElementTable({ ctx }: { ctx: TypeContext<MList<ToolbarEle
         {
           property: a => a.content, headerHtmlAttributes: { style: { width: "30%" } }, template: ctx => <EntityLine ctx={ctx.subCtx(a => a.content)}
             onFind={() => selectContentType(ti => Navigator.isFindable(ti)).then(ti => ti && Finder.find({ queryName: ti.name }))}
-            onCreate={() => selectContentType(ti => Navigator.isCreable(ti)).then(ti => ti && Constructor.construct(ti.name))}
+            onCreate={() => selectContentType(ti => Navigator.isCreable(ti)).then(ti => ti && Constructor.construct(ti.name) as Promise<Entity>)}
           />
         },
       { property: a => a.label, headerHtmlAttributes: { style: { width: "25%" } }, template: ctx => <AutoLine ctx={ctx.subCtx(a => a.label)} /> },
       { property: a => a.url, headerHtmlAttributes: { style: { width: "25%" } }, template: ctx => <AutoLine ctx={ctx.subCtx(a => a.url)} /> },
-    ])} />
+    ]} />
   );
 
 }

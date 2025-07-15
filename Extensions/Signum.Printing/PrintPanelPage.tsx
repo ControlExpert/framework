@@ -2,17 +2,17 @@ import * as React from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { SearchValue, SearchControl, SearchValueLine, SearchValueController } from '@framework/Search'
 import { StyleContext } from '@framework/Lines'
-import { API, PrintStat } from './PrintClient'
-import * as Navigator from '@framework/Navigator'
+import { PrintClient } from './PrintClient'
+import { Navigator } from '@framework/Navigator'
 import { PrintLineState, PrintLineEntity, PrintPackageEntity } from './Signum.Printing'
 import { FileTypeSymbol } from '../Signum.Files/Signum.Files'
 import { ProcessEntity } from '../Signum.Processes/Signum.Processes'
 import { useAPI } from '@framework/Hooks'
 import { getToString, JavascriptMessage } from '@framework/Signum.Entities'
 
-export default function PrintPanelPage(p: {}) {
+export default function PrintPanelPage(p: {}): React.JSX.Element {
 
-  const stats = useAPI(() => API.getStats(), []);
+  const stats = useAPI(() => PrintClient.API.getStats(), []);
 
   function renderStateButton(vsc: SearchValueController, fileType: FileTypeSymbol) {
     if (vsc.value == undefined || vsc.value == 0)
@@ -27,7 +27,7 @@ export default function PrintPanelPage(p: {}) {
 
   function handlePrintClick(e: React.MouseEvent<any>, fileType: FileTypeSymbol, vsc: SearchValueController) {
     e.preventDefault();
-    API.createPrintProcess(fileType)
+    PrintClient.API.createPrintProcess(fileType)
       .then(p => p && Navigator.view(p))
       .then(p => vsc.refreshValue());
   }

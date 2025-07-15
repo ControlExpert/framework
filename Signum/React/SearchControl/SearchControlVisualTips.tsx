@@ -12,8 +12,9 @@ import { JavascriptMessage, SearchMessage } from "../Signum.Entities";
 import { OverlayInjectedProps } from "react-bootstrap/esm/Overlay";
 import { QueryDescription } from "../FindOptions";
 import { getNiceTypeName } from "../Operations/MultiPropertySetter";
+import SearchControl from "./SearchControl";
 
-export function SearchHelp(p: { sc: SearchControlLoaded, injected: OverlayInjectedProps }) {
+export function SearchHelp(p: { sc: SearchControlLoaded, injected: OverlayInjectedProps }): React.JSX.Element {
   var sc = p.sc;
   var query = getQueryNiceName(sc.props.queryDescription.queryKey);
   var type = sc.props.queryDescription.columns['Entity'].displayName;
@@ -53,7 +54,7 @@ export function SearchHelp(p: { sc: SearchControlLoaded, injected: OverlayInject
   );
 }
 
-export function GroupHelp(p: { injected: OverlayInjectedProps }) {
+export function GroupHelp(p: { injected: OverlayInjectedProps }): React.JSX.Element {
   return (
     <Popover id="popover-basic" {...p.injected} style={{ ...p.injected.style, minWidth: 900 }}>
       <Popover.Header as="h3"><strong>Group help</strong></Popover.Header>
@@ -76,7 +77,7 @@ function getSearchMode(sc: SearchControlLoaded): SearchMode {
   return "Search";
 }
 
-export function FilterHelp(p: { queryDescription: QueryDescription, injected: OverlayInjectedProps }) {
+export function FilterHelp(p: { queryDescription: QueryDescription, injected: OverlayInjectedProps }): React.JSX.Element {
   const [expressionExpanded, setExpressionExpanded] = React.useState(false);
   var type = p.queryDescription.columns['Entity'].displayName;
   const isDefaultQuery = isTypeEntity(p.queryDescription.queryKey);
@@ -107,7 +108,7 @@ export function FilterHelp(p: { queryDescription: QueryDescription, injected: Ov
     </Popover>);
 }
 
-export function ColumnHelp(p: { queryDescription: QueryDescription, injected: OverlayInjectedProps }) {
+export function ColumnHelp(p: { queryDescription: QueryDescription, injected: OverlayInjectedProps }): React.JSX.Element {
   const [expressionExpanded, setExpressionExpanded] = React.useState(false);
   const type = getNiceTypeName(p.queryDescription.columns['Entity'].type);
   const isDefaultQuery = isTypeEntity(p.queryDescription.queryKey);
@@ -118,7 +119,7 @@ export function ColumnHelp(p: { queryDescription: QueryDescription, injected: Ov
         <div className="my-2">You are editing a column, let me explain what each field does:</div>
         <ul>
           <li>
-            <strong>{FilterFieldMessage.Field.niceToString()}: </strong>          
+            <strong>{SearchMessage.ColumnField.niceToString()}: </strong>          
             {!isDefaultQuery && ColumnFieldMessage.YouCanSelectAFieldExpressionToPointToAnyColumnOfTheQuery0OrAnyFieldOf1OrAnyRelatedEntity.niceToString().formatHtml(<strong>{getQueryNiceName(p.queryDescription.queryKey)}</strong>, <strong>{type}</strong>)}
             {isDefaultQuery && ColumnFieldMessage.YouCanSelectAFieldExpressionToPointToAnyFieldOfThe0OrAnyRelatedEntity.niceToString().formatHtml(<strong>{type}</strong>)}
             <LearnMoreAboutFieldExpressions expanded={expressionExpanded} onSetExpanded={setExpressionExpanded} showAny={false} />
@@ -140,7 +141,7 @@ export function ColumnHelp(p: { queryDescription: QueryDescription, injected: Ov
 
 
 
-export function LearnMoreAboutFieldExpressions(p: { expanded: boolean, onSetExpanded: (a: any) => void, showAny: boolean }) {
+export function LearnMoreAboutFieldExpressions(p: { expanded: boolean, onSetExpanded: (a: any) => void, showAny: boolean }): React.JSX.Element {
   return (
     <div className="mb-2">
       <a href="#" onClick={e => {

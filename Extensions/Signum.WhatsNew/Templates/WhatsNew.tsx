@@ -1,9 +1,9 @@
 import * as React from 'react'
-import * as Finder from '@framework/Finder';
-import * as Constructor from '@framework/Constructor';
-import * as Navigator from '@framework/Navigator';
+import { Finder } from '@framework/Finder';
+import { Constructor } from '@framework/Constructor';
+import { Navigator } from '@framework/Navigator';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import * as WhatsNewClient from '../WhatsNewClient';
+import { WhatsNewClient } from '../WhatsNewClient';
 import { WhatsNewEntity, WhatsNewMessage, WhatsNewMessageEmbedded } from '../Signum.WhatsNew';
 import { useAPI, useForceUpdate } from '@framework/Hooks';
 import { Binding, EntityCombo, EntityLine, EntityTabRepeater, TypeContext, AutoLine } from '@framework/Lines';
@@ -13,8 +13,9 @@ import SelectorModal from '@framework/SelectorModal';
 import { getTypeInfos, TypeInfo } from '@framework/Reflection';
 import { PermissionSymbol, QueryEntity, TypeEntity } from '@framework/Signum.Basics';
 import { OperationSymbol } from '@framework/Signum.Operations';
+import { Entity } from '../../../Signum/React/Signum.Entities';
 
-export default function WhatsNew(p: { ctx: TypeContext<WhatsNewEntity> }) {
+export default function WhatsNew(p: { ctx: TypeContext<WhatsNewEntity> }): React.JSX.Element {
   const ctx = p.ctx;
   const forceUpdate = useForceUpdate();
 
@@ -40,9 +41,9 @@ export default function WhatsNew(p: { ctx: TypeContext<WhatsNewEntity> }) {
       <FileLine ctx={ctx.subCtx(w => w.previewPicture)} mandatory />
       <EntityLine ctx={ctx.subCtx(w => w.related)}
         onFind={() => selectContentType(ti => Navigator.isFindable(ti)).then(ti => ti && Finder.find({ queryName: ti.name }))}
-        onCreate={() => selectContentType(ti => Navigator.isCreable(ti)).then(ti => ti && Constructor.construct(ti.name))}
+        onCreate={() => selectContentType(ti => Navigator.isCreable(ti)).then(ti => ti && Constructor.construct(ti.name) as Promise<Entity | undefined>)}
       />
-      <EntityTabRepeater ctx={ctx.subCtx(w => w.messages)} onChange={() => forceUpdate()} getComponent={(ctx: TypeContext<WhatsNewMessageEmbedded>) =>
+      <EntityTabRepeater ctx={ctx.subCtx(w => w.messages)} onChange={() => forceUpdate()} getComponent={ctx =>
         <WhatsNewMessageComponent ctx={ctx} invalidate={() => forceUpdate} />} />
     </div>
   );
@@ -54,7 +55,7 @@ export interface WhatsNewMessageComponentProps
   invalidate: () => void;
 }
 
-export function WhatsNewMessageComponent(p: WhatsNewMessageComponentProps) {
+export function WhatsNewMessageComponent(p: WhatsNewMessageComponentProps): React.JSX.Element {
 
   const ec = p.ctx.subCtx({labelColumns: 4});
   return (

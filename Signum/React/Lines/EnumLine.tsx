@@ -1,26 +1,26 @@
 import * as React from 'react'
-import { DropdownList, Combobox } from 'react-widgets'
-import { Dic, addClass, classes } from '../Globals'
+import { DropdownList, Combobox, Value } from 'react-widgets'
+import { Dic, classes } from '../Globals'
 import { MemberInfo, tryGetTypeInfo } from '../Reflection'
-import { LineBaseController, LineBaseProps, setRefProp, useController, useInitiallyFocused } from '../Lines/LineBase'
+import { LineBaseController, LineBaseProps, genericForwardRef, genericForwardRefWithMemo, setRefProp, useController, useInitiallyFocused } from '../Lines/LineBase'
 import { FormGroup } from '../Lines/FormGroup'
 import { FormControlReadonly } from '../Lines/FormControlReadonly'
 import { BooleanEnum } from '../Signum.Entities'
 import { getTimeMachineIcon } from './TimeMachineIcon'
 import { ValueBaseController, ValueBaseProps } from './ValueBase'
 
-export interface EnumLineProps extends ValueBaseProps<EnumLineController> {
+export interface EnumLineProps<V extends string | number | boolean | null> extends ValueBaseProps<V> {
   lineType?:
   "DropDownList" | /*For Enums! (only values in optionItems can be selected)*/
   "ComboBoxText" | /*For Text! (with freedom to choose a different value not in optionItems)*/
   "RadioGroup";
-  optionItems?: (OptionItem | MemberInfo | string)[];
+  optionItems?: (OptionItem | MemberInfo | V)[];
   onRenderDropDownListItem?: (oi: OptionItem) => React.ReactNode;
   columnCount?: number;
   columnWidth?: number;
 }
 
-export class EnumLineController extends ValueBaseController<EnumLineProps>{
+export class EnumLineController<V extends string | number | boolean | null> extends ValueBaseController<EnumLineProps<V>, V>{
 
 }
 
@@ -29,22 +29,23 @@ export interface OptionItem {
   label: string;
 }
 
-export const EnumLine = React.memo(React.forwardRef(function EnumLine(props: EnumLineProps, ref: React.Ref<EnumLineController>) {
+export const EnumLine: <V extends string | number | boolean | null>(props: EnumLineProps<V> & React.RefAttributes<EnumLineController<V>>) => React.ReactNode | null =
+  genericForwardRefWithMemo(function EnumLine<V extends string | number | boolean | null>(props: EnumLineProps<V>, ref: React.Ref<EnumLineController<V>>) {
 
-  const c = useController(EnumLineController, props, ref);
+  const c = useController(EnumLineController<V>, props, ref);
 
   if (c.isHidden)
     return null;
 
   return props.lineType == 'ComboBoxText' ? internalComboBoxText(c) : props.lineType == 'RadioGroup' ? internalRadioGroup(c) : internalDropDownList(c);
-}), (prev, next) => {
+}, (prev, next) => {
   if (next.extraButtons || prev.extraButtons)
     return false;
 
   return LineBaseController.propEquals(prev, next);
 });
 
-function internalDropDownList(vl: EnumLineController) {
+function internalDropDownList<V extends string | number | boolean | null>(vl: EnumLineController<V>) {
 
   var optionItems = getOptionsItems(vl);
 
@@ -96,7 +97,7 @@ function internalDropDownList(vl: EnumLineController) {
     return (
       <FormGroup ctx={s.ctx} label={s.label} labelIcon={s.labelIcon} helpText={s.helpText} htmlAttributes={{ ...vl.baseHtmlAttributes(), ...s.formGroupHtmlAttributes }} labelHtmlAttributes={s.labelHtmlAttributes}>
         {inputId => vl.withItemGroup(
-          <DropdownList<OptionItem> className={addClass(vl.props.valueHtmlAttributes, classes(s.ctx.formControlClass, vl.mandatoryClass, "p-0"))} data={optionItems}
+          <DropdownList<OptionItem> className={classes(vl.props.valueHtmlAttributes?.className, s.ctx.formControlClass, vl.mandatoryClass, "p-0")} data={optionItems}
             id={inputId}
             onChange={(oe, md) => vl.setValue(oe.value, md.originalEvent)}
             value={oi}
@@ -122,7 +123,7 @@ function internalDropDownList(vl: EnumLineController) {
     return (
       <FormGroup ctx={s.ctx} label={s.label} labelIcon={s.labelIcon} helpText={s.helpText} htmlAttributes={{ ...vl.baseHtmlAttributes(), ...s.formGroupHtmlAttributes }} labelHtmlAttributes={s.labelHtmlAttributes}>
         {inputId => vl.withItemGroup(
-          <select id={inputId} {...vl.props.valueHtmlAttributes} value={toStr(s.ctx.value)} className={addClass(vl.props.valueHtmlAttributes, classes(s.ctx.formSelectClass, vl.mandatoryClass))} onChange={handleEnumOnChange} >
+          <select id={inputId} {...vl.props.valueHtmlAttributes} value={toStr(s.ctx.value)} className={classes(vl.props.valueHtmlAttributes?.className, s.ctx.formSelectClass, vl.mandatoryClass)} onChange={handleEnumOnChange} >
             {!optionItems.some(a => toStr(a.value) == toStr(s.ctx.value)) && <option key={-1} value={toStr(s.ctx.value)}>{toStr(s.ctx.value)}</option>}
             {optionItems.map((oi, i) => <option key={i} value={toStr(oi.value)}>{oi.label}</option>)}
           </select>)
@@ -132,7 +133,7 @@ function internalDropDownList(vl: EnumLineController) {
   }
 }
 
-function internalComboBoxText(el: EnumLineController) {
+function internalComboBoxText<V extends string | number | boolean | null>(el: EnumLineController<V>) {
 
   var optionItems = getOptionsItems(el);
 
@@ -169,7 +170,7 @@ function internalComboBoxText(el: EnumLineController) {
   return (
     <FormGroup ctx={s.ctx} label={s.label} labelIcon={s.labelIcon} helpText={s.helpText} htmlAttributes={{ ...el.baseHtmlAttributes(), ...s.formGroupHtmlAttributes }} labelHtmlAttributes={s.labelHtmlAttributes}>
       {inputId => el.withItemGroup(
-        <Combobox<OptionItem> id={inputId} className={addClass(el.props.valueHtmlAttributes, classes(s.ctx.formControlClass, el.mandatoryClass))} data={optionItems} onChange={(e: string | OptionItem, md) => {
+        <Combobox<OptionItem> id={inputId} className={classes(el.props.valueHtmlAttributes?.className, s.ctx.formControlClass, el.mandatoryClass)} data={optionItems} onChange={(e: string | OptionItem, md) => {
           el.setValue(e == null ? null : typeof e == "string" ? e : e.value, md.originalEvent);
         }} value={s.ctx.value}
           dataKey="value"
@@ -184,7 +185,7 @@ function internalComboBoxText(el: EnumLineController) {
   );
 }
 
-function internalRadioGroup(elc: EnumLineController) {
+function internalRadioGroup<V extends string | number | boolean | null>(elc: EnumLineController<V>) {
 
   var optionItems = getOptionsItems(elc);
 
@@ -235,7 +236,7 @@ function internalRadioGroup(elc: EnumLineController) {
 }
 
 
-function getOptionsItems(el: EnumLineController): OptionItem[] {
+function getOptionsItems(el: EnumLineController<any>): OptionItem[] {
 
   var ti = tryGetTypeInfo(el.props.type!.name);
 

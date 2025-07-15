@@ -1,35 +1,28 @@
 import * as React from 'react'
-import { DateTime, Duration } from 'luxon'
-import { DatePicker, DropdownList, Combobox } from 'react-widgets'
-import { CalendarProps } from 'react-widgets/cjs/Calendar'
-import { Dic, addClass, classes } from '../Globals'
-import { MemberInfo, TypeReference, toLuxonFormat, toNumberFormat, isTypeEnum, timeToString, tryGetTypeInfo, toFormatWithFixes, splitLuxonFormat, dateTimePlaceholder, timePlaceholder, toLuxonDurationFormat } from '../Reflection'
-import { LineBaseController, LineBaseProps, setRefProp, tasks, useController, useInitiallyFocused } from '../Lines/LineBase'
+import { classes } from '../Globals'
+import { LineBaseController, LineBaseProps, tasks, useController } from '../Lines/LineBase'
 import { FormGroup } from '../Lines/FormGroup'
-import { FormControlReadonly } from '../Lines/FormControlReadonly'
-import { BooleanEnum, EntityControlMessage, JavascriptMessage } from '../Signum.Entities'
+import { EntityControlMessage } from '../Signum.Entities'
 import TextArea from '../Components/TextArea';
 import { getTimeMachineIcon } from './TimeMachineIcon'
 import { TextBoxLineController } from './TextBoxLine'
-import { ValueBaseController, ValueBaseProps } from './ValueBase'
-import { TypeContext } from '../Lines'
 import { useForceUpdate } from '../Hooks'
+import { TextBaseController, TextBaseProps } from './TextBase'
 
-export interface TextAreaLineProps extends ValueBaseProps<TextAreaLineController> {
-  ctx: TypeContext<string | undefined | null>;
-  autoFixString?: boolean;
-  autoTrimString?: boolean;
+export interface TextAreaLineProps extends TextBaseProps<string | null> {
+  autoResize?: boolean;
   charCounter?: true | ((length: number) => React.ReactElement | string);
 }
 
-export class TextAreaLineController extends ValueBaseController<TextAreaLineProps>{
-  init(p: TextAreaLineProps) {
+export class TextAreaLineController extends TextBaseController<TextAreaLineProps, string | null>{
+  init(p: TextAreaLineProps): void {
     super.init(p);
     this.assertType("TextAreaLine", ["string"]);
   }
 }
 
-export const TextAreaLine = React.memo(React.forwardRef(function TextAreaLine(props: TextAreaLineProps, ref: React.Ref<TextAreaLineController>) {
+export const TextAreaLine: React.MemoExoticComponent<React.ForwardRefExoticComponent<TextAreaLineProps & React.RefAttributes<TextAreaLineController>>>
+  = React.memo(React.forwardRef(function TextAreaLine(props: TextAreaLineProps, ref: React.Ref<TextAreaLineController>) {
 
   const c = useController(TextAreaLineController, props, ref);
   const ccRef = React.useRef<ChartCounterHandler>(null);
@@ -39,14 +32,14 @@ export const TextAreaLine = React.memo(React.forwardRef(function TextAreaLine(pr
   const s = c.props;
 
   var htmlAtts = c.props.valueHtmlAttributes;
-  var autoResize = htmlAtts?.style?.height == null && htmlAtts?.rows == null;
+  var autoResize = s.autoResize ?? (htmlAtts?.style?.height == null && htmlAtts?.rows == null);
 
   if (s.ctx.readOnly)
     return (
       <FormGroup ctx={s.ctx} label={s.label} labelIcon={s.labelIcon} helpText={s.helpText} htmlAttributes={{ ...c.baseHtmlAttributes(), ...s.formGroupHtmlAttributes }} labelHtmlAttributes={s.labelHtmlAttributes}>
         {inputId => <>
           {getTimeMachineIcon({ ctx: s.ctx })}
-          <TextArea id={inputId} {...htmlAtts} autoResize={autoResize} className={addClass(htmlAtts, classes(s.ctx.formControlClass, c.mandatoryClass))} value={s.ctx.value || ""}
+          <TextArea id={inputId} {...htmlAtts} autoResize={autoResize} className={classes(htmlAtts?.className, s.ctx.formControlClass, c.mandatoryClass)} value={s.ctx.value || ""}
             disabled />
         </>}
       </FormGroup>
@@ -54,17 +47,22 @@ export const TextAreaLine = React.memo(React.forwardRef(function TextAreaLine(pr
 
   const handleTextOnChange = (e: React.SyntheticEvent<any>) => {
     const input = e.currentTarget as HTMLInputElement;
-    c.setValue(input.value, e);
+
+    if (s.triggerChange == "onBlur")
+      c.setTempValue(input.value)
+    else
+      c.setValue(input.value, e); 
+
     ccRef.current?.setCurrentLength(input.value.length);
   };
 
   let handleBlur: ((e: React.FocusEvent<any>) => void) | undefined = undefined;
-  if (s.autoFixString != false) {
+  if (s.autoFixString != false || s.triggerChange == "onBlur") {
     handleBlur = (e: React.FocusEvent<any>) => {
       const input = e.currentTarget as HTMLInputElement;
       var fixed = TextAreaLineController.autoFixString(input.value, s.autoTrimString != null ? s.autoTrimString : false, false);
-      if (fixed != input.value)
-        c.setValue(fixed, e);
+      if (fixed != (s.ctx.value ?? ""))
+        c.setValue(fixed!, e);
 
       if (htmlAtts?.onBlur)
         htmlAtts.onBlur(e);
@@ -94,7 +92,10 @@ export const TextAreaLine = React.memo(React.forwardRef(function TextAreaLine(pr
       helpText={s.helpText && cc ? <>{cc}<br />{s.helpText}</> : (cc ?? s.helpText)}
       htmlAttributes={{ ...c.baseHtmlAttributes(), ...s.formGroupHtmlAttributes }} labelHtmlAttributes={s.labelHtmlAttributes}>
       {inputId => c.withItemGroup(
-        <TextArea {...c.props.valueHtmlAttributes} autoResize={autoResize} className={addClass(c.props.valueHtmlAttributes, classes(s.ctx.formControlClass, c.mandatoryClass))} value={s.ctx.value || ""}
+        <TextArea {...c.props.valueHtmlAttributes}
+          autoResize={autoResize}
+          className={classes(c.props.valueHtmlAttributes?.className, s.ctx.formControlClass, c.mandatoryClass)}
+          value={c.getValue() ?? ""}
           id={inputId}
           minHeight={c.props.valueHtmlAttributes?.style?.minHeight?.toString()}
           onChange={handleTextOnChange}
@@ -151,7 +152,7 @@ function ChartCounter(p: { children: (length: number) => React.ReactElement | st
 export let maxValueLineSize = 100;
 
 tasks.push(taskSetHtmlProperties);
-export function taskSetHtmlProperties(lineBase: LineBaseController<any>, state: LineBaseProps) {
+export function taskSetHtmlProperties(lineBase: LineBaseController<LineBaseProps, unknown>, state: LineBaseProps): void {
   const vl = lineBase instanceof TextBoxLineController || lineBase instanceof TextAreaLineController ? lineBase : undefined;
   const pr = state.ctx.propertyRoute;
   const s = state as TextAreaLineProps;

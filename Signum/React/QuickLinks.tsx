@@ -4,9 +4,9 @@ import { IconProp } from '@fortawesome/fontawesome-svg-core'
 import { getTypeInfo, getQueryNiceName, getQueryKey, getTypeName, Type, tryGetTypeInfo, PseudoType, QueryKey } from './Reflection'
 import { classes, Dic, toPromise } from './Globals'
 import { FindOptions, ManualCellDto, ManualToken, QueryToken, toQueryToken } from './FindOptions'
-import * as Finder from './Finder'
+import { Finder } from './Finder'
 import * as AppContext from './AppContext'
-import * as Navigator from './Navigator'
+import { Navigator } from './Navigator'
 import { ModifiableEntity, QuickLinkMessage, Lite, Entity, toLiteFat, is, isEntity, liteKey } from './Signum.Entities'
 import { onWidgets, WidgetContext } from './Frames/Widgets'
 import { onContextualItems, ContextualItemsContext, MenuItemBlock } from './SearchControl/ContextualItems'
@@ -15,10 +15,9 @@ import { StyleContext } from './Lines'
 import { Dropdown } from 'react-bootstrap'
 import DropdownToggle from 'react-bootstrap/DropdownToggle'
 import { BsColor } from './Components'
-import { CellFormatter } from './Finder'
 import { registerManualSubTokens } from './SearchControl/QueryTokenBuilder'
 
-export function start() {
+export function start(): void {
 
   onWidgets.push(getQuickLinkWidget);
   onContextualItems.push(getQuickLinkContextMenus);
@@ -31,7 +30,7 @@ export function start() {
     name: "CellQuickLink",
     isApplicable: qt => qt.parent?.key == "[QuickLinks]",
 
-    formatter: (c, sc) => new CellFormatter((dto: ManualCellDto, ctx, token) => (dto.manualTokenKey && dto.lite && <CellQuickLink quickLinkKey = { dto.manualTokenKey } lite = { dto.lite } />), false),
+    formatter: (c, sc) => new Finder.CellFormatter((dto: ManualCellDto, ctx, token) => (dto.manualTokenKey && dto.lite && <CellQuickLink quickLinkKey = { dto.manualTokenKey } lite = { dto.lite } />), false),
   });
 }
 
@@ -58,7 +57,7 @@ function CellQuickLink(p: { quickLinkKey: string, lite: Lite<Entity> }) {
   </a>)
 }
 
-export function clearQuickLinks() {
+export function clearQuickLinks(): void {
   Dic.clear(globalQuickLinks);
   Dic.clear(typeQuickLinks);
   Dic.clear(dynamicQuickLink);
@@ -78,19 +77,19 @@ const dynamicQuickLink: { [entityType: string]: QuickLinkFactory<Entity>[] } = {
 
 type QuickLinkFactory<T extends Entity> = (ctx: QuickLinkContext<T>) => Promise<QuickLink<T>[]>;
 
-export function registerGlobalQuickLink(f: (entityType: string) => Promise<QuickLink<Entity>[]>) {
+export function registerGlobalQuickLink(f: (entityType: string) => Promise<QuickLink<Entity>[]>): void {
 
   globalQuickLinks.push(entityType => f(entityType).then(qls => qls.toObject(ql => ql.key)));
 }
 
-export function registerQuickLink<T extends Entity>(type: Type<T>, quickLink: QuickLink<T>) {
+export function registerQuickLink<T extends Entity>(type: Type<T>, quickLink: QuickLink<T>): void {
   const typeName = getTypeName(type);
   const qls = typeQuickLinks[typeName] ?? {};
   Dic.addOrThrow(qls, quickLink.key, quickLink);
   typeQuickLinks[typeName] = qls;
 }
 
-export function registerDynamicQuickLink<T extends Entity>(type: Type<T>, quickLinkFactory: QuickLinkFactory<T>) {
+export function registerDynamicQuickLink<T extends Entity>(type: Type<T>, quickLinkFactory: QuickLinkFactory<T>): void {
   const typeName = getTypeName(type);
   const qls = dynamicQuickLink[typeName] ?? [];
   qls.push(quickLinkFactory as any);
@@ -164,12 +163,12 @@ function toManualTokens(qlDic: { [key: string]: QuickLink<Entity> }) {
 
 export var ignoreErrors = false;
 
-export function setIgnoreErrors(value: boolean) {
+export function setIgnoreErrors(value: boolean): void {
   ignoreErrors = value;
 }
 
 
-export function getQuickLinkWidget(wc: WidgetContext<ModifiableEntity>): React.ReactElement<any> | undefined {
+export function getQuickLinkWidget(wc: WidgetContext<ModifiableEntity>): React.ReactElement | undefined {
 
   var entity = wc.ctx.value;
 
@@ -212,7 +211,7 @@ export interface QuickLinkWidgetProps {
 }
 
 
-export function QuickLinkWidget(p: QuickLinkWidgetProps) {
+export function QuickLinkWidget(p: QuickLinkWidgetProps): React.JSX.Element | null {
 
   const links = useAPI(signal => getQuickLinks(p.qlc), [liteKey(p.qlc.lite)], { avoidReset: true });
 
@@ -341,7 +340,7 @@ export abstract class QuickLink<T extends Entity> {
       this.group = QuickLink.defaultGroup;
   }
 
-  toDropDownItem(ctx: QuickLinkContext<T>) {
+  toDropDownItem(ctx: QuickLinkContext<T>): React.JSX.Element {
     return (
       <Dropdown.Item data-key={this.key} className="sf-quick-link" onMouseUp={e => this.handleClick(ctx, e)}>
         {this.renderIcon()}&nbsp;{this.text()}
@@ -351,7 +350,7 @@ export abstract class QuickLink<T extends Entity> {
 
   abstract handleClick(ctx: QuickLinkContext<T>, e: React.MouseEvent<any>): void;
 
-  renderIcon() {
+  renderIcon(): React.JSX.Element | undefined {
     if (this.icon == undefined)
       return undefined;
 
@@ -373,7 +372,7 @@ export class QuickLinkAction<T extends Entity> extends QuickLink<T> {
     this.action = action;
   } 
 
-  handleClick = (ctx: QuickLinkContext<T>, e: React.MouseEvent<any>) => {
+  handleClick = (ctx: QuickLinkContext<T>, e: React.MouseEvent<any>): void => {
     this.action(ctx, e);
   }
 }
@@ -390,7 +389,7 @@ export class QuickLinkLink<T extends Entity> extends QuickLink<T> {
     this.url = url;
   }
 
-  handleClick = async (ctx: QuickLinkContext<T>, e: React.MouseEvent<any>) => {
+  handleClick = async (ctx: QuickLinkContext<T>, e: React.MouseEvent<any>): Promise<void> => {
     var url = typeof this.url === "string" ? this.url : await this.url(ctx); 
 
     if (this.openInAnotherTab)
@@ -415,7 +414,7 @@ export class QuickLinkExplore<T extends Entity> extends QuickLink<T> {
     this.findOptionsFunc = findOptionsFunc;
   }
 
-  handleClick = async (ctx: QuickLinkContext<T>, e: React.MouseEvent<any>) => {
+  handleClick = async (ctx: QuickLinkContext<T>, e: React.MouseEvent<any>): Promise<void> => {
     if (e.button == 2)
       return;
 
@@ -448,7 +447,7 @@ export class QuickLinkNavigate<T extends Entity> extends QuickLink<T> {
     this.viewName = viewName;
   }
 
-  handleClick = (ctx: QuickLinkContext<T>, e: React.MouseEvent<any>) => {
+  handleClick = (ctx: QuickLinkContext<T>, e: React.MouseEvent<any>): void => {
     if (e.button == 2)
       return;
 

@@ -4,23 +4,23 @@ import { useForceUpdate, useThrottle } from '@framework/Hooks';
 import { IModalProps, openModal } from '@framework/Modals';
 import { jsonObjectStream } from '@framework/Operations/jsonObjectStream';
 import { JavascriptMessage } from '@framework/Signum.Entities';
-import { ImportFromExcelReport, ImportResult } from './ExcelClient';
+import { ExcelClient } from './ExcelClient';
 import { ImportFromExcelMessage } from './Signum.Excel';
 import { TypeInfo } from '@framework/Reflection';
 import '@framework/AppContext';
 
-interface ImportExcelProgressModalProps extends IModalProps<ImportFromExcelReport> {
+interface ImportExcelProgressModalProps extends IModalProps<ExcelClient.ImportFromExcelReport> {
   typeInfo: TypeInfo;
 
   makeRequest: () => Promise<Response>;
   abortController: AbortController;
 }
 
-export function ImportExcelProgressModal(p: ImportExcelProgressModalProps) {
+export function ImportExcelProgressModal(p: ImportExcelProgressModalProps): React.JSX.Element {
 
   const [show, setShow] = React.useState(true);
   const forceUpdate = useForceUpdate();
-  const importResultsRef = React.useRef([] as ImportResult[]);
+  const importResultsRef = React.useRef([] as ExcelClient.ImportResult[]);
   const errorRef = React.useRef(null as any);
 
 
@@ -32,7 +32,7 @@ export function ImportExcelProgressModal(p: ImportExcelProgressModalProps) {
     setRequestStarted(true);
     var resp = await p.makeRequest();
 
-    var generator = jsonObjectStream<ImportResult>(resp.body!.getReader());
+    var generator = jsonObjectStream<ExcelClient.ImportResult>(resp.body!.getReader());
     for await (const val of generator) {
       importResultsRef.current.push(val);
       forceUpdate();
@@ -87,7 +87,8 @@ export function ImportExcelProgressModal(p: ImportExcelProgressModalProps) {
     </Modal>
   );
 }
-
-ImportExcelProgressModal.show = (abortController: AbortController, typeInfo: TypeInfo, makeRequest: () => Promise<Response>): Promise<ImportFromExcelReport> => {
-  return openModal<ImportFromExcelReport>(<ImportExcelProgressModal makeRequest={makeRequest} abortController={abortController} typeInfo={typeInfo} />);
-};
+export namespace ImportExcelProgressModal {
+  export function show(abortController: AbortController, typeInfo: TypeInfo, makeRequest: () => Promise<Response>): Promise<ExcelClient.ImportFromExcelReport> {
+    return openModal<ExcelClient.ImportFromExcelReport>(<ImportExcelProgressModal makeRequest={makeRequest} abortController={abortController} typeInfo={typeInfo} />);
+  };
+}

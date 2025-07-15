@@ -1,10 +1,10 @@
 import * as React from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { getToString, Lite } from '@framework/Signum.Entities'
-import * as Navigator from '@framework/Navigator'
+import { Navigator } from '@framework/Navigator'
 import SearchControlLoaded from '@framework/SearchControl/SearchControlLoaded'
 import { WordTemplateEntity, WordTemplateMessage } from './Signum.Word'
-import * as WordClient from './WordClient'
+import { WordClient } from './WordClient'
 import { saveFile } from "@framework/Services";
 import { DropdownButton, Dropdown } from 'react-bootstrap';
 
@@ -12,7 +12,7 @@ export interface WordSearchMenuProps {
   searchControl: SearchControlLoaded;
 }
 
-export default function WordSearchMenu(p : WordSearchMenuProps){
+export default function WordSearchMenu(p : WordSearchMenuProps): React.JSX.Element | null {
   function handleOnClick(wt: Lite<WordTemplateEntity>) {
     Navigator.API.fetch(wt)
       .then(wordTemplate => WordClient.API.getConstructorType(wordTemplate.model!))

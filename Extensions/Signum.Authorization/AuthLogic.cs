@@ -44,6 +44,10 @@ public static class AuthLogic
     public static IQueryable<UserEntity> Users(this RoleEntity r) =>
         As.Expression(() => Database.Query<UserEntity>().Where(u => u.Role.Is(r)));
 
+    [AutoExpressionField]
+    public static IQueryable<RoleEntity> UsedByRoles(this RoleEntity r) =>
+        As.Expression(() => Database.Query<RoleEntity>().Where(u => u.InheritsFrom.Contains(r.ToLite())));
+
     static ResetLazy<DirectedGraph<Lite<RoleEntity>>> rolesGraph = null!;
     static ResetLazy<DirectedGraph<Lite<RoleEntity>>> rolesInverse = null!;
     static ResetLazy<FrozenDictionary<string, Lite<RoleEntity>>> rolesByName = null!;
@@ -65,7 +69,7 @@ public static class AuthLogic
     }
 
     public static void Start(SchemaBuilder sb, string? systemUserName, string? anonymousUserName)
-    {
+    {   
         if (sb.NotDefined(MethodInfo.GetCurrentMethod()))
         {
             SystemUserName = systemUserName;
@@ -94,6 +98,8 @@ public static class AuthLogic
                   e.CultureInfo,
               });
 
+            QueryLogic.Expressions.Register((RoleEntity r) => r.UsedByRoles(), AuthAdminMessage.UsedByRoles);
+
             sb.Include<RoleEntity>()
                 .WithSave(RoleOperation.Save)
                 .WithDelete(RoleOperation.Delete)
@@ -109,7 +115,7 @@ public static class AuthLogic
 
 
 
-            RolesByLite = sb.GlobalLazy(() => Database.Query<RoleEntity>().ToFrozenDictionaryEx(a => a.ToLite()), new InvalidateWith(typeof(RoleEntity)), AuthLogic.NotifyRulesChanged);
+            RolesByLite = sb.GlobalLazy(() => Database./*Query*/RetrieveAll<RoleEntity>().ToFrozenDictionaryEx(a => a.ToLite()), new InvalidateWith(typeof(RoleEntity)), AuthLogic.NotifyRulesChanged);
             rolesByName = sb.GlobalLazy(() => RolesByLite.Value.Keys.ToFrozenDictionaryEx(a => a.ToString()!), new InvalidateWith(typeof(RoleEntity)));
             rolesGraph = sb.GlobalLazy(() => CacheRoles(RolesByLite.Value), new InvalidateWith(typeof(RoleEntity)));
             rolesInverse = sb.GlobalLazy(() => rolesGraph.Value.Inverse(), new InvalidateWith(typeof(RoleEntity)));
@@ -157,7 +163,7 @@ public static class AuthLogic
             return roles.SingleEx();
 
         var flatRoles = roles
-            .Select(a => RolesByLite.Value.GetOrThrow(a))
+            .Select(a => RolesByLite.Value.TryGetC(a) ?? a.EntityOrNull ?? a.Retrieve())
             .ToList()
             .SelectMany(a => a.IsTrivialMerge ? a.InheritsFrom.ToArray() : new[] { a.ToLite() })
             .Distinct()
@@ -174,7 +180,7 @@ public static class AuthLogic
         if (db != null)
             return db;
 
-        using (AuthLogic.Disable())
+        using (AuthLogic.Disable()) 
         using (OperationLogic.AllowSave<RoleEntity>())
         {
             var result = new RoleEntity

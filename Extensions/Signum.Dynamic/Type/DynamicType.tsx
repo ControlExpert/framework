@@ -1,14 +1,14 @@
 import * as React from 'react'
 import { Dic, classes } from '@framework/Globals'
-import * as Constructor from '@framework/Constructor'
-import * as Finder from '@framework/Finder'
-import * as Navigator from '@framework/Navigator'
+import { Constructor } from '@framework/Constructor'
+import { Finder } from '@framework/Finder'
+import { Navigator } from '@framework/Navigator'
 import { IHasChanges } from '@framework/TypeContext'
 import { AutoLine, EntityLine, TypeContext } from '@framework/Lines'
 import { ModifiableEntity, Entity, Lite, JavascriptMessage } from '@framework/Signum.Entities'
 import { getTypeInfo, Binding, PropertyRoute, symbolNiceName, GraphExplorer } from '@framework/Reflection'
 import SelectorModal from '@framework/SelectorModal'
-import * as DynamicTypeClient from '../DynamicTypeClient'
+import { DynamicTypeClient } from '../DynamicTypeClient'
 import { DynamicTypeDefinitionComponent, PropertyRepeaterComponent } from './DynamicTypeDefinitionComponent'
 import { DynamicTypeEntity } from '../Signum.Dynamic.Types'
 
@@ -29,18 +29,18 @@ export default class DynamicTypeComponent extends React.Component<DynamicTypeCom
     this.state = {};
   }
 
-  componentWillMount() {
+  componentWillMount() : void {
     this.parseDefinition();
   }
 
-  beforeSave() {
+  beforeSave(): void {
     const ctx = this.props.ctx;
     this.state.typeDefinition!.properties.forEach(a => delete a._propertyType_);
     ctx.value.typeDefinition = JSON.stringify(this.state.typeDefinition);
     ctx.value.modified = true;
   }
 
-  entityHasChanges() {
+  entityHasChanges(): boolean {
     const entity = this.props.ctx.value;
 
     GraphExplorer.propagateAll(entity);
@@ -50,7 +50,7 @@ export default class DynamicTypeComponent extends React.Component<DynamicTypeCom
     return entity.modified || entity.typeDefinition != JSON.stringify(clone);
   }
 
-  parseDefinition() {
+  parseDefinition(): void{
 
     const ctx = this.props.ctx;
 
@@ -64,7 +64,7 @@ export default class DynamicTypeComponent extends React.Component<DynamicTypeCom
     });
   }
 
-  render() {
+  render(): JSX.Element {
     const ctx = this.props.ctx;
     const dc = { refreshView: () => this.forceUpdate() };
 

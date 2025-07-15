@@ -1,14 +1,13 @@
 import * as React from 'react'
 import { DateTime, Duration } from 'luxon'
 import { classes } from '../Globals'
-import * as Navigator from '../Navigator'
-import * as Finder from '../Finder'
+import { Navigator } from '../Navigator'
+import { Finder } from '../Finder'
 import { FindOptions, FindOptionsParsed, SubTokensOptions, QueryToken, QueryValueRequest, QueryDescription } from '../FindOptions'
 import { Lite, Entity, getToString, EmbeddedEntity, EntityControlMessage } from '../Signum.Entities'
 import { getQueryKey, toNumberFormat, toLuxonFormat, getEnumInfo, QueryTokenString, getTypeInfo, getTypeName, toLuxonDurationFormat, timeToString, toFormatWithFixes } from '../Reflection'
 import { SearchControlProps } from "./SearchControl";
 import { BsColor, BsSize } from '../Components';
-import { toFilterRequests } from '../Finder';
 import { PropertyRoute, StyleContext } from '../Lines'
 import { useAPI, usePrevious } from '../Hooks'
 import * as Hooks from '../Hooks'
@@ -55,7 +54,7 @@ export interface SearchValueController {
   value: unknown | undefined;
   queryDescription: QueryDescription | undefined;
   hasHistoryChanges: boolean | undefined;
-  renderValue(): React.ReactChild | null;
+  renderValue(): React.ReactElement | string | null;
   refreshValue: () => void;
   handleClick: (e: React.MouseEvent<any>) => void;
 }
@@ -65,13 +64,14 @@ function getQueryRequestValue(fo: FindOptionsParsed, valueToken?: string | Query
   return {
     queryKey: fo.queryKey,
     multipleValues: multipleValues,
-    filters: toFilterRequests(fo.filterOptions),
+    filters: Finder.toFilterRequests(fo.filterOptions),
     valueToken: valueToken?.toString(),
     systemTime: fo.systemTime && { ...fo.systemTime }
   };
 }
 
-const SearchValue = React.forwardRef(function SearchValue(p: SearchValueProps, ref: React.Ref<SearchValueController>): React.ReactElement | null {
+const SearchValue: React.ForwardRefExoticComponent<SearchValueProps & React.RefAttributes<SearchValueController>> =
+  React.forwardRef(function SearchValue(p: SearchValueProps, ref: React.Ref<SearchValueController>): React.ReactElement | null {
 
   const fo = p.findOptions;
 
@@ -461,7 +461,7 @@ const SearchValue = React.forwardRef(function SearchValue(p: SearchValueProps, r
 
 export default SearchValue;
 
-export function renderTimeMachineIcon(hasHistoryChanges: boolean | undefined, transform: string) {
+export function renderTimeMachineIcon(hasHistoryChanges: boolean | undefined, transform: string): React.JSX.Element | null {
 
   if (hasHistoryChanges === undefined)
     return null;

@@ -17,6 +17,10 @@ public class PanelPartEmbedded : EmbeddedEntity, IGridEntity
     [Format(FormatAttribute.Color)]
     public string? IconColor { get; set; }
 
+    [StringLengthValidator(Min = 3, Max = 20)]
+    [Format(FormatAttribute.Color)]
+    public string? TitleColor { get; set; }
+
     [NumberIsValidator(ComparisonType.GreaterThanOrEqualTo, 0)]
     public int Row { get; set; }
 
@@ -31,13 +35,12 @@ public class PanelPartEmbedded : EmbeddedEntity, IGridEntity
     [Format(FormatAttribute.Color)]
     public string? CustomColor { get; set; }
 
-    public bool UseIconColorForTitle { get; set; }
-
     [BindParent]
     [ImplementedBy(
         typeof(LinkListPartEntity),
         typeof(ImagePartEntity),
-        typeof(SeparatorPartEntity))]
+        typeof(SeparatorPartEntity),
+        typeof(HealthCheckPartEntity))]
     public IPartEntity Content { get; set; }
 
     public override string ToString()
@@ -70,8 +73,8 @@ public class PanelPartEmbedded : EmbeddedEntity, IGridEntity
             InteractionGroup = InteractionGroup,
             IconColor = IconColor,
             IconName = IconName,
+            TitleColor = TitleColor,
             CustomColor = CustomColor,
-            UseIconColorForTitle = UseIconColorForTitle,
         };
     }
 
@@ -90,9 +93,9 @@ public class PanelPartEmbedded : EmbeddedEntity, IGridEntity
             Title == null ? null! : new XAttribute("Title", Title),
             IconName == null ? null! : new XAttribute("IconName", IconName),
             IconColor == null ? null! : new XAttribute("IconColor", IconColor),
+            TitleColor == null ? null! : new XAttribute("TitleColor", TitleColor),
             InteractionGroup == null ? null! : new XAttribute("InteractionGroup", InteractionGroup),
             string.IsNullOrEmpty(CustomColor) ? null! : new XAttribute("CustomColor", CustomColor),
-            UseIconColorForTitle == false ? null! : new XAttribute("UseIconColorForTitle", true),
             Content.ToXml(ctx));
     }
 
@@ -104,9 +107,9 @@ public class PanelPartEmbedded : EmbeddedEntity, IGridEntity
         Title = x.Attribute("Title")?.Value;
         IconName = x.Attribute("IconName")?.Value;
         IconColor = x.Attribute("IconColor")?.Value;
+        TitleColor = x.Attribute("UseIconColorForTitle")?.Let(a => bool.Parse(a.Value) ? IconColor : null) ?? x.Attribute("TitleColor")?.Value;
         InteractionGroup = x.Attribute("InteractionGroup")?.Value.ToEnum<InteractionGroup>();
         CustomColor = x.Attribute("CustomColor")?.Value;
-        UseIconColorForTitle = x.Attribute("UseIconColorForTitle")?.Let(a => bool.Parse(a.Value)) ?? false;
         Content = DashboardLogic.GetPart(ctx, Content, x.Elements().Single());
     }
 
@@ -282,4 +285,83 @@ public class SeparatorPartEntity : Entity, IPartEntity
     {
         throw new NotImplementedException();
     }
+}
+
+[EntityKind(EntityKind.Part, EntityData.Master)]
+public class HealthCheckPartEntity : Entity, IPartEntity
+{
+    public MList<HealthCheckElementEmbedded> Items { get; set; } = [];
+
+    public override string ToString()
+    {
+        return "{0} {1}".FormatWith(Items.Count, typeof(HealthCheckElementEmbedded).NicePluralName());
+    }
+
+    public bool RequiresTitle
+    {
+        get { return true; }
+    }
+
+    public IPartEntity Clone()
+    {
+        return new HealthCheckPartEntity
+        {
+            Items = this.Items.Select(e => e.Clone()).ToMList(),
+        };
+    }
+
+    public XElement ToXml(IToXmlContext ctx)
+    {
+        return new XElement("HealthCheckPart",
+            Items.Select(i => i.ToXml(ctx)));
+    }
+
+    public void FromXml(XElement element, IFromXmlContext ctx)
+    {
+        Items.Synchronize(element.Elements().ToList(), (le, x) => le.FromXml(x));
+    }
+}
+
+public class HealthCheckElementEmbedded : EmbeddedEntity
+{
+    [StringLengthValidator(Max = 100)]
+    public string Title { get; set; }
+
+    [StringLengthValidator(Max = 400)]
+    public string CheckURL { get; set; }
+
+    [StringLengthValidator(Max = 400)]
+    public string NavigateURL { get; set; }
+
+    public HealthCheckElementEmbedded Clone()
+    {
+        return new HealthCheckElementEmbedded
+        {
+            Title = this.Title,
+            CheckURL = this.CheckURL,
+            NavigateURL = this.NavigateURL
+        };
+    }
+
+    internal XElement ToXml(IToXmlContext ctx)
+    {
+        return new XElement("HealthCheckElement",
+            new XAttribute("Title", Title),
+            new XAttribute("CheckURL", CheckURL),
+            new XAttribute("NavigateURL", NavigateURL));
+    }
+
+    internal void FromXml(XElement element)
+    {
+        Title = element.Attribute("Title")!.Value;
+        CheckURL = element.Attribute("CheckURL")!.Value;
+        NavigateURL = element.Attribute("NavigateURL")!.Value;
+    }
+}
+
+[InTypeScript(true), DescriptionOptions(DescriptionOptions.Members)]
+public enum HealthCheckStatus
+{
+    Ok,
+    Error
 }

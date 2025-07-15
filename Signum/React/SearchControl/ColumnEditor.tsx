@@ -19,7 +19,7 @@ interface ColumnEditorProps {
   close: () => void;
 }
 
-export default function ColumnEditor(p: ColumnEditorProps) {
+export default function ColumnEditor(p: ColumnEditorProps): React.JSX.Element {
 
   function handleSummaryTokenChanged(newToken: QueryToken | undefined) {
     p.columnOption.summaryToken = newToken;
@@ -40,14 +40,6 @@ export default function ColumnEditor(p: ColumnEditorProps) {
 
   function handleSummaryCheck() {
     co.summaryToken = co.summaryToken ? undefined : co.token;
-    p.onChange(undefined);
-  }
-
-  function handleHiddenColumnClick() {
-    co.hiddenColumn = co.hiddenColumn ? undefined : true;
-    co.displayName = co.token?.niceName;
-    co.summaryToken = undefined;
-    co.combineRows = undefined;
     p.onChange(undefined);
   }
 
@@ -73,7 +65,7 @@ export default function ColumnEditor(p: ColumnEditorProps) {
           <div className="d-flex" title={!StyleContext.default.titleLabels ? undefined :
             isCollection ? SearchMessage.CollectionsCanNotBeAddedAsColumns.niceToString() :
               isInvalid ? SearchMessage.InvalidColumnExpression.niceToString() : undefined}>
-            <label className="col-form-label col-form-label-xs me-2">{SearchMessage.Field.niceToString()}</label>
+            <label className="col-form-label col-form-label-xs me-2 fw-bold">{SearchMessage.ColumnField.niceToString()}</label>
             <div className="flex-grow-1">
               <div className="rw-widget-xs">
                 <QueryTokenBuilder
@@ -91,7 +83,7 @@ export default function ColumnEditor(p: ColumnEditorProps) {
             title={StyleContext.default.titleLabels && summaryNotAggregate ? SearchMessage.SummaryHeaderMustBeAnAggregate.niceToString() : undefined}>
             <label className="col-form-label col-form-label-xs me-2">
               <input type="checkbox" disabled={co.token == null} className="form-check-input me-2" checked={co.summaryToken != null} onChange={handleSummaryCheck} />
-              {SearchMessage.SummaryHeader.niceToString()}
+              {SearchMessage.SummaryHeader.niceToString()} (Ʃ)
             </label>
             <div className="rw-widget-xs">
               {co.summaryToken && <QueryTokenBuilder

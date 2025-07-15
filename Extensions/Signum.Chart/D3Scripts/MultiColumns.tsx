@@ -1,10 +1,9 @@
 import * as React from 'react'
 import * as d3 from 'd3'
-import * as ChartClient from '../ChartClient';
+import { ChartClient, ChartScriptProps, ChartTable, ChartColumn } from '../ChartClient';
 import * as ChartUtils from './Components/ChartUtils';
 import { translate, scale, rotate, skewX, skewY, matrix, scaleFor } from './Components/ChartUtils';
 import { PivotRow, toPivotTable, groupedPivotTable } from './Components/PivotTable';
-import { ChartTable, ChartColumn } from '../ChartClient';
 import { XKeyTicks, YScaleTicks } from './Components/Ticks';
 import Legend from './Components/Legend';
 import { XAxis, YAxis } from './Components/Axis';
@@ -13,7 +12,7 @@ import InitialMessage from './Components/InitialMessage';
 import TextIfFits from './Components/TextIfFits';
 
 
-export default function renderMultiColumns({ data, width, height, parameters, loading, onDrillDown, initialLoad, chartRequest, memo, dashboardFilter }: ChartClient.ChartScriptProps): React.ReactElement<any> {
+export default function renderMultiColumns({ data, width, height, parameters, loading, onDrillDown, initialLoad, chartRequest, memo, dashboardFilter }: ChartScriptProps): React.ReactElement<any> {
 
   var xRule = Rule.create({
     _1: 5,
@@ -69,6 +68,7 @@ export default function renderMultiColumns({ data, width, height, parameters, lo
   var y = scaleFor(valueColumn0, allValues, 0, yRule.size('content'), parameters["Scale"]);
 
   var interMagin = parseInt(parameters["HorizontalMargin"]);
+  var labelInterMagin = 2;
 
   var xSubscale = d3.scaleBand()
     .domain(pivot.columns.map(s => s.key))
@@ -99,18 +99,29 @@ export default function renderMultiColumns({ data, width, height, parameters, lo
             var active = detector?.(row.rowClick);
             var key = keyColumn.getKey(r.rowValue);
 
+            var posy: number;
+            var height: number;
+
+            const scaleName = parameters["Scale"];
+
+            if (scaleName == "MinZeroMax") {
+              posy = row.value < 0 ? y(0) : y(row.value);
+              height = row.value < 0 ? y(0) - y(row.value) : y(row.value) - y(0);
+            }
+            else {
+              posy = y(row.value);
+              height = y(row.value);
+            }
+
             return (
-              <g className="hover-group" key={key}>
+              <g className="hover-group" key={key} transform={translate(x(key)! + xSubscale(s.key)!, -posy)}>
                 <rect
                   className="shape sf-transition hover-target"
                   opacity={active == false ? .5 : undefined}
                   fill={s.color || color(s.key)}
-                  transform={(initialLoad ? scale(1, 0) : scale(1, 1)) + translate(
-                    x(key)! + xSubscale(s.key)!,
-                    - y(row.value)!
-                  )}
+                  transform={(initialLoad ? scale(1, 0) : scale(1, 1))}
                   width={xSubscale.bandwidth()}
-                  height={y(row.value)}
+                  height={height}
                   onClick={e => onDrillDown(row.rowClick, e)}
                   cursor="pointer">
                   <title>
@@ -120,20 +131,17 @@ export default function renderMultiColumns({ data, width, height, parameters, lo
 
                 {x.bandwidth() > 15 && parseFloat(parameters["NumberOpacity"]) > 0 &&
                   <TextIfFits className="number-label sf-transition"
-                    transform={translate(
-                      x(keyColumn.getKey(r.rowValue))! + xSubscale.bandwidth() / 2 + xSubscale(s.key)!,
-                      - y(r.values[s.key].value)! / 2
-                    ) + rotate(-90)}
-                    maxWidth={y(r.values[s.key].value)}
-                    onClick={e => onDrillDown(r.values[s.key].rowClick, e)}
+                    transform={translate((xSubscale.bandwidth() / 2) + labelInterMagin, height / 2) + rotate(-90)}
+                    maxWidth={height}
+                    onClick={e => onDrillDown(row.rowClick, e)}
                     opacity={parameters["NumberOpacity"]}
                     fill={parameters["NumberColor"]}
                     dominantBaseline="middle"
                     textAnchor="middle"
                     fontWeight="bold">
-                    {r.values[s.key].valueNiceName}
+                    {row.valueNiceName}
                     <title>
-                      {r.values[s.key].valueTitle}
+                      {row.valueTitle}
                     </title>
                   </TextIfFits>
                 }

@@ -4,6 +4,11 @@ using NpgsqlTypes;
 namespace Signum.Entities;
 
 [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
+public sealed class IndexAttribute : Attribute
+{
+}
+
+[AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
 public sealed class UniqueIndexAttribute : Attribute
 {
     public bool AllowMultipleNulls { get; set; }
@@ -404,6 +409,20 @@ public sealed class TableNameAttribute : Attribute
     }
 }
 
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Property /*MList fields*/, Inherited = true, AllowMultiple = false)]
+public sealed class PartitionColumnAttribute : DbTypeAttribute
+{
+    public string? Name { get; set; }
+
+    public Type? Type { get; set; }
+
+    public string? SchemeName { get; set; }
+
+    public PartitionColumnAttribute(string? schemeName = null)
+    {
+        this.SchemeName = schemeName;
+    }
+}
 
 
 [AttributeUsage(AttributeTargets.Class, Inherited = true, AllowMultiple = false)]

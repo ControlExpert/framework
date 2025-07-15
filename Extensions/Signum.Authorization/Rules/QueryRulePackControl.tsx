@@ -1,8 +1,8 @@
 import * as React from 'react'
-import { notifySuccess } from '@framework/Operations'
+import { Operations } from '@framework/Operations'
 import { TypeContext, ButtonsContext, IRenderButtons, ButtonBarElement } from '@framework/TypeContext'
 import { EntityLine, AutoLine } from '@framework/Lines'
-import { API } from '../AuthAdminClient'
+import { AuthAdminClient } from '../AuthAdminClient'
 import { QueryRulePack, QueryAllowedRule, QueryAllowed, AuthAdminMessage } from './Signum.Authorization.Rules'
 import { ColorRadio, GrayCheckbox } from './ColoredRadios'
 import { Button } from 'react-bootstrap'
@@ -11,17 +11,17 @@ import { useForceUpdate } from '@framework/Hooks';
 import { getToString } from '@framework/Signum.Entities';
 import { QueryEntity } from '@framework/Signum.Basics'
 
-export default React.forwardRef(function QueryRulesPackControl({ ctx }: { ctx: TypeContext<QueryRulePack> }, ref: React.Ref<IRenderButtons>) {
+export default function QueryRulesPackControl({ ctx, innerRef }: { ctx: TypeContext<QueryRulePack>, innerRef: React.Ref<IRenderButtons> }): React.JSX.Element {
 
   const forceUpdate = useForceUpdate();
 
   function handleSaveClick(bc: ButtonsContext) {
     let pack = ctx.value;
 
-    API.saveQueryRulePack(pack)
-      .then(() => API.fetchQueryRulePack(pack.type.cleanName!, pack.role.id!))
+    AuthAdminClient.API.saveQueryRulePack(pack)
+      .then(() => AuthAdminClient.API.fetchQueryRulePack(pack.type.cleanName!, pack.role.id!))
       .then(newPack => {
-        notifySuccess();
+        Operations.notifySuccess();
         bc.frame.onReload({ entity: newPack, canExecute: {} });
       });
   }
@@ -32,7 +32,7 @@ export default React.forwardRef(function QueryRulesPackControl({ ctx }: { ctx: T
     ];
   }
 
-  React.useImperativeHandle(ref, () => ({ renderButtons }), [ctx.value]);
+  React.useImperativeHandle(innerRef, () => ({ renderButtons }), [ctx.value]);
 
   function handleHeaderClick(e: React.MouseEvent<HTMLAnchorElement>, hc: QueryAllowed) {
 
@@ -112,4 +112,4 @@ export default React.forwardRef(function QueryRulesPackControl({ ctx }: { ctx: T
 
     return <ColorRadio readOnly={ctx.readOnly} checked={c.allowed == allowed} color={color} onClicked={a => { c.allowed = allowed; c.modified = true; forceUpdate() }} />;
   }
-});
+}

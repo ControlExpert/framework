@@ -1,70 +1,39 @@
-import * as React from "react";
-import * as AppContext from "../AppContext";
-import * as Navigator from "../Navigator";
-import * as Constructor from "../Constructor";
-import { useLocation, useParams, unstable_useBlocker } from "react-router-dom";
-import * as Finder from "../Finder";
-import { ButtonBar, ButtonBarHandle } from "./ButtonBar";
-import {
-  Entity,
-  Lite,
-  getToString,
-  EntityPack,
-  JavascriptMessage,
-  entityInfo,
-  SelectorMessage,
-  is,
-  ModifiableEntity
-} from "../Signum.Entities";
-import {
-  TypeContext,
-  StyleOptions,
-  EntityFrame,
-  ButtonBarElement
-} from "../TypeContext";
-import {
-  getTypeInfo,
-  TypeInfo,
-  PropertyRoute,
-  ReadonlyBinding,
-  GraphExplorer,
-  parseId,
-  OperationType
-} from "../Reflection";
-import { renderWidgets, WidgetContext } from "./Widgets";
-import { ValidationErrors, ValidationErrorsHandle } from "./ValidationErrors";
-import { ErrorBoundary } from "../Components";
-import "./Frames.css";
-import { AutoFocus } from "../Components/AutoFocus";
-import {
-  useStateWithPromise,
-  useForceUpdate,
-  useMounted,
-  useDocumentEvent,
-  useWindowEvent,
-  useUpdatedRef
-} from "../Hooks";
-import * as Operations from "../Operations";
-import WidgetEmbedded from "./WidgetEmbedded";
-import { useTitle } from "../AppContext";
-import { FunctionalAdapter } from "../Modals";
-import { QueryString } from "../QueryString";
-import { classes } from "../Globals";
+import * as React from 'react'
+import * as AppContext from '../AppContext'
+import { Navigator, ViewPromise } from '../Navigator'
+import { Constructor } from '../Constructor'
+import { useLocation, useParams, unstable_useBlocker } from "react-router-dom"
+import { Finder } from '../Finder'
+import { ButtonBar, ButtonBarHandle } from './ButtonBar'
+import { Entity, Lite, getToString, EntityPack, JavascriptMessage, entityInfo, SelectorMessage, is, ModifiableEntity } from '../Signum.Entities'
+import { TypeContext, StyleOptions, EntityFrame, ButtonBarElement } from '../TypeContext'
+import { getTypeInfo, TypeInfo, PropertyRoute, ReadonlyBinding, GraphExplorer, parseId, OperationType } from '../Reflection'
+import { renderWidgets,  WidgetContext } from './Widgets'
+import { ValidationErrors, ValidationErrorsHandle } from './ValidationErrors'
+import { ErrorBoundary } from '../Components';
+import "./Frames.css"
+import { AutoFocus } from '../Components/AutoFocus';
+import { useStateWithPromise, useForceUpdate, useMounted, useDocumentEvent, useWindowEvent, useUpdatedRef } from '../Hooks'
+import { Operations } from '../Operations'
+import WidgetEmbedded from './WidgetEmbedded'
+import { useTitle } from '../AppContext'
+import { FunctionalAdapter } from '../Modals'
+import { QueryString } from '../QueryString'
+import { classes } from '../Globals'
 
 interface FramePageState {
   pack: EntityPack<Entity>;
   lastEntity: string;
   viewName?: string;
-  getComponent: (ctx: TypeContext<Entity>) => React.ReactElement<any>;
+  getComponent: (ctx: TypeContext<Entity>) => React.ReactElement;
   refreshCount: number;
   createNew?: () => Promise<EntityPack<Entity> | undefined>;
   executing?: boolean;
 }
 
-export default function FramePage() {
-  let [state, setState] = useStateWithPromise<FramePageState | undefined>(
-    undefined
-  );
+export default function FramePage(): React.JSX.Element {
+
+  let [state, setState] = useStateWithPromise<FramePageState | undefined>(undefined);
   const stateRef = useUpdatedRef(state);
   const buttonBar = React.useRef<ButtonBarHandle>(null);
   const entityComponent = React.useRef<React.Component | null>(null);
@@ -90,14 +59,7 @@ export default function FramePage() {
       : undefined
   );
 
-  function setPack(
-    pack: EntityPack<Entity>,
-    view: {
-      viewName?: string;
-      getComponent: (ctx: TypeContext<Entity>) => React.ReactElement<any>;
-    },
-    createNew?: () => Promise<EntityPack<Entity> | undefined>
-  ) {
+  function setPack(pack: EntityPack<Entity>, view: { viewName?: string, getComponent: (ctx: TypeContext<Entity>) => React.ReactElement }, createNew?: () => Promise<EntityPack<Entity> | undefined>) {
     return setState({
       pack,
       lastEntity: JSON.stringify(pack.entity),
@@ -128,10 +90,13 @@ export default function FramePage() {
 
     loadEntity().then((a) => {
       if (a == undefined) {
-        Navigator.NavigatorManager.onFramePageCreationCancelled();
-      } else {
-        loadComponent(a.pack!).then((view) => {
-          if (!mounted.current) return undefined;
+          Navigator.onFramePageCreationCancelled();
+        }
+        else {
+
+          loadComponent(a.pack!).then(view => {
+            if (!mounted.current)
+              return undefined;
 
           return setPack(a.pack!, view, a.createNew).then(() => {
             if (id == null && a.pack!.entity.id != null) {
@@ -164,14 +129,11 @@ export default function FramePage() {
       buttonBar.current.handleKeyDown(e);
   }
 
-  async function loadComponent(
-    pack: EntityPack<Entity>,
-    forceViewName?: string | Navigator.ViewPromise<ModifiableEntity>
-  ): Promise<{
+  async function loadComponent(pack: EntityPack<Entity>, forceViewName?: string | ViewPromise<ModifiableEntity>): Promise<{
     viewName?: string;
-    getComponent: (ctx: TypeContext<Entity>) => React.ReactElement<any>;
+    getComponent: (ctx: TypeContext<Entity>) => React.ReactElement;
   }> {
-    if (forceViewName instanceof Navigator.ViewPromise) {
+    if (forceViewName instanceof ViewPromise) {
       var getComponent = await forceViewName.promise;
       return { viewName: undefined, getComponent: getComponent };
     } else {
@@ -485,13 +447,11 @@ function hasChanges(state: FramePageState) {
   return false;
 }
 
-export function useLooseChanges(pair?: {
-  entity: ModifiableEntity;
-  lastEntity: string;
-}) {
-  let blocker = unstable_useBlocker(
-    () => pair != null && JSON.stringify(pair.entity) != pair.lastEntity
-  );
+
+
+export function useLooseChanges(pair?: { entity: ModifiableEntity, lastEntity: string }): void {
+
+  let blocker = unstable_useBlocker(() => pair != null && JSON.stringify(pair.entity) != pair.lastEntity);
 
   React.useEffect(() => {
     if (blocker.state === "blocked") {

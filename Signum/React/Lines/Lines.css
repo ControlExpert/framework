@@ -29,15 +29,18 @@ input[type=checkbox].form-control {
 }
 
 .form-control.readonly, .form-control:disabled, .form-control[readonly] {
-    overflow: hidden;
+    overflow: auto;
+    scrollbar-width: none;
     background-color: #e9ecef;
     opacity: 1;
+}
+.form-control.readonly::-webkit-scrollbar, .form-control:disabled::-webkit-scrollbar, .form-control[readonly]::-webkit-scrollbar {
+    display: none;
 }
 
 .form-control.readonly {
     background-color: #e9ecef; /*Not included in bootstrap*/
 }
-
 
     .form-control.readonly.readonly-textarea {
         height: initial !important;
@@ -216,12 +219,14 @@ ul.sf-strip-vertical > li {
     margin-left: 4px;
 }
 
-label.sf-checkbox-element {
+.sf-checkbox-element {
     display: block;
+    break-inside: avoid-column;
 }
 
-label.sf-radio-element {
+.sf-radio-element {
     display: block;
+    break-inside: avoid-column;
 }
 
 .sf-strip-link {
@@ -503,6 +508,9 @@ ul.dropdown-menu > li > a.disabled {
     opacity: .65;
 }
 
+.sticky-top {
+    z-index: 900; /*Avoid wining over dropdown-menu*/
+}
 
 .help-block {
     display: block;

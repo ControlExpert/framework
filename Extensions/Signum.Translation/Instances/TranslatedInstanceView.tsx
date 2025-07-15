@@ -1,9 +1,9 @@
 import * as React from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { Dic, softCast } from '@framework/Globals'
-import { notifySuccess } from '@framework/Operations'
-import * as CultureClient from '@framework/Basics/CultureClient'
-import { API, TranslatedInstanceView, TranslatedInstanceViewType, TranslatedTypeSummary, TranslationRecord } from '../TranslatedInstanceClient'
+import { Operations } from '@framework/Operations'
+import { CultureClient } from '@framework/Basics/CultureClient'
+import { TranslatedInstanceClient } from '../TranslatedInstanceClient'
 import { TranslationMessage } from '../Signum.Translation'
 import { useLocation, useParams } from "react-router";
 import { Link} from "react-router-dom";
@@ -17,7 +17,7 @@ import { useTitle } from '@framework/AppContext'
 import { QueryString } from '@framework/QueryString'
 import { getToString } from '@framework/Signum.Entities'
 
-export default function TranslationInstanceView() {
+export default function TranslationInstanceView(): React.JSX.Element {
   const params = useParams() as { type: string; culture?: string; };
   const location = useLocation();
 
@@ -32,7 +32,7 @@ export default function TranslationInstanceView() {
 
   const [filter, setFilter] = React.useState<string | undefined>(() => QueryString.parse(location.search).filter);
 
-  const [result, reloadResult] = useAPIWithReload(() => filter == undefined ? Promise.resolve(undefined) : API.viewTranslatedInstanceData(type, culture, filter), [type, culture, filter]);
+  const [result, reloadResult] = useAPIWithReload(() => filter == undefined ? Promise.resolve(undefined) : TranslatedInstanceClient.API.viewTranslatedInstanceData(type, culture, filter), [type, culture, filter]);
 
   function renderTable() {
     if (result == undefined || cultures == undefined)
@@ -60,7 +60,7 @@ export default function TranslationInstanceView() {
       const pr = k.tryBefore(";") ?? k;
       const rowId = k.tryAfter(";");
       const cultures = ins.translations[k];
-      return Dic.getKeys(cultures).filter(c => culture == null || culture == c).map(c => softCast<TranslationRecord>({
+      return Dic.getKeys(cultures).filter(c => culture == null || culture == c).map(c => softCast<TranslatedInstanceClient.TranslationRecord>({
         lite: ins.lite,
         propertyRoute: pr,
         rowId: rowId,
@@ -70,8 +70,8 @@ export default function TranslationInstanceView() {
       }));
     }));
 
-    lock(() => API.saveTranslatedInstanceData(records, type, false, culture)
-      .then(() => { reloadResult(); notifySuccess(); }));
+    lock(() => TranslatedInstanceClient.API.saveTranslatedInstanceData(records, type, false, culture)
+      .then(() => { reloadResult(); Operations.notifySuccess(); }));
   }
 
   const message = TranslationMessage.View0In1.niceToString(type,
@@ -97,7 +97,7 @@ export default function TranslationInstanceView() {
   );
 }
 
-export function TranslateSearchBox(p: { filter: string, setFilter: (newFilter: string) => void }) {
+export function TranslateSearchBox(p: { filter: string, setFilter: (newFilter: string) => void }): React.JSX.Element {
 
   const [tmpFilter, setTmpFilter] = React.useState(p.filter);
 
@@ -124,7 +124,7 @@ export function TranslateSearchBox(p: { filter: string, setFilter: (newFilter: s
   );
 }
 
-export function TranslatedInstances(p: { data: TranslatedInstanceViewType, cultures: string[], currentCulture?: string | undefined }) {
+export function TranslatedInstances(p: { data: TranslatedInstanceClient.TranslatedInstanceViewType, cultures: string[], currentCulture?: string | undefined }): React.JSX.Element {
 
 
   return (
@@ -134,7 +134,7 @@ export function TranslatedInstances(p: { data: TranslatedInstanceViewType, cultu
   );
 }
 
-export function TranslatedInstance(p: { ins: TranslatedInstanceView, cultures: string[], currentCulture?: string | undefined, data: TranslatedInstanceViewType }) {
+export function TranslatedInstance(p: { ins: TranslatedInstanceClient.TranslatedInstanceView, cultures: string[], currentCulture?: string | undefined, data: TranslatedInstanceClient.TranslatedInstanceViewType }): React.JSX.Element {
 
   const ins = p.ins;
   const forceUpdate = useForceUpdate();

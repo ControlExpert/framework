@@ -4,18 +4,18 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { classes, getColorContrasColorBWByHex} from '@framework/Globals'
 import { Entity, getToString, toLite, translated } from '@framework/Signum.Entities'
 import { TypeContext, mlistItemContext } from '@framework/TypeContext'
-import * as DashboardClient from '../DashboardClient'
+import { DashboardClient, PanelPartContentProps } from '../DashboardClient'
 import { DashboardEntity, PanelPartEmbedded, IPartEntity, DashboardMessage } from '../Signum.Dashboard'
 import "../Dashboard.css"
 import { ErrorBoundary } from '@framework/Components';
 import { useAPI, useForceUpdate } from '@framework/Hooks'
-import { parseIcon } from '@framework/Components/IconTypeahead'
+import { fallbackIcon, parseIcon } from '@framework/Components/IconTypeahead'
 import { DashboardController } from './DashboardFilterController'
 import { CachedQueryJS } from '../CachedQueryExecutor'
 import PinnedFilterBuilder from '@framework/SearchControl/PinnedFilterBuilder'
-import * as Navigator from '@framework/Navigator'
+import { Navigator } from '@framework/Navigator'
 
-export default function DashboardView(p: { dashboard: DashboardEntity, cachedQueries: { [userAssetKey: string]: Promise<CachedQueryJS> }, entity?: Entity, deps?: React.DependencyList; reload: () => void; hideEditButton?: boolean }) {
+export default function DashboardView(p: { dashboard: DashboardEntity, cachedQueries: { [userAssetKey: string]: Promise<CachedQueryJS> }, entity?: Entity, deps?: React.DependencyList; reload: () => void; hideEditButton?: boolean }): React.JSX.Element {
 
   const forceUpdate = useForceUpdate();
   const dashboardController = React.useMemo(() => new DashboardController(forceUpdate, p.dashboard), [p.dashboard]);
@@ -196,7 +196,7 @@ export interface PanelPartProps {
   cachedQueries: { [userAssetKey: string]: Promise<CachedQueryJS>, }
 }
 
-export function PanelPart(p: PanelPartProps) {
+export function PanelPart(p: PanelPartProps): React.JSX.Element | null {
   const content = p.ctx.value.content;
 
   const customDataRef = React.useRef();
@@ -222,7 +222,7 @@ export function PanelPart(p: PanelPartProps) {
       dashboardController: p.dashboardController,
       cachedQueries: p.cachedQueries,
       customDataRef: customDataRef,
-    } as DashboardClient.PanelPartContentProps<IPartEntity>);
+    } as PanelPartContentProps<IPartEntity>);
   }
 
   const titleText = translated(part, p => p.title) ?? (renderer.defaultTitle ? renderer.defaultTitle(content) : getToString(content));
@@ -232,7 +232,7 @@ export function PanelPart(p: PanelPartProps) {
 
   const title = !icon ? titleText :
     <span>
-      <FontAwesomeIcon icon={icon} color={iconColor} className="me-1" />{titleText}
+      <FontAwesomeIcon icon={fallbackIcon(icon)} color={iconColor} className="me-1" />{titleText}
     </span>;
 
   var style = part.customColor != null ?  "customColor": "light";
@@ -251,7 +251,7 @@ export function PanelPart(p: PanelPartProps) {
 
         {renderer.handleTitleClick == undefined ? title :
           <a className="sf-pointer"
-            style={{ color: part.useIconColorForTitle ? iconColor : part.customColor ? getColorContrasColorBWByHex(part.customColor) : undefined, textDecoration: "none" }}
+            style={{ color: part.titleColor ?? (part.customColor ? getColorContrasColorBWByHex(part.customColor) : undefined), textDecoration: "none" }}
             onClick={e => { e.preventDefault(); renderer.handleTitleClick!(content, lite, customDataRef, e); }}>
           {title}
           </a>
@@ -284,7 +284,7 @@ export function PanelPart(p: PanelPartProps) {
               dashboardController: p.dashboardController,
               cachedQueries: p.cachedQueries,
               customDataRef: customDataRef,
-            } as DashboardClient.PanelPartContentProps<IPartEntity>)
+            } as PanelPartContentProps<IPartEntity>)
           }
         </ErrorBoundary>
       </div>

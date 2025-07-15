@@ -6,12 +6,12 @@ import { toLite, Lite, JavascriptMessage } from '@framework/Signum.Entities';
 import { DateTime } from 'luxon'
 import { useAPI, useForceUpdate } from '@framework/Hooks'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import * as RemoteEmailsClient from './RemoteEmailsClient'
+import { RemoteEmailsClient } from './RemoteEmailsClient'
 import { RemoteEmailRenderer } from './RemoteEmailMessage'
 import { UserEntity, UserLiteModel } from '../../Signum.Authorization/Signum.Authorization';
 
 
-export default function RemoteEmailPopover(p: { subject: string, user: Lite<UserEntity>, remoteEmailId: string, isRead: boolean }) {
+export default function RemoteEmailPopover(p: { subject: string, user: Lite<UserEntity>, remoteEmailId: string, isRead: boolean }): React.JSX.Element {
 
   const [show, setShow] = React.useState(false);
   const handleOnMouseEnter = () => {
@@ -42,7 +42,7 @@ export default function RemoteEmailPopover(p: { subject: string, user: Lite<User
   );
 }
 
-export function RemoteEmailSnippet(p: {  user: Lite<UserEntity>, remoteEmailId: string }) {
+export function RemoteEmailSnippet(p: {  user: Lite<UserEntity>, remoteEmailId: string }): React.JSX.Element {
 
   const model = p.user.model as UserLiteModel;
 

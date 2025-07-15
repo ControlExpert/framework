@@ -2,7 +2,7 @@ import * as React from 'react'
 import * as d3 from 'd3'
 import * as ChartUtils from './Components/ChartUtils';
 import { translate, scale, rotate, skewX, skewY, matrix, scaleFor } from './Components/ChartUtils';
-import { ChartTable, ChartColumn, ChartScriptProps, ChartRow, getActiveDetector } from '../ChartClient';
+import { ChartClient, ChartTable, ChartColumn,  ChartRow, ChartScriptProps } from '../ChartClient';
 import TextEllipsis from './Components/TextEllipsis';
 import { XKeyTicks, YScaleTicks, XTitle } from './Components/Ticks';
 import { XAxis, YAxis } from './Components/Axis';
@@ -67,7 +67,7 @@ export default function renderColumns({ data, width, height, parameters, loading
 
   var y = scaleFor(valueColumn, data.rows.map(r => valueColumn.getValue(r)), 0, yRule.size('content') - (isInside ? labelsMargin + labelsPadding : 0), parameters["Scale"]);
 
-  var detector = getActiveDetector(dashboardFilter, chartRequest);
+  var detector = ChartClient.getActiveDetector(dashboardFilter, chartRequest);
 
   return (
     <svg direction="ltr" width={width} height={height}>
@@ -90,7 +90,7 @@ export default function renderColumns({ data, width, height, parameters, loading
 
 export function paintColumns({ xRule, yRule, x : x2, y, keyValues, data, parameters, hasHorizontalScale, initialLoad, onDrillDown, colIndex, colCount, memo, detector }: ChartScriptHorizontalProps & {
   colIndex: number, colCount: number
-}) {
+}): React.JSX.Element {
 
   if (hasHorizontalScale)
     throw new Error("hasHorizontalScale is not supported");
@@ -130,14 +130,27 @@ export function paintColumns({ xRule, yRule, x : x2, y, keyValues, data, paramet
 
           var active = detector?.(row);
 
-          const posy = y(row ? valueColumn.getValue(row) : 0)!;
+          var posy: number;
+          var height: number;
+
+          const scaleName = parameters["Scale"];
+          const value = row ? valueColumn.getValue(row) : 0;
+
+          if (scaleName == "MinZeroMax") {
+            posy = value < 0 ? y(0) : y(value);
+            height = value < 0 ? y(0) - y(value) : y(value) - y(0);
+          }
+          else {
+            posy = y(value);
+            height = y(value);
+          }
 
           return (
             <g className="hover-group" key={key} transform={translate(x(key)!, -posy)}>
               {row && <rect className="shape sf-transition hover-target"
                 opacity={active == false ? .5 : undefined}
                 transform={initialLoad ? scale(1, 0) : scale(1, 1)}
-                height={y(valueColumn.getValue(row))}
+                height={height}
                 width={bandwidth}
                 fill={keyColumn.getValueColor(row) ?? color(key)}
                 cursor="pointer"
@@ -179,8 +192,8 @@ export function paintColumns({ xRule, yRule, x : x2, y, keyValues, data, paramet
               {parseFloat(parameters["NumberOpacity"]) > 0 && bandwidth > 15 && row &&
                 <g className="numbers-label" >
                   <TextIfFits className="number-label sf-transition"
-                    transform={translate(bandwidth / 2, posy / 2)}
-                    maxWidth={y(valueColumn.getValue(row))!}
+                    transform={translate(bandwidth / 2, height / 2)}
+                    maxWidth={height}
                     fill={parameters["NumberColor"] ?? "#000"}
                     dominantBaseline="middle"
                     opacity={parameters["NumberOpacity"]}

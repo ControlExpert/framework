@@ -3,7 +3,7 @@ import { Duration } from 'luxon'
 import { WorkflowModel, WorkflowActivityModel } from '../Signum.Workflow'
 import { Color, Gradient } from '@framework/Basics/Color'
 import { CustomRenderer } from './CustomRenderer'
-import { WorkflowActivityStats, WorkflowActivityMonitor, formatDuration } from '../WorkflowClient'
+import { WorkflowClient } from '../WorkflowClient'
 import * as BpmnUtils from './BpmnUtils'
 import NavigatedViewer from "bpmn-js/lib/NavigatedViewer"
 import { WorkflowActivityMonitorConfig } from "../ActivityMonitor/WorkflowActivityMonitorPage";
@@ -11,19 +11,19 @@ import { QueryToken } from "@framework/FindOptions";
 import { getToString, is } from "@framework/Signum.Entities";
 
 export class WorkflowActivityMonitorRenderer extends CustomRenderer {
-  workflowActivityMonitor!: WorkflowActivityMonitor;
+  workflowActivityMonitor!: WorkflowClient.WorkflowActivityMonitor;
   workflowConfig!: WorkflowActivityMonitorConfig;
   workflowModel!: WorkflowModel;
 
   viewer!: NavigatedViewer;
 
-  gradient = new Gradient([
+  gradient: Gradient = new Gradient([
     { value: 0, color: Color.parse("rgb(117, 202, 112)") },
     { value: 0.5, color: Color.parse("rgb(251, 214, 95)") },
     { value: 1, color: Color.parse("rgb(251, 114, 95)") },
   ]);
 
-  drawShape(visuals: any, element: BPMN.DiElement) {
+  drawShape(visuals: any, element: BPMN.DiElement): SVGElement {
     const result = super.drawShape(visuals, element);
 
     if (BpmnUtils.isTaskAnyKind(element.type)) {
@@ -59,7 +59,7 @@ export class WorkflowActivityMonitorRenderer extends CustomRenderer {
   }
 }
 
-function getTitle(stats: WorkflowActivityStats, config: WorkflowActivityMonitorConfig) {
+function getTitle(stats: WorkflowClient.WorkflowActivityStats, config: WorkflowActivityMonitorConfig) {
   let result = `${getToString(stats.workflowActivity)} (${stats.caseActivityCount})`;
 
   if (config.columns.length) {
@@ -75,8 +75,8 @@ function formatMinutes(minutes: number | undefined, token: QueryToken) {
   if (minutes == undefined)
     return "";
 
-  return formatDuration(Duration.fromObject({ minutes }));
+  return WorkflowClient.formatDuration(Duration.fromObject({ minutes }));
 }
 
-export const __init__ = ['workflowActivityMonitorRenderer'];
-export const workflowActivityMonitorRenderer = ['type', WorkflowActivityMonitorRenderer];
+export const __init__: string[] = ['workflowActivityMonitorRenderer'];
+export const workflowActivityMonitorRenderer: (string | typeof WorkflowActivityMonitorRenderer)[] = ['type', WorkflowActivityMonitorRenderer];

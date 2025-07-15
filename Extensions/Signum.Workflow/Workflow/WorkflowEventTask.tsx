@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { AutoLine, EntityLine, TypeContext, EntityCombo } from '@framework/Lines'
-import * as Navigator from '@framework/Navigator'
+import { Navigator } from '@framework/Navigator'
 import { WorkflowEventTaskEntity, WorkflowEventEntity, WorkflowEventTaskActionEval, WorkflowEventType, TriggeredOn, WorkflowEventTaskConditionEval, WorkflowEventTaskModel } from '../Signum.Workflow'
 import WorkflowEventTaskConditionComponent from './WorkflowEventTaskConditionComponent'
 import WorkflowEventTaskActionComponent from './WorkflowEventTaskActionComponent'
@@ -10,7 +10,7 @@ interface WorkflowEventTaskComponentProps {
   ctx: TypeContext<WorkflowEventTaskEntity>;
 }
 
-export default function WorkflowEventTaskComponent(p : WorkflowEventTaskComponentProps){
+export default function WorkflowEventTaskComponent(p : WorkflowEventTaskComponentProps): React.JSX.Element {
   const forceUpdate = useForceUpdate();
 
   React.useEffect(handleWorkflowChange, [p.ctx.value.workflow]);

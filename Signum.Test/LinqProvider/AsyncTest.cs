@@ -1,4 +1,6 @@
 
+using System.Threading.Tasks;
+
 namespace Signum.Test.LinqProvider;
 
 /// <summary>
@@ -14,28 +16,28 @@ public class AsyncTest
     }
 
     [Fact]
-    public void ToListAsync()
+    public async Task ToListAsync()
     {
-        var artistsInBands = Database.Query<BandEntity>().ToListAsync().Result;
+        var artistsInBands = await Database.Query<BandEntity>().ToListAsync();
     }
 
     [Fact]
-    public void ToArrayAsync()
+    public async Task ToArrayAsync()
     {
-        var artistsInBands = Database.Query<BandEntity>().ToArrayAsync().Result;
+        var artistsInBands = await Database.Query<BandEntity>().ToArrayAsync();
     }
 
     [Fact]
-    public void AverageAsync()
+    public async Task AverageAsync()
     {
-        var artistsInBands = Database.Query<BandEntity>().AverageAsync(a=>a.Members.Count).Result;
+        var artistsInBands = await Database.Query<BandEntity>().AverageAsync(a => a.Members.Count);
     }
 
 
     [Fact]
-    public void MinAsync()
+    public async Task MinAsync()
     {
-        var artistsInBands = Database.Query<BandEntity>().MinAsync(a => a.Members.Count).Result;
+        var artistsInBands = await Database.Query<BandEntity>().MinAsync(a => a.Members.Count);
     }
 }
 #pragma warning restore xUnit1031 // Do not use blocking task operations in test method
