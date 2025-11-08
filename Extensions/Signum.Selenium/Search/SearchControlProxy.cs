@@ -123,7 +123,7 @@ public class SearchControlProxy
 
     public WebElementLocator CreateButton
     {
-        get { return this.Element.WithLocator(By.CssSelector(".sf-query-button.sf-create")); }
+        get { return this.Element.WithLocator(By.CssSelector(".sf-create")); }
     }
 
     public bool HasMultiplyMessage
