@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>net9.0</TargetFramework>
+		<TargetFramework>net10.0</TargetFramework>
 		<UserSecretsId>SignumTest</UserSecretsId>
 		<Nullable>enable</Nullable>
 		<WarningsAsErrors>nullable</WarningsAsErrors>
@@ -22,7 +22,7 @@
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="Signum.MSBuildTask" Version="9.0.0" />
+		<PackageReference Include="Signum.MSBuildTask" Version="10.0.0" />
 		<PackageReference Include="xunit.v3" Version="2.0.3" />
 	</ItemGroup>
 
