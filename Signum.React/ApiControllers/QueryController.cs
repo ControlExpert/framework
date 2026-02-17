@@ -255,7 +255,7 @@ namespace Signum.React.ApiControllers
 
     public class FilterConditionTS : FilterTS
     {
-        public string token;
+        public string? token;
         public FilterOperation operation;
         public object? value;
 

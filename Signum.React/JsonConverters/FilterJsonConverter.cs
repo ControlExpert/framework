@@ -26,7 +26,7 @@ namespace Signum.React.Json
             if (obj.Property("operation") != null)
                 return new FilterConditionTS
                 {
-                    token = obj.Property("token")!.Value.Value<string>(),
+                    token = obj.Property("token")?.Value.Value<string>(),
                     operation = obj.Property("operation")!.Value.ToObject<FilterOperation>(),
                     value = obj.Property("value")?.Value,
                 };

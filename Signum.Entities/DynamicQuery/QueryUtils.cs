@@ -330,7 +330,7 @@ namespace Signum.Entities.DynamicQuery
             return tokenString.IndexOf('.') == -1 && tokenString != "Entity";
         }
 
-        public static QueryToken Parse(string tokenString, QueryDescription qd, SubTokensOptions options)
+        public static QueryToken Parse(string? tokenString, QueryDescription qd, SubTokensOptions options)
         {
             if (string.IsNullOrEmpty(tokenString))
                 throw new ArgumentNullException(nameof(tokenString));
