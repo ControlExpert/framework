@@ -32,11 +32,11 @@ namespace Signum.React.Json
                 {
                     return new FilterConditionTS
                     {
-                        token = elem.GetProperty("token").GetString()!,
+                        token = elem.TryGetProperty("token", out var tokenProp) ? tokenProp.GetString() : null,
                         operation = oper.GetString()!.ToEnum<FilterOperation>(),
                         value = elem.TryGetProperty("value", out var val) ? val.ToObject<object>(options) : null,
                     };
-                }  
+                }
 
                 if (elem.TryGetProperty("groupOperation", out var groupOper))
                     return new FilterGroupTS
