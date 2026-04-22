@@ -4,15 +4,36 @@
     "sourceMap": false,
     "module": "esnext",
     "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
     "jsx": "react",
-    "noEmit": true,
+    "incremental": true,
+    "outDir": "./ts_out",
+    "composite": true,
+    //"noEmit": true,
     "strict": true,
     "baseUrl": ".",
+    "typeRoots": [
+      "./node_modules/@types"
+    ],
+    "paths": {
+      "@fortawesome/*": [
+        "./node_modules/@fortawesome/*"
+      ],
+      "*": [
+        "./node_modules/@types/*",
+        "./node_modules/*",
+        "*"
+      ]
+    },
+    "declarationMap": true,
     "lib": [
       "es2017",
       //"esnext",
       "dom"
     ]
   },
-  "exclude": [ "node_modules" ]
+  "exclude": [
+    "./node_modules",
+    "./ts_out" 
+  ]
 }

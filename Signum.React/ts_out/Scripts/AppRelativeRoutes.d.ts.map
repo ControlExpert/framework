@@ -1,0 +1,1 @@
+{"version":3,"file":"AppRelativeRoutes.d.ts","sourceRoot":"","sources":["../../Scripts/AppRelativeRoutes.tsx"],"names":[],"mappings":"AACA,OAAO,EAAS,KAAK,EAA6C,MAAM,EAAE,MAAM,cAAc,CAAC;AAC/F,OAAO,KAAK,CAAC,MAAM,SAAS,CAAC;AAgB7B,wBAAgB,sBAAsB,CAAC,OAAO,EAAE,CAAC,CAAC,OAAO,QAIxD;AAED,wBAAgB,0BAA0B,CAAC,UAAU,EAAE,OAAO,KAAK,QAUlE;AAED,wBAAgB,oBAAoB,CAAC,WAAW,EAAE,OAAO,MAAM,QA0B9D"}
