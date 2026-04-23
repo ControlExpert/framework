@@ -40,6 +40,5 @@ Signum.React/node_modules/*.js
 /Signum.TSGenerator/Binaries/*
 /Signum.React/node_modules/@types/react/node_modules*
 /Signum.React/node_modules/**/*.md
-Framework/Signum.React/tsconfig.tsbuildinfo
-Framework/Signum.React/ts_out/
-Framework/Signum.React/tsconfig.tsbuildinfo
+/Signum.React/ts_out/
+/Signum.React/tsconfig.tsbuildinfo
