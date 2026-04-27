@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>netcoreapp3.1</TargetFramework>
     <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
-    <Platforms>AnyCPU;x64</Platforms>
+    <Platforms>AnyCPU</Platforms>
     <NoWarn>NU1201</NoWarn>
   </PropertyGroup>
 
