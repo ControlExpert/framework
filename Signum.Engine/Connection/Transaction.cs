@@ -137,7 +137,8 @@ namespace Signum.Engine
                     Connection = Connector.Current.CreateConnection();
 
                     Connection.Open();
-                    Transaction = Connection.BeginTransaction(IsolationLevel ?? Connector.Current.IsolationLevel);
+                    var isoLvl = IsolationLevel ?? Connector.Current.IsolationLevel;
+                    Transaction = Connection.BeginTransaction(isoLvl);
                     Started = true;
                 }
             }
@@ -590,7 +591,9 @@ namespace Signum.Engine
                         currents.Value = null;
                 }
                 else
+                {
                     dic[Connector.Current] = coreTransaction.Parent;
+                }
             }
 
             if (commited)
