@@ -137,8 +137,7 @@ namespace Signum.Engine
                     Connection = Connector.Current.CreateConnection();
 
                     Connection.Open();
-                    var isoLvl = IsolationLevel ?? Connector.Current.IsolationLevel;
-                    Transaction = Connection.BeginTransaction(isoLvl);
+                    Transaction = Connection.BeginTransaction(IsolationLevel ?? Connector.Current.IsolationLevel);
                     Started = true;
                 }
             }
