@@ -180,7 +180,7 @@ namespace Signum.Engine
             {
                 if (Started && IsRolledback == null)
                 {
-                    Transaction!.Rollback();
+                    Transaction?.Rollback();
                     IsRolledback = ex;
                     Rolledback?.Invoke(this.userData);
                 }
