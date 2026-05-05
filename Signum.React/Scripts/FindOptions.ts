@@ -137,7 +137,6 @@ export interface OrderOptionParsed {
 }
 
 export interface ColumnOption {
-  hiddenColumn: boolean | undefined;
   token: string | QueryTokenString<any>;
   displayName?: string | (() => string);
   summaryToken?: string | QueryTokenString<any>;
