@@ -292,6 +292,10 @@ body.rtl .form-group.row > label {
     max-width: initial !important;
 }
 
+.rw-dropdown-list-input > .rw-detect-autofill {
+    opacity: 0;
+}
+
 /*form xs*/
 
 select.form-control-xs:not([size]):not([multiple]),
