@@ -32,9 +32,8 @@ namespace Signum.React.Filters
 
         public static Func<Exception, HttpError> CustomHttpErrorFactory = ex => new HttpError(ex);
 
+        // COM-8185: Removed duplicate CustomHttpErrorFactory definition (upstream merge artifact in EasyClaim_2021.11.04).
         public static Action<ResourceExecutedContext, ExceptionEntity>? ApplyMixins = null;
-
-        public static Func<Exception, HttpError> CustomHttpErrorFactory = ex => new HttpError(ex);
 
         public async Task OnResourceExecutionAsync(ResourceExecutingContext precontext, ResourceExecutionDelegate next)
         {

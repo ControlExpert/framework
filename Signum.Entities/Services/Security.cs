@@ -7,7 +7,10 @@ namespace Signum.Services
 {
     public static class Security
     {
-        public static Func<string, string, IList<byte[]>> EncodePassword = (string userName, string originalPassword) => new List<byte[]> { MD5Hash(originalPassword) };
+        // COM-8185: Reverted EncodePassword back to 1-arg Func<string, byte[]> — EasyClaim_2021.11.04 upstream
+        // introduced 2-arg Func<string, string, IList<byte[]>> in commit 0162ca2007 but left all callers as 1-arg.
+        // Consistent with WP2 (EasyClaim_2021.04.01) revert and MobileCheck UsersLogic.cs custom implementation.
+        public static Func<string, byte[]> EncodePassword = (string originalPassword) => MD5Hash(originalPassword);
 
         public static byte[] MD5Hash(string saltedPassword)
         {
