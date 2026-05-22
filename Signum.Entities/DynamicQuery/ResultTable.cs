@@ -263,7 +263,11 @@ namespace Signum.Entities.DynamicQuery
             var defConverter = converter ?? new InvariantDataTableValueConverter();
 
             DataTable dt = new DataTable("Table");
-            dt.Columns.AddRange(Columns.Select(c => new DataColumn(c.Column.DisplayName ?? c.Column.Token.NiceName(), defConverter.ConvertType(c.Column))).ToArray());
+            // COM-8185: Revert EasyClaim WP3 NiceName-based column naming back to FullKey (c.Column.Name).
+            // WP3 changed this to DisplayName ?? NiceName(), causing DuplicateNameException when multiple
+            // token paths share the same NiceName last segment. EasyClaim reverted this in WP4; we apply
+            // the same fix here to avoid accumulating NiceName-collision workarounds in every Word template.
+            dt.Columns.AddRange(Columns.Select(c => new DataColumn(c.Column.Name, defConverter.ConvertType(c.Column))).ToArray());
             foreach (var row in Rows)
             {
                 dt.Rows.Add(Columns.Select((c, i) => defConverter.ConvertValue(row[i], c.Column)).ToArray());
