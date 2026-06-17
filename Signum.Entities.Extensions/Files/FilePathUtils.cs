@@ -120,8 +120,14 @@ namespace Signum.Entities.Files
 
         public static string SafeCombine(string safeBaseDirectory, string unsafeSufix)
         {
-            if (!safeBaseDirectory.EndsWith("\\"))
-                safeBaseDirectory = safeBaseDirectory + "\\";
+            // COM-8337: use the OS-native directory separator instead of a hardcoded '\'. The previous '\\'
+            // broke on Linux (CI): files were written under '.../<dir>\/...' while reads via Path.Combine used
+            // '/', so the file was "not found". On Windows the behaviour is unchanged (DirectorySeparatorChar
+            // == '\'). KEEP THIS FIX when upgrading the Signum framework submodule in future waypoints — re-apply
+            // it if a big-bang merge overwrites it (see docs/signum-mobilecheck-learnings.md §16).
+            var separator = Path.DirectorySeparatorChar;
+            if (!safeBaseDirectory.EndsWith(separator))
+                safeBaseDirectory = safeBaseDirectory + separator;
 
             safeBaseDirectory = Path.GetFullPath(safeBaseDirectory);
 
