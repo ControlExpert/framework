@@ -27,7 +27,8 @@ public class FilterJsonConverter : JsonConverter<FilterTS>
             {
                 return new FilterConditionTS
                 {
-                    token = elem.GetProperty("token").GetString()!,
+                    // COM-7844: token can be missing in filter requests
+                    token = elem.TryGetProperty("token", out var tokenProp) ? tokenProp.GetString() : null,
                     operation = oper.GetString()!.ToEnum<FilterOperation>(),
                     value = elem.TryGetProperty("value", out var val) ? val.ToObject<object>(options) : null,
                 };

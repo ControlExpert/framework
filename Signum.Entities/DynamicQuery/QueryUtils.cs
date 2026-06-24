@@ -338,7 +338,8 @@ public static class QueryUtils
         return !tokenString.Contains('.') && tokenString != "Entity";
     }
 
-    public static QueryToken Parse(string tokenString, QueryDescription qd, SubTokensOptions options)
+    // COM-7844: tokenString must be nullable to avoid null ref when called from SubTokens API
+    public static QueryToken Parse(string? tokenString, QueryDescription qd, SubTokensOptions options)
     {
         if (string.IsNullOrEmpty(tokenString))
             throw new ArgumentNullException(nameof(tokenString));

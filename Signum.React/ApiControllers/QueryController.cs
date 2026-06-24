@@ -252,7 +252,8 @@ public abstract class FilterTS
 
 public class FilterConditionTS : FilterTS
 {
-    public string token;
+    // COM-7844: nullable to allow missing token in filter requests
+    public string? token;
     public FilterOperation operation;
     public object? value;
 
