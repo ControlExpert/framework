@@ -203,7 +203,8 @@ export function QuickLinkWidget(p: QuickLinkWidgetProps) {
                   {dd.icon && "\u00A0"}
                   {dd.text(gr.elements)}
                 </>} />
-                <Dropdown.Menu align="end">
+                {/* COM-8187: react-bootstrap 2.0.2 maps align="right" to Bootstrap 5 dropdown-menu-end; "end" is not a valid AlignType */}
+                <Dropdown.Menu align="right">
                   {gr.elements.orderBy(a => a.order).map((a, i) => React.cloneElement(a.toDropDownItem(), { key: i }))}
                 </Dropdown.Menu>
               </Dropdown>

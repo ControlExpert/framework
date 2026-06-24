@@ -60,7 +60,8 @@ public static class ResetPasswordRequestLogic
                     user.Execute(UserOperation.Reactivate);
                 }
 
-                user.PasswordHash = Security.EncodePassword(user.UserName, password).Last();
+                // COM-8185: EncodePassword reverted to 1-arg Func<string, byte[]> — drop the userName arg
+                user.PasswordHash = Security.EncodePassword(password);
                 user.LoginFailedCounter = 0;
                 using (AuthLogic.Disable())
                 {
