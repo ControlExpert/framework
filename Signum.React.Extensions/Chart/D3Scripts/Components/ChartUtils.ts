@@ -164,10 +164,10 @@ export function completeValues(column: ChartColumn<unknown>, values: unknown[], 
 
   function ceil(date: DateTime, unit: DurationUnit) {
     // COM-8187: DurationUnit (plural keys) and DateTimeUnit (singular keys) are disjoint in luxon 3.x types; runtime values are compatible
-    if (date.toMillis() == date.startOf(unit as unknown as DateTimeUnit).toMillis())
+    if (date.toMillis() == date.startOf(unit as any).toMillis())
       return date;
 
-    return date.startOf(unit as unknown as DateTimeUnit).plus({ [unit]: 1 });
+    return date.startOf(unit as any).plus({ [unit]: 1 });
   }
  
   function tryFloor(date: string | null | undefined, unit: DurationUnit) {
@@ -179,7 +179,7 @@ export function completeValues(column: ChartColumn<unknown>, values: unknown[], 
 
   function floor(date: DateTime, unit: DurationUnit) {
     // COM-8187: DurationUnit (plural keys) and DateTimeUnit (singular keys) are disjoint in luxon 3.x types; runtime values are compatible
-    return date.startOf(unit as unknown as DateTimeUnit);
+    return date.startOf(unit as any);
   }
 
   const columnNomalized = normalizeToken(column.token!);  
