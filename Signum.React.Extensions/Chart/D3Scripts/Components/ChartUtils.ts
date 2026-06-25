@@ -1,4 +1,4 @@
-import { DateTime, DurationUnit, Duration } from "luxon"
+import { DateTime, DurationUnit, Duration, DateTimeUnit } from "luxon"
 import * as d3 from "d3"
 import * as d3sc from "d3-scale-chromatic";
 import { ChartTable, ChartColumn, ChartRow } from "../../ChartClient"
@@ -162,11 +162,11 @@ export function completeValues(column: ChartColumn<unknown>, values: unknown[], 
 
 
   function ceil(date: DateTime, unit: DurationUnit) {
-
-    if (date.toMillis() == date.startOf(unit).toMillis())
+    // COM-8187: DurationUnit (plural keys) and DateTimeUnit (singular keys) are disjoint in luxon 3.x types; runtime values are compatible
+    if (date.toMillis() == date.startOf(unit as unknown as DateTimeUnit).toMillis())
       return date;
 
-    return date.startOf(unit).plus({ [unit]: 1 });
+    return date.startOf(unit as unknown as DateTimeUnit).plus({ [unit]: 1 });
   }
  
   function tryFloor(date: string | null | undefined, unit: DurationUnit) {
@@ -177,8 +177,8 @@ export function completeValues(column: ChartColumn<unknown>, values: unknown[], 
   }
 
   function floor(date: DateTime, unit: DurationUnit) {
-
-    return date.startOf(unit);
+    // COM-8187: DurationUnit (plural keys) and DateTimeUnit (singular keys) are disjoint in luxon 3.x types; runtime values are compatible
+    return date.startOf(unit as unknown as DateTimeUnit);
   }
 
   const columnNomalized = normalizeToken(column.token!);  

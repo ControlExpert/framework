@@ -40,9 +40,9 @@ export default function LoginDropdown(p: {
 
   var extraButtons = p.extraButons && p.extraButons(user);
 
-  // COM-8187: NavDropdown in react-bootstrap 2.0.2 uses alignRight={true} instead of align="end"; alignRight renders Bootstrap 5 dropdown-menu-end
+  // COM-8187: react-bootstrap 2.0.2 removed alignRight; use align="end" (Bootstrap 5 value) to right-align the nav dropdown menu
   return (
-    <NavDropdown className="sf-login-dropdown" id="sfLoginDropdown" title={p.renderName ? p.renderName(user) : user.userName!} alignRight>
+    <NavDropdown className="sf-login-dropdown" id="sfLoginDropdown" title={p.renderName ? p.renderName(user) : user.userName!} align="end">
       {pv && <NavDropdown.Item id="sf-auth-profile" onClick={handleProfileClick}><FontAwesomeIcon icon="user-edit" fixedWidth className="me-2" /> {LoginAuthMessage.MyProfile.niceToString()}</NavDropdown.Item>}
       {cpv && <LinkContainer to="~/auth/changePassword">
         <NavDropdown.Item><FontAwesomeIcon icon="key" fixedWidth className="me-2" /> {LoginAuthMessage.ChangePassword.niceToString()}</NavDropdown.Item>
