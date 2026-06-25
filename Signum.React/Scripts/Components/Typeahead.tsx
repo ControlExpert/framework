@@ -256,9 +256,9 @@ export const Typeahead = React.forwardRef(function Typeahead(p: TypeaheadProps, 
 
   function renderDefaultList() {
     var items = controller.items;
-    // COM-8187: react-bootstrap 2.0.2 maps align="right" to Bootstrap 5 dropdown-menu-end; "end" is not a valid AlignType
+    // COM-8187: AlignType in react-bootstrap 2.0.2 uses Bootstrap 5 values; "end" aligns dropdown-menu to the right
     return (
-      <Dropdown.Menu align={controller.rtl ? "right" : undefined} className="typeahead">
+      <Dropdown.Menu align={controller.rtl ? "end" : undefined} className="typeahead">
         {
           !items ? null :
             items.length == 0 ? <button className="no-results dropdown-item"><small>{p.noResultsMessage}</small></button> :

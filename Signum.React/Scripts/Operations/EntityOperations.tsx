@@ -230,8 +230,8 @@ export function OperationButton({ group, onOperationClick, canExecute, eoc: eocO
     <Dropdown as={ButtonGroup}>
       {button}
       <Dropdown.Toggle split color={eoc.color} id={eoc.operationInfo.key + "_split"} />
-      {/* COM-8187: react-bootstrap 2.0.2 maps align="right" to Bootstrap 5 dropdown-menu-end; "end" is not a valid AlignType */}
-      <Dropdown.Menu align="right">
+      {/* COM-8187: AlignType in react-bootstrap 2.0.2 uses Bootstrap 5 values; "end" aligns dropdown-menu to the right */}
+      <Dropdown.Menu align="end">
         {dropdownAlternatives.map(a => renderAlternative(a))}
       </Dropdown.Menu>
     </Dropdown>
