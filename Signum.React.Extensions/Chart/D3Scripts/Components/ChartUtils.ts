@@ -1,4 +1,5 @@
-import { DateTime, DurationUnit, Duration, DateTimeUnit } from "luxon"
+// COM-8187: DateTimeUnit removed in Luxon 2.x; DurationUnit is the replacement already imported.
+import { DateTime, DurationUnit, Duration } from "luxon"
 import * as d3 from "d3"
 import * as d3sc from "d3-scale-chromatic";
 import { ChartTable, ChartColumn, ChartRow } from "../../ChartClient"
