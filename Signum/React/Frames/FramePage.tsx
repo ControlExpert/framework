@@ -399,7 +399,7 @@ export function useLooseChanges(pair?: { entity: ModifiableEntity, lastEntity: s
     if (blocker.state === "blocked") {
       let proceed = window.confirm(JavascriptMessage.loseCurrentChanges.niceToString());
       if (proceed) {
-        window.setTimeout(blocker.proceed, 0);
+        blocker.proceed();
       } else {
         blocker.reset();
       }
