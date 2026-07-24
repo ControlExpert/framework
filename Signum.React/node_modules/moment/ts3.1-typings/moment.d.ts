@@ -83,7 +83,7 @@ declare namespace moment {
     sameElse?: CalendarSpecVal;
 
     // any additional properties might be used with moment.calendarFormat
-    [x: string]: CalendarSpecVal | void; // undefined
+    [x: string]: CalendarSpecVal | undefined;
   }
 
   type RelativeTimeSpecVal = (
@@ -104,7 +104,7 @@ declare namespace moment {
     hh?: RelativeTimeSpecVal;
     d?: RelativeTimeSpecVal;
     dd?: RelativeTimeSpecVal;
-    w?: RelativeTimeSpecVal
+    w?: RelativeTimeSpecVal;
     ww?: RelativeTimeSpecVal;
     M?: RelativeTimeSpecVal;
     MM?: RelativeTimeSpecVal;
@@ -131,14 +131,6 @@ declare namespace moment {
 
   type MonthWeekdayFn = (momentToFormat: Moment, format?: string) => string;
   type WeekdaySimpleFn = (momentToFormat: Moment) => string;
-  interface EraSpec {
-    since: string | number;
-    until: string | number;
-    offset: number;
-    name: string;
-    narrow: string;
-    abbr: string;
-  }
 
   interface LocaleSpecification {
     months?: string[] | StandaloneFormatSpec | MonthWeekdayFn;
@@ -161,7 +153,6 @@ declare namespace moment {
     ordinalParse?: RegExp;
 
     week?: WeekSpec;
-    eras?: EraSpec[];
 
     // Allow anything: in general any property that is passed as locale spec is
     // put in the locale object so it can be used by locale functions
@@ -179,14 +170,13 @@ declare namespace moment {
     seconds: number;
     milliseconds: number;
   }
-
   interface argThresholdOpts {
     ss?: number;
     s?: number;
     m?: number;
     h?: number;
     d?: number;
-    w?: number | void;
+    w?: number | null;
     M?: number;
   }
 
@@ -292,12 +282,12 @@ declare namespace moment {
     overflow: number;
     charsLeftOver: number;
     nullInput: boolean;
-    invalidMonth: string | void; // null
+    invalidMonth: string | null;
     invalidFormat: boolean;
     userInvalidated: boolean;
     iso: boolean;
     parsedDateParts: any[];
-    meridiem: string | void; // null
+    meridiem: string | null;
   }
 
   interface MomentParsingFlagsOpt {
@@ -312,7 +302,7 @@ declare namespace moment {
     userInvalidated?: boolean;
     iso?: boolean;
     parsedDateParts?: any[];
-    meridiem?: string;
+    meridiem?: string | null;
   }
 
   interface MomentBuiltinFormat {
@@ -321,7 +311,7 @@ declare namespace moment {
 
   type MomentFormatSpecification = string | MomentBuiltinFormat | (string | MomentBuiltinFormat)[];
 
-  export namespace unitOfTime {
+  namespace unitOfTime {
     type Base = (
       "year" | "years" | "y" |
       "month" | "months" | "M" |
@@ -336,17 +326,17 @@ declare namespace moment {
     type _quarter = "quarter" | "quarters" | "Q";
     type _isoWeek = "isoWeek" | "isoWeeks" | "W";
     type _date = "date" | "dates" | "D";
-    type DurationConstructor = Base | _quarter | _isoWeek;
+    type DurationConstructor = Base | _quarter;
 
-    export type DurationAs = Base;
+    type DurationAs = Base;
 
-    export type StartOf = Base | _quarter | _isoWeek | _date | void; // null
+    type StartOf = Base | _quarter | _isoWeek | _date | null;
 
-    export type Diff = Base | _quarter;
+    type Diff = Base | _quarter;
 
-    export type MomentConstructor = Base | _date;
+    type MomentConstructor = Base | _date;
 
-    export type All = Base | _quarter | _isoWeek | _date |
+    type All = Base | _quarter | _isoWeek | _date |
       "weekYear" | "weekYears" | "gg" |
       "isoWeekYear" | "isoWeekYears" | "GG" |
       "dayOfYear" | "dayOfYears" | "DDD" |
@@ -354,83 +344,82 @@ declare namespace moment {
       "isoWeekday" | "isoWeekdays" | "E";
   }
 
-  type numberlike = number | string;
   interface MomentInputObject {
-    years?: numberlike;
-    year?: numberlike;
-    y?: numberlike;
+    years?: number;
+    year?: number;
+    y?: number;
 
-    months?: numberlike;
-    month?: numberlike;
-    M?: numberlike;
+    months?: number;
+    month?: number;
+    M?: number;
 
-    days?: numberlike;
-    day?: numberlike;
-    d?: numberlike;
+    days?: number;
+    day?: number;
+    d?: number;
 
-    dates?: numberlike;
-    date?: numberlike;
-    D?: numberlike;
+    dates?: number;
+    date?: number;
+    D?: number;
 
-    hours?: numberlike;
-    hour?: numberlike;
-    h?: numberlike;
+    hours?: number;
+    hour?: number;
+    h?: number;
 
-    minutes?: numberlike;
-    minute?: numberlike;
-    m?: numberlike;
+    minutes?: number;
+    minute?: number;
+    m?: number;
 
-    seconds?: numberlike;
-    second?: numberlike;
-    s?: numberlike;
+    seconds?: number;
+    second?: number;
+    s?: number;
 
-    milliseconds?: numberlike;
-    millisecond?: numberlike;
-    ms?: numberlike;
+    milliseconds?: number;
+    millisecond?: number;
+    ms?: number;
   }
 
   interface DurationInputObject extends MomentInputObject {
-    quarters?: numberlike;
-    quarter?: numberlike;
-    Q?: numberlike;
+    quarters?: number;
+    quarter?: number;
+    Q?: number;
 
-    weeks?: numberlike;
-    week?: numberlike;
-    w?: numberlike;
+    weeks?: number;
+    week?: number;
+    w?: number;
   }
 
   interface MomentSetObject extends MomentInputObject {
-    weekYears?: numberlike;
-    weekYear?: numberlike;
-    gg?: numberlike;
+    weekYears?: number;
+    weekYear?: number;
+    gg?: number;
 
-    isoWeekYears?: numberlike;
-    isoWeekYear?: numberlike;
-    GG?: numberlike;
+    isoWeekYears?: number;
+    isoWeekYear?: number;
+    GG?: number;
 
-    quarters?: numberlike;
-    quarter?: numberlike;
-    Q?: numberlike;
+    quarters?: number;
+    quarter?: number;
+    Q?: number;
 
-    weeks?: numberlike;
-    week?: numberlike;
-    w?: numberlike;
+    weeks?: number;
+    week?: number;
+    w?: number;
 
-    isoWeeks?: numberlike;
-    isoWeek?: numberlike;
-    W?: numberlike;
+    isoWeeks?: number;
+    isoWeek?: number;
+    W?: number;
 
-    dayOfYears?: numberlike;
-    dayOfYear?: numberlike;
-    DDD?: numberlike;
+    dayOfYears?: number;
+    dayOfYear?: number;
+    DDD?: number;
 
-    weekdays?: numberlike;
-    weekday?: numberlike;
-    e?: numberlike;
+    weekdays?: number;
+    weekday?: number;
+    e?: number;
 
-    isoWeekdays?: numberlike;
-    isoWeekday?: numberlike;
-    E?: numberlike;
+    isoWeekdays?: number;
+    isoWeekday?: number;
+    E?: number;
   }
 
   interface FromTo {
@@ -438,8 +427,8 @@ declare namespace moment {
     to: MomentInput;
   }
 
-  type MomentInput = Moment | Date | string | number | (number | string)[] | MomentInputObject | void; // null | undefined
-  type DurationInputArg1 = Duration | number | string | FromTo | DurationInputObject | void; // null | undefined
+  type MomentInput = Moment | Date | string | number | (number | string)[] | MomentInputObject | null | undefined;
+  type DurationInputArg1 = Duration | number | string | FromTo | DurationInputObject | null | undefined;
   type DurationInputArg2 = unitOfTime.DurationConstructor;
   type LocaleSpecifier = string | Moment | Duration | string[] | boolean;
 
@@ -471,7 +460,7 @@ declare namespace moment {
 
     calendar(): string;
     calendar(formats: CalendarSpec): string;
-    calendar(time: MomentInput, formats?: CalendarSpec): string;
+    calendar(time?: MomentInput, formats?: CalendarSpec): string;
 
     clone(): Moment;
 
@@ -572,7 +561,6 @@ declare namespace moment {
     isoWeeks(): number;
     isoWeeks(d: number): Moment;
     weeksInYear(): number;
-    weeksInWeekYear(): number;
     isoWeeksInYear(): number;
     isoWeeksInISOWeekYear(): number;
     dayOfYear(): number;
@@ -585,7 +573,7 @@ declare namespace moment {
 
     diff(b: MomentInput, unitOfTime?: unitOfTime.Diff, precise?: boolean): number;
 
-    toArray(): number[];
+    toArray(): [number, number, number, number, number, number, number];
     toDate(): Date;
     toISOString(keepOffset?: boolean): string;
     inspect(): string;
@@ -700,7 +688,7 @@ declare namespace moment {
 
   export function locale(language?: string): string;
   export function locale(language?: string[]): string;
-  export function locale(language?: string, definition?: LocaleSpecification | void): string; // null | undefined
+  export function locale(language?: string, definition?: LocaleSpecification | null | undefined): string;
 
   export function localeData(key?: string | string[]): Locale;
 
@@ -754,8 +742,8 @@ declare namespace moment {
    */
   export function now(): number;
 
-  export function defineLocale(language: string, localeSpec: LocaleSpecification | void): Locale; // null
-  export function updateLocale(language: string, localeSpec: LocaleSpecification | void): Locale; // null
+  export function defineLocale(language: string, localeSpec: LocaleSpecification | null): Locale;
+  export function updateLocale(language: string, localeSpec: LocaleSpecification | null): Locale;
 
   export function locales(): string[];
 
@@ -767,7 +755,6 @@ declare namespace moment {
   export function calendarFormat(m: Moment, now: Moment): string;
 
   export function parseTwoDigitYear(input: string): number;
-
   /**
    * Constant used to enable explicit ISO_8601 format parsing.
    */
@@ -776,8 +763,9 @@ declare namespace moment {
 
   export var defaultFormat: string;
   export var defaultFormatUtc: string;
+
   export var suppressDeprecationWarnings: boolean;
-  export var deprecationHandler: ((name: string | void, msg: string) => void) | void;
+  export var deprecationHandler: ((name: string | null, msg: string) => void) | null | undefined;
 
   export var HTML5_FMT: {
     DATETIME_LOCAL: string,
@@ -794,3 +782,4 @@ declare namespace moment {
 }
 
 export = moment;
+export as namespace moment;
