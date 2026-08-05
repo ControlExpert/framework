@@ -50,7 +50,7 @@ public class UpgradeContext
 
     static string GetApplicationName(string rootFolder)
     {
-        var lists = Directory.GetFiles(rootFolder, "*.sln").Select(a => Path.GetFileNameWithoutExtension(a)).ToList();
+        var lists = Directory.GetFiles(rootFolder, "*.sln").Concat(Directory.GetFiles(rootFolder, "*.slnx")).Select(a => Path.GetFileNameWithoutExtension(a)).Distinct().ToList();
 
         return lists.SingleEx(a => Directory.Exists(Path.Combine(rootFolder, a)) || Directory.Exists(Path.Combine(rootFolder, a + ".Entities")));
     }
