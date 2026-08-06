@@ -3,13 +3,14 @@ using Signum.Utilities.Reflection;
 using Signum.Entities.Authorization;
 using Signum.Entities.Basics;
 using Signum.Engine.Json;
+using System.Text.Json;
 
 namespace Signum.Engine.Processes;
 
 public static class PackageLogic
 {
     [AutoExpressionField]
-    public static IQueryable<PackageLineEntity> Lines(this PackageEntity p) => 
+    public static IQueryable<PackageLineEntity> Lines(this PackageEntity p) =>
         As.Expression(() => Database.Query<PackageLineEntity>().Where(pl => pl.Package.Is(p)));
 
     public static void AssertStarted(SchemaBuilder sb)
@@ -50,8 +51,8 @@ public static class PackageLogic
                     LastProcess = p,
                     Exception = pl.Exception(p),
                 });
-            
-            
+
+
             QueryLogic.Expressions.Register((PackageEntity p) => p.Lines(), () => ProcessMessage.Lines.NiceToString());
 
             if (packages)
@@ -158,7 +159,7 @@ public static class PackageLogic
         {
             Package = package.ToLite(),
             Target = e,
-        }); 
+        });
 
         return package;
     }
@@ -166,13 +167,13 @@ public static class PackageLogic
     static readonly GenericInvoker<Func<PackageEntity, IEnumerable<Lite<IEntity>>, int>> giInsertPackageLines = new(
         (package, lites) => InsertPackageLines<Entity>(package, lites));
     static int InsertPackageLines<T>(PackageEntity package, IEnumerable<Lite<IEntity>> lites)
-        where T :Entity
+        where T : Entity
     {
         return Database.Query<T>().Where(p => lites.Contains(p.ToLite())).UnsafeInsert(p => new PackageLineEntity
         {
             Package = package.ToLite(),
             Target = p,
-        }); 
+        });
     }
 
     public static ProcessEntity CreatePackageOperation(IEnumerable<Lite<IEntity>> entities, OperationSymbol operation, params object?[]? operationArgs)
@@ -195,10 +196,64 @@ public static class PackageLogic
             pl => ((PackageOperationEntity)pl.Package.Entity).InCondition(typeCondition));
     }
 
+    // COM-8741: System.Text.Json deserializes "object[]" elements as JsonElement instead of the original
+    // CLR type (e.g. Lite<EmailTemplateEntity>), so ArgsExtensions.GetArg<T>() never finds a match and
+    // throws "Sequence contains no ... in the argument list". Signum fixed this upstream in Waypoint 11
+    // (EasyClaim_2024.02.17, commit 6f49c4de66 "fix PackageLogic") by routing elements through
+    // OperationController.BaseOperationRequest.ConvertObject, which lives in Signum.React and is not
+    // reachable from this assembly at our current framework version. ConvertJsonElement below is a local
+    // port of that same conversion logic until the WP11 upgrade brings the upstream fix.
     public static object?[]? GetOperationArgs(this PackageEntity package)
     {
-        return package.OperationArguments == null ? null : 
-            (object?[])JsonExtensions.FromJsonBytes<object[]>(package.OperationArguments, EntityJsonContext.FullJsonSerializerOptions);
+        return package.OperationArguments == null ? null :
+            JsonExtensions.FromJsonBytes<object[]>(package.OperationArguments, EntityJsonContext.FullJsonSerializerOptions)
+            .Select(a => a is JsonElement element ? ConvertJsonElement(element) : a)
+            .ToArray();
+    }
+
+    // COM-8741: local port of OperationController.ConvertObject (Signum.React) — see comment on GetOperationArgs above.
+    private static object? ConvertJsonElement(JsonElement element)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Undefined:
+            case JsonValueKind.Null:
+                return null;
+            case JsonValueKind.String:
+                if (element.TryGetDateTime(out var dateTime))
+                {
+                    return dateTime;
+                }
+
+                if (element.TryGetDateTimeOffset(out var dateTimeOffset))
+                {
+                    return dateTimeOffset;
+                }
+
+                return element.GetString();
+            case JsonValueKind.Number:
+                return element.GetDecimal();
+            case JsonValueKind.True:
+                return true;
+            case JsonValueKind.False:
+                return false;
+            case JsonValueKind.Object:
+                if (element.TryGetProperty("EntityType", out _))
+                {
+                    return element.ToObject<Lite<Entity>>(EntityJsonContext.FullJsonSerializerOptions);
+                }
+
+                if (element.TryGetProperty("Type", out _))
+                {
+                    return element.ToObject<ModifiableEntity>(EntityJsonContext.FullJsonSerializerOptions);
+                }
+
+                throw new InvalidOperationException($"Impossible to convert JSON element to a CLR type. Received JSON:\r\n\r\n{element}");
+            case JsonValueKind.Array:
+                return element.EnumerateArray().Select(ConvertJsonElement).ToList();
+            default:
+                throw new UnexpectedValueException(element.ValueKind);
+        }
     }
 
     public static PackageEntity SetOperationArgs(this PackageEntity package, object?[]? args)
@@ -249,7 +304,7 @@ public class PackageOperationAlgorithm : IProcessAlgorithm
 public class PackageDeleteAlgorithm<T> : IProcessAlgorithm where T : class, IEntity
 {
     public DeleteSymbol<T> DeleteSymbol { get; private set; }
-    
+
     public PackageDeleteAlgorithm(DeleteSymbol<T> deleteSymbol)
     {
         this.DeleteSymbol = deleteSymbol ?? throw new ArgumentNullException("operatonKey");
@@ -288,7 +343,7 @@ public class PackageSave<T> : IProcessAlgorithm where T : class, IEntity
             });
     }
 }
-   
+
 public class PackageExecuteAlgorithm<T> : IProcessAlgorithm where T : class, IEntity
 {
     public ExecuteSymbol<T> Symbol { get; private set; }
