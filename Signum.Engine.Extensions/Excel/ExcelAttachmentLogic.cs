@@ -88,12 +88,15 @@ public class ExcelAttachmentLogic
 
     static string? ExcelAttachmentTitle_StaticPropertyValidation(ExcelAttachmentEntity excelAttachment, PropertyInfo pi)
     {
-        var template = excelAttachment.GetParentEntity<EmailTemplateEntity>()!;
+        // COM-8837: Use TryGetParentEntity (like the FileName validator above) instead of GetParentEntity,
+        // which throws InvalidOperationException("parentEntity is null") for a not-yet-attached attachment row.
+        // Also fixed a copy-paste bug that assigned the parsed template to FileNameNode instead of TitleNode.
+        var template = excelAttachment.TryGetParentEntity<EmailTemplateEntity>();
         if (template != null && excelAttachment.TitleNode as TextTemplateParser.BlockNode == null)
         {
             try
             {
-                excelAttachment.FileNameNode = EmailTemplateLogic.ParseTemplate(template, excelAttachment.Title, out string errorMessage);
+                excelAttachment.TitleNode = EmailTemplateLogic.ParseTemplate(template, excelAttachment.Title, out string errorMessage);
                 return errorMessage.DefaultToNull();
             }
             catch (Exception ex)
