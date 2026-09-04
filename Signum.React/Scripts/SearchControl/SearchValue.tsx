@@ -111,8 +111,14 @@ const SearchValue = React.forwardRef(function SearchValue(p: SearchValueProps, r
       return Promise.resolve(undefined);
 
     if (p.initialValue != undefined) {
-      if (Hooks.areEqual(deps ?? [], initialDeps.current ?? []))
+      if (Hooks.areEqual(deps ?? [], initialDeps.current ?? [])) {
+        // COM-8860: the fast path skipped onValueChange, so SearchValueLine's forceUpdate (triggered on ref-attach)
+        // ran before this value was known, leaving find/view/extraButtons stuck at "undefined". Under React 18's
+        // automatic batching this race is now consistently lost, whereas React 17 happened to win it.
+        controller.value = p.initialValue;
+        p.onValueChange && p.onValueChange(p.initialValue);
         return Promise.resolve(p.initialValue);
+      }
       else
         return makeRequest();
     } else {
