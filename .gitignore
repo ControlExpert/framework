@@ -41,3 +41,4 @@ Signum.Analyzer/packages/*
 **/ts_out/**
 /Extensions/Signum.Help/node_modules/.bin/marked
 */node_modules/**
+node_modules/
