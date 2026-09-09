@@ -380,7 +380,8 @@ function complete(values: unknown[], allValues: unknown[], column: ChartColumn<u
   throw new Error();
 }
 
-export function getStackOffset(curveName: string): ((series: d3.Series<any, any>, order: number[]) => void) | undefined {
+// COM-8866: d3-shape 3.x's stackOffsetNone/Expand/Silhouette/Wiggle take (series: Series<any,any>[], order: Iterable<number>), not (series: Series<any,any>, order: number[]); upstream Signum bug at EasyClaim_2024.02.17, fixed locally since a later upstream fix wasn't found nearby.
+export function getStackOffset(curveName: string): ((series: d3.Series<any, any>[], order: Iterable<number>) => void) | undefined {
   switch (curveName) {
     case "zero": return d3.stackOffsetNone;
     case "expand": return d3.stackOffsetExpand;

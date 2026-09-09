@@ -9,8 +9,9 @@ import { PrintLineEntity, PrintPackageEntity, PrintPermission, PrintLineOperatio
 import { ProcessEntity } from '../Signum.Processes/Signum.Processes'
 import { FileTypeSymbol } from '../Signum.Files/Signum.Files'
 import * as OmniboxSpecialAction from '@framework/OmniboxSpecialAction'
-import * as AuthClient from '../Signum.Authorization/AuthClient'
 import { ImportComponent } from '@framework/ImportComponent'
+// COM-8866: isPermissionAuthorized moved to @framework/AppContext (Upgrade_20230912_isPermissionAuthorized); upstream Signum missed this file at EasyClaim_2024.02.17, fixed locally.
+import { isPermissionAuthorized } from '@framework/AppContext'
 
 export function start(options: { routes: RouteObject[], }) {
   Navigator.addSettings(new EntitySettings(PrintLineEntity, e => import('./Templates/PrintLine'), { isCreable: "IsSearch" }));

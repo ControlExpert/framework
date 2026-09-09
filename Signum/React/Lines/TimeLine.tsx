@@ -82,7 +82,8 @@ export interface TimeTextBoxProps {
   validateKey: (e: React.KeyboardEvent<any>) => boolean;
   formControlClass?: string;
   durationFormat?: string;
-  htmlAttributes?: React.HTMLAttributes<HTMLInputElement>;
+  // COM-8866: React.HTMLAttributes doesn't include 'placeholder' (only React.InputHTMLAttributes does); upstream Signum bug at EasyClaim_2024.02.17, fixed locally since a later upstream fix wasn't found nearby.
+  htmlAttributes?: React.InputHTMLAttributes<HTMLInputElement>;
   innerRef?: React.Ref<HTMLInputElement>;
   id?: string;
 }

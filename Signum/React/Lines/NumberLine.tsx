@@ -100,7 +100,8 @@ export interface NumberBoxProps {
   validateKey: (e: React.KeyboardEvent<any>) => boolean;
   format: Intl.NumberFormat;
   formControlClass?: string;
-  htmlAttributes?: React.HTMLAttributes<HTMLInputElement>;
+  // COM-8866: React.HTMLAttributes doesn't include 'placeholder' (only React.InputHTMLAttributes does); upstream Signum bug at EasyClaim_2024.02.17, fixed locally since a later upstream fix wasn't found nearby.
+  htmlAttributes?: React.InputHTMLAttributes<HTMLInputElement>;
   innerRef?: ((ta: HTMLInputElement | null) => void) | React.RefObject<HTMLInputElement>;
   id?: string;
 }
