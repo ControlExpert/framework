@@ -9,7 +9,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 
 export default function CultureDropdown(p: { fullName?: boolean }) {
 
-  var cultures = useAPI(signal => CultureClient.getCultures(false), []);
+  var cultures = useAPI(signal => CultureClient.getCultures(null), []);
 
   if (!cultures)
     return null;

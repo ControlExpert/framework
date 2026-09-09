@@ -53,7 +53,7 @@ public class SimpleHttpBroadcast : IServerBroadcast
 
         foreach (var url in broadcastUrls)
         {
-            string? errorBody = null; 
+            string? errorBody = null;
             try
             {
                 var fullUrl = url.TrimEnd('/') + "/api/cache/invalidateTable";
@@ -68,7 +68,7 @@ public class SimpleHttpBroadcast : IServerBroadcast
                 }
 
             }
-           
+
             catch (Exception e)
             {
                 e.LogException(a =>

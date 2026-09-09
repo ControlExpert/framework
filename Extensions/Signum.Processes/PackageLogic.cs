@@ -11,7 +11,7 @@ namespace Signum.Processes;
 public static class PackageLogic
 {
     [AutoExpressionField]
-    public static IQueryable<PackageLineEntity> Lines(this PackageEntity p) => 
+    public static IQueryable<PackageLineEntity> Lines(this PackageEntity p) =>
         As.Expression(() => Database.Query<PackageLineEntity>().Where(pl => pl.Package.Is(p)));
 
     public static void AssertStarted(SchemaBuilder sb)
@@ -52,8 +52,7 @@ public static class PackageLogic
                     LastProcess = p,
                     Exception = pl.Exception(p),
                 });
-            
-            
+
             QueryLogic.Expressions.Register((PackageEntity p) => p.Lines(), ProcessMessage.Lines);
 
             if(packages || packageOperations)
@@ -188,7 +187,7 @@ public static class PackageLogic
         {
             Package = package.ToLite(),
             Target = e,
-        }); 
+        });
 
         return package;
     }
@@ -196,13 +195,13 @@ public static class PackageLogic
     static readonly GenericInvoker<Func<PackageEntity, IEnumerable<Lite<IEntity>>, int>> giInsertPackageLines = new(
         (package, lites) => InsertPackageLines<Entity>(package, lites));
     static int InsertPackageLines<T>(PackageEntity package, IEnumerable<Lite<IEntity>> lites)
-        where T :Entity
+        where T : Entity
     {
         return Database.Query<T>().Where(p => lites.Contains(p.ToLite())).UnsafeInsert(p => new PackageLineEntity
         {
             Package = package.ToLite(),
             Target = p,
-        }); 
+        });
     }
 
     public static ProcessEntity CreatePackageOperation(IEnumerable<Lite<IEntity>> entities, OperationSymbol operation, params object?[]? operationArgs)
@@ -280,7 +279,7 @@ public class PackageOperationAlgorithm : IProcessAlgorithm
 public class PackageDeleteAlgorithm<T> : IProcessAlgorithm where T : class, IEntity
 {
     public DeleteSymbol<T> DeleteSymbol { get; private set; }
-    
+
     public PackageDeleteAlgorithm(DeleteSymbol<T> deleteSymbol)
     {
         this.DeleteSymbol = deleteSymbol ?? throw new ArgumentNullException("operatonKey");
@@ -301,7 +300,25 @@ public class PackageDeleteAlgorithm<T> : IProcessAlgorithm where T : class, IEnt
         });
     }
 }
-   
+
+public class PackageSave<T> : IProcessAlgorithm where T : class, IEntity
+{
+    public virtual void Execute(ExecutingProcess executingProcess)
+    {
+        PackageEntity package = (PackageEntity)executingProcess.Data!;
+
+        var args = package.GetOperationArgs();
+
+        using (OperationLogic.AllowSave<T>())
+            executingProcess.ForEachLine(package.Lines().Where(a => a.FinishTime == null), line =>
+            {
+                ((T)(object)line.Target).Save();
+                line.FinishTime = Clock.Now;
+                line.Save();
+            });
+    }
+}
+
 public class PackageExecuteAlgorithm<T> : IProcessAlgorithm where T : class, IEntity
 {
     public ExecuteSymbol<T> Symbol { get; private set; }

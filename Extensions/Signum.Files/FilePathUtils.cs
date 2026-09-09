@@ -118,8 +118,10 @@ public class FilePathUtils
 
     public static string SafeCombine(string safeBaseDirectory, string unsafeSufix)
     {
-        //if (!safeBaseDirectory.EndsWith("\\"))
-        //    safeBaseDirectory = safeBaseDirectory + "\\";
+        // COM-8337: use the OS-native directory separator instead of hardcoded '\' — breaks on Linux CI
+        var separator = Path.DirectorySeparatorChar;
+        if (!safeBaseDirectory.EndsWith(separator))
+            safeBaseDirectory = safeBaseDirectory + separator;
 
         safeBaseDirectory = Path.GetFullPath(safeBaseDirectory);
 
