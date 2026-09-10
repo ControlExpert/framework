@@ -128,11 +128,11 @@ public static class TableBinder
     {
         var nvdp = frame.Descendants<Presentation.NonVisualDrawingProperties>().FirstOrDefault();
 
-        if(nvdp != null)
-            return nvdp.Description?.Value ?? nvdp.Title?.Value;
+        if (nvdp != null)
+            return string.IsNullOrEmpty(nvdp.Description?.Value) ? nvdp.Title?.Value : nvdp.Description!.Value;
 
         throw new NotImplementedException("Imposible to get the Title from " + frame?.GetType().FullName);
-       
+
     }
 
     public static string? GetTitle(this Wordprocessing.Drawing drawing)
@@ -140,7 +140,7 @@ public static class TableBinder
         var prop = drawing.Descendants<WPDrawing.DocProperties>().FirstOrDefault();
 
         if (prop != null)
-            return prop.Description?.Value ?? prop.Title?.Value;
+            return string.IsNullOrEmpty(prop.Description?.Value) ? prop.Title?.Value : prop.Description!.Value;
 
         throw new NotImplementedException("Imposible to get the Title from " + drawing?.GetType().FullName);
     }
