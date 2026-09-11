@@ -1,0 +1,12 @@
+<Project>
+
+	<!-- COM-8866: commit 825104acf (2023-04-24) removed the per-project "None Update Translations\*.xml"
+	     copy-item with the intent of centralizing it here, but this file was never created, silently
+	     breaking translations for every Extensions/Signum.* project with a Translations folder. -->
+	<ItemGroup Condition="Exists('$(MSBuildProjectDirectory)\Translations')">
+		<None Include="Translations\*.xml">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
+</Project>
