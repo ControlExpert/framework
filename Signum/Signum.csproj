@@ -33,10 +33,6 @@
 		<ProjectReference Include="..\Signum.Utilities\Signum.Utilities.csproj" />
 	</ItemGroup>
 
-	<ItemGroup>
-		<None Update="Translations\*.xml">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-		</None>
-	</ItemGroup>
+	<!-- COM-8866: Translations copy-item now set centrally by Directory.Build.targets for all projects with a Translations folder. -->
 
 </Project>
