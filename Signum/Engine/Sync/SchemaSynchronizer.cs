@@ -253,7 +253,17 @@ public static class SchemaSynchronizer
                         var diffPK = dif.Indices.Values.SingleOrDefaultEx(a => a.IsPrimary);
 
                         var dropPrimaryKey = diffPK != null && (modelPK == null || !diffPK.IndexEquals(dif, modelPK)) ? sqlBuilder.DropIndex(tab.Name, diffPK) :
-                         diffPK != null && modelPK != null && diffPK.IndexName != modelPK.IndexName ? sqlBuilder.RenameForeignKey(tab.Name, new ObjectName(dif.Name.Schema, diffPK.IndexName, sqlBuilder.IsPostgres), modelPK.IndexName) :
+                         // BUGFIX: Must use tab.Name.Schema (new/target schema) instead of dif.Name.Schema (old schema).
+                         // The `rename` command (ALTER SCHEMA ... TRANSFER, see above) already moved the table (and its
+                         // PK constraint) to the new schema before this SP_RENAME runs. Referencing the old schema here
+                         // makes SQL Server unable to resolve the object, causing error 15248 ("Either the parameter
+                         // @objname is ambiguous or the claimed @objtype is wrong"). Same fix as commit 8d81a5fc71
+                         // "fix rename ForeignKey when changin Schema" (2018), which was never applied to this PK case.
+                         // History in upstream signumsoftware/framework: introduced broken by 9c39d0c176 "rename PK
+                         // constraint" (2023-09-13), correctly fixed by 424b6a28d6 "fix SchemaSynchronizer"
+                         // (2024-06-03, tab.Name.Schema), then unintentionally reverted back to dif.Name.Schema by
+                         // ad0c0f4977 "PartitionScheme and Postgres" (2024-06-17). Re-applying the 424b6a28d6 fix here.
+                         diffPK != null && modelPK != null && diffPK.IndexName != modelPK.IndexName ? sqlBuilder.RenameForeignKey(tab.Name, new ObjectName(tab.Name.Schema, diffPK.IndexName, sqlBuilder.IsPostgres), modelPK.IndexName) :
                         null;
 
                         var columns = Synchronizer.SynchronizeScript(
