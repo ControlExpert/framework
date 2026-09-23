@@ -235,6 +235,14 @@ public static class SqlPreCommandExtensions
 
                     PrintExceptionLine(currentPart, ex, sqlE, pgE);
 
+                    // COM-8882 (2026-09-23): Terminal-only diagnostic aid for tracking down the recurring
+                    // "@objname is ambiguous" (15248) sp_rename error during Waypoint-11 schema sync -
+                    // dumps the full failing batch to disk so it survives console scrollback truncation.
+                    // Remove again once the root cause is confirmed fixed.
+                    var dumpFileName = "sync-error {0:dd-MM-yyyy HH_mm_ss}.sql".FormatWith(DateTime.Now);
+                    File.WriteAllText(dumpFileName, currentPart, Encoding.Unicode);
+                    SafeConsole.WriteLineColor(ConsoleColor.Yellow, "Failing batch saved to: " + Path.Combine(Directory.GetCurrentDirectory(), dumpFileName));
+
                     Console.WriteLine();
                     throw new ExecuteSqlScriptException(ex.Message, ex);
                 }
