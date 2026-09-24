@@ -1,5 +1,10 @@
 <Project>
 
+	<!-- COM-8889: MSBuild only auto-imports the NEAREST Directory.Build.targets walking up from the
+		 project folder, so without this explicit import every Framework/** project silently lost the
+		 repo-root rules (ts_out item exclusions, tsconfig copy suppression, NU1701 NoWarn). -->
+	<Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.targets', '$(MSBuildThisFileDirectory)../'))" />
+
 	<!-- COM-8866: commit 825104acf (2023-04-24) removed the per-project "None Update Translations\*.xml"
 	     copy-item with the intent of centralizing it here, but this file was never created, silently
 	     breaking translations for every Extensions/Signum.* project with a Translations folder. -->
