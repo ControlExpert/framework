@@ -404,6 +404,23 @@ input[type=checkbox].form-control-xs {
     margin-bottom: 5px;
 }
 
+/* COM-8882: fixes a non-inline CheckboxLine's checkbox rendering almost touching its FormGroup label
+   (e.g. GlassesLensEmbedded.tint in ConfirmedDevice.Glasses.tsx). Root cause: FormGroup.tsx renders the
+   <label> (inline-block) and the checkbox as direct siblings with no whitespace between them in the JSX,
+   so for short labels both stay on the same line touching each other — margin-top has no effect here since
+   the elements are side by side, not stacked; margin-left is what actually creates the gap.
+   (An upstream Signum commit, 7319dd19ef "Scheduled Rules" 2025-06-02 refined in 67664ed011 "finish S3",
+   adds a similar-looking margin-top rule for this same symptom in a later Framework version, but that
+   version's FormGroup wraps the checkbox differently so margin-top works there; replace this rule with
+   the native one once the Framework submodule is upgraded past that commit.) */
+.form-group > .form-check-input {
+    margin-left: 0.5em;
+}
+
+.form-group.form-group-xs > .form-check-input {
+    margin-left: 0.25em;
+}
+
 .btn-xs, .btn-group-xs > .btn {
     padding: 0rem 0.2rem;
     font-size: 0.875rem;
