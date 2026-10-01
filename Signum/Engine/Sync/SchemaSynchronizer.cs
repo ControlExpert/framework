@@ -304,7 +304,12 @@ public static class SchemaSynchronizer
                         SqlPreCommand.Combine(Spacing.Simple,
                             DropForeignKeys(tab.Name),
                             sqlBuilder.DropIndex(tab.Name, diffPK)) :
-                         diffPK != null && modelPK != null && diffPK.IndexName != modelPK.IndexName ? sqlBuilder.RenameForeignKey(tab.Name, new ObjectName(dif.Name.Schema, diffPK.IndexName, sqlBuilder.IsPostgres), modelPK.IndexName).Do(a => a.GoBefore = true) :
+                         // COM-8194: must use tab.Name.Schema (new/target schema), not dif.Name.Schema (old schema) -- the
+                         // rename/move above already transferred the table to the new schema before this SP_RENAME runs,
+                         // so referencing the old schema makes SQL Server unable to resolve the object (error 15248).
+                         // Same fix as upstream 424b6a28d6 "fix SchemaSynchronizer" (2024-06-03), unintentionally reverted
+                         // by ad0c0f4977 "PartitionScheme and Postgres" (2024-06-17, still present in EasyClaim_2024.08.28).
+                         diffPK != null && modelPK != null && diffPK.IndexName != modelPK.IndexName ? sqlBuilder.RenameForeignKey(tab.Name, new ObjectName(tab.Name.Schema, diffPK.IndexName, sqlBuilder.IsPostgres), modelPK.IndexName).Do(a => a.GoBefore = true) :
                         null;
 
                         var diffHeap = dif.Indices.Values.SingleOrDefaultEx(a => a.Type == DiffIndexType.Heap || a.Type == DiffIndexType.Clustered);
