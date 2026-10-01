@@ -175,7 +175,8 @@ public class Transaction : IDisposableException
         {
             if (Started && IsRolledback == null)
             {
-                Transaction!.Rollback();
+                // COM-8026: null-safe Rollback — Transaction can be null if Start() never completed
+                Transaction?.Rollback();
                 IsRolledback = ex;
                 Rolledback?.Invoke(this.userData);
             }
