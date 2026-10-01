@@ -139,7 +139,7 @@ function ChartCounter(p: { children: (length: number) => React.ReactElement | st
     });
   }, []);
 
-  return p.children(valueRef.current);
+  return <>{p.children(valueRef.current)}</>;
 }
 
 export let maxValueLineSize = 100;
