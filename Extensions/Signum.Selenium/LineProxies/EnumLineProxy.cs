@@ -45,7 +45,16 @@ public class EnumLineProxy : BaseLineProxy
             return null;
 
         if (Route.Type.UnNullify() == typeof(bool))
+        {
+            // COM-8980: readonly nullable-bool lines (EnumLine.tsx's FormControlReadonly branch) put the
+            // raw JS boolean into data-value ("true"/"false", lower-case), while the editable <select>
+            // branch uses BooleanEnum's option values ("True"/"False"). Try the raw-boolean form first so
+            // both branches work instead of only the select-based one.
+            if (bool.TryParse(strValue, out var boolValue))
+                return boolValue;
+
             return ReflectionTools.Parse<BooleanEnum>(strValue) == BooleanEnum.True;
+        }
 
         return ReflectionTools.Parse(strValue, Route.Type);
     }
