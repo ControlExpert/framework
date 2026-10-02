@@ -45,7 +45,11 @@ public class TextBoxLineProxy : TextBoxBaseLineProxy
     {
     }
 
-    public override WebElementLocator InputLocator => this.Element.WithLocator(By.CssSelector("input[type=text]"));
+    // COM-8980 [Autonomer Test-Fix]: readonly text lines render via FormControlReadonly's "onlyText" branch,
+    // which emits <input readOnly value={...}> without a "type" attribute, unlike the editable TextBox's
+    // <input type="text" ...>. Match on the generic "input" tag instead -- this.Element is already scoped
+    // to this one line, so there is only a single candidate input either way.
+    public override WebElementLocator InputLocator => this.Element.WithLocator(By.CssSelector("input"));
 }
 
 public class PasswordBoxLineProxy : TextBoxBaseLineProxy
