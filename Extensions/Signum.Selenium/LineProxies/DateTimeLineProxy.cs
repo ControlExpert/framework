@@ -15,7 +15,12 @@ public class DateTimeLineProxy : BaseLineProxy
     {
     }
 
-    public WebElementLocator InputLocator => this.Element.WithLocator(By.CssSelector("div.rw-date-picker input[type=text]"));
+    // COM-8980 [Autonomer Test-Fix]: readonly date lines render via FormControlReadonly's "onlyText" branch
+    // (DateTimeLine.tsx's s.ctx.readOnly path), which emits a plain <input readOnly> without the editable
+    // rendering's "div.rw-date-picker" wrapper or "type" attribute -- same pattern as NumberLineProxy/
+    // TextBoxLineProxy (see learnings.md Abschnitt 35/36). Match on the generic "input" tag instead --
+    // this.Element is already scoped to this one line, so there is only a single candidate input either way.
+    public WebElementLocator InputLocator => this.Element.WithLocator(By.CssSelector("input"));
 
     public void SetValue(IFormattable? value, string? format = null)
     {
