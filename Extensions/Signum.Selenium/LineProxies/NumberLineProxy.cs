@@ -38,9 +38,13 @@ public class NumberLineProxy : BaseLineProxy
 
     public IFormattable? GetValue()
     {
-        var textLine = InputLocator.Find();
+        // COM-8980: FormControlReadonly's "onlyText" branch only renders an <input> when the readonly text
+        // is non-empty (its "if (onlyText)" check treats "" as falsy); a readonly numeric line with a null
+        // value instead renders a plain <div><span>&nbsp;</span></div> with no input at all. TryFind
+        // instead of Find so that case reads as null rather than throwing NoSuchElementException.
+        var textLine = InputLocator.TryFind();
 
-        var strValue = textLine.GetAttribute("value");
+        var strValue = textLine?.GetAttribute("value");
 
         return strValue == null ? null : (IFormattable?)ReflectionTools.Parse(strValue, this.Route.Type);
     }
