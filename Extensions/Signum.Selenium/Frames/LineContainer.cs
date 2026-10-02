@@ -121,6 +121,18 @@ public static class LineContainerExtensions
         return new CheckboxLineProxy(lineLocator.ElementLocator.WaitVisible(), lineLocator.Route);
     }
 
+    // COM-8980 [Autonomer Test-Fix]: some bool? properties are deliberately rendered with an explicit
+    // <CheckboxLine> instead of the default AutoLine/EnumLine dispatch for nullable bools (e.g.
+    // Outgoing.SendBack.tsx's ShippingConfirmed) -- let callers request the matching proxy directly
+    // instead of only supporting the non-nullable bool overload above.
+    public static CheckboxLineProxy CheckboxLine<T>(this ILineContainer<T> lineContainer, Expression<Func<T, bool?>> property)
+        where T : IModifiableEntity
+    {
+        var lineLocator = lineContainer.LineLocator(property);
+
+        return new CheckboxLineProxy(lineLocator.ElementLocator.WaitVisible(), lineLocator.Route);
+    }
+
     public static void CheckboxLineValue<T>(this ILineContainer<T> lineContainer, Expression<Func<T, bool>> property, bool value, bool loseFocus = false)
         where T : IModifiableEntity
     {
