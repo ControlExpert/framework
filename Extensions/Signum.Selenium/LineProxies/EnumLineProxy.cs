@@ -24,11 +24,15 @@ public class EnumLineProxy : BaseLineProxy
     // to the actual <select>/<input> -- not just ValueBase.tsx's "div.input-group" (unit/extraButtons,
     // see Gruppe 1e), but also e.g. the default formGroupStyle's Bootstrap "div.col-sm-8" grid-column
     // wrapper (confirmed via Tickets_1_External/TicketLevel: no unit/extraButtons involved there, yet the
-    // same "should have been select but was div" failure occurred). Both readonly branches in
-    // EnumLine.tsx deliberately tag their own element with a 'data-value' attribute "/*Testing*/" for
-    // exactly this purpose -- anchor on that marker instead of a bare "div", so only the real readonly
-    // rendering can ever match, no matter which layout wrapper surrounds it.
-    public  WebElementLocator SelectLocator => this.Element.WithLocator(By.CssSelector("select, input, div[data-value]"));
+    // same "should have been select but was div" failure occurred). A first attempt anchored on
+    // EnumLine.tsx's 'data-value' testing marker instead, but React omits an attribute from the DOM
+    // entirely when its value is null/undefined -- so a readonly field whose value legitimately IS null
+    // (e.g. DR_3_Inspection_1_Elec_Database's CurrentEyesightSpecsDifferentToDamagedGlasses) renders with
+    // no 'data-value' attribute at all, breaking that approach. FormGroup.tsx instead always assigns a
+    // real id via React.useId() to the one element that represents the control (select/input, or the
+    // readonly <div> from FormControlReadonly) -- never to a generic Bootstrap/input-group layout
+    // wrapper -- so "div[id]" anchors on the same intended element without the null-value edge case.
+    public  WebElementLocator SelectLocator => this.Element.WithLocator(By.CssSelector("select, input, div[id]"));
 
     public void SetValue(object? value)
     {
