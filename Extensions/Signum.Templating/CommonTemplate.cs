@@ -15,7 +15,13 @@ public static class TemplateUtils
 
     public static readonly Regex TokenOperationValueRegex = new Regex(@"(?<token>((?<type>[\w]):)?.+?)(?<operation>(" + FilterValueConverter.OperationRegex + @"))(?<value>[^\]]+)");
 
-    public static readonly Regex TokenFormatRegex = new Regex(@"(?<token>((?<type>[\w]):)?((\[[^\[\]]+\])|([^\[\]\:]+))+)(\:(?<format>.*))?");
+    // COM-8194: the plain-text alternative must also accept an escaped "\:" (not just exclude bare ":"),
+    // otherwise a token like "@[d:yyyy/-1/1 hh\:mm\:ss:d]" gets cut off at the first literal colon instead
+    // of reaching the real format separator. This matches the pre-WP12 regex (`\\\]|\\\:|[^\:\]]`), which
+    // commit 21313c7129 ("fix regex in CommonTemplate to allow @[Entity.[whatever]]") replaced with a
+    // bracket-based alternative that dropped colon-escaping as an unintended side effect, and no later
+    // upstream commit restored it.
+    public static readonly Regex TokenFormatRegex = new Regex(@"(?<token>((?<type>[\w]):)?((\[[^\[\]]+\])|(\\\:|[^\[\]\:])+)+)(\:(?<format>.*))?");
     
     public struct SplittedToken
     {
@@ -33,7 +39,9 @@ public static class TemplateUtils
 
         return new SplittedToken
         {
-            Token = tok.Groups["token"].Value,
+            // COM-8194: restore pre-WP12 unescaping of the token itself (same as Format below) -- lost
+            // alongside the regex change above, see the comment on TokenFormatRegex.
+            Token = tok.Groups["token"].Value.Replace(@"\:", ":").Replace(@"\]", "]"),
             Format = tok.Groups["format"].Value.DefaultText("").Replace(@"\:", ":").Replace(@"\]", "]").DefaultToNull()
         };
     }
