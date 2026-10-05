@@ -20,14 +20,15 @@ public class EnumLineProxy : BaseLineProxy
     public override object? GetValueUntyped() => this.GetValue();
     public override void SetValueUntyped(object? value) => this.SetValue(value);
 
-    // COM-8980 [Autonomer Test-Fix]: fields with a unit (e.g. the glasses Sphere/Cylinder/Axis/Add/Prisma
-    // lines in ConfirmedDevice.Glasses.tsx) get wrapped by ValueBase.tsx's withItemGroup() in an extra
-    // "div.input-group" around the actual <select>/<input> (for both the editable AND the readonly
-    // rendering, since withItemGroup is also used on the readOnly branch whenever a unit is set). A bare
-    // "div" selector alternative matches that wrapper div first (ancestor-before-descendant in DOM order),
-    // so Find() returned the wrapper instead of the real element -- exclude it explicitly so the search
-    // continues into its children instead of stopping there.
-    public  WebElementLocator SelectLocator => this.Element.WithLocator(By.CssSelector("select, input, div:not(.input-group)"));
+    // COM-8980 [Autonomer Test-Fix]: a bare "div" selector alternative matches ANY wrapper div on the way
+    // to the actual <select>/<input> -- not just ValueBase.tsx's "div.input-group" (unit/extraButtons,
+    // see Gruppe 1e), but also e.g. the default formGroupStyle's Bootstrap "div.col-sm-8" grid-column
+    // wrapper (confirmed via Tickets_1_External/TicketLevel: no unit/extraButtons involved there, yet the
+    // same "should have been select but was div" failure occurred). Both readonly branches in
+    // EnumLine.tsx deliberately tag their own element with a 'data-value' attribute "/*Testing*/" for
+    // exactly this purpose -- anchor on that marker instead of a bare "div", so only the real readonly
+    // rendering can ever match, no matter which layout wrapper surrounds it.
+    public  WebElementLocator SelectLocator => this.Element.WithLocator(By.CssSelector("select, input, div[data-value]"));
 
     public void SetValue(object? value)
     {
