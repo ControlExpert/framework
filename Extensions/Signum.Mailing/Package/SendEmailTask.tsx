@@ -31,7 +31,10 @@ export default function SendEmailTask(p: { ctx: TypeContext<SendEmailTaskEntity>
   React.useEffect(() => {
     if (pair?.type) {
       if (p.ctx.value.targetFrom == "NoTarget") {
-        p.ctx.value.targetFrom = "Unique";
+        // COM-9010: Respect an already-set targetsFromUserQuery/uniqueTarget instead of
+        // always defaulting to "Unique" — otherwise legacy records with TargetFrom stuck
+        // on "NoTarget" show as "Unique" with an empty target and hide the real value.
+        p.ctx.value.targetFrom = p.ctx.value.targetsFromUserQuery != null ? "UserQuery" : "Unique";
         forceUpdate();
       }
     } else {
