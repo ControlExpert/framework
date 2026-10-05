@@ -20,7 +20,14 @@ public class EnumLineProxy : BaseLineProxy
     public override object? GetValueUntyped() => this.GetValue();
     public override void SetValueUntyped(object? value) => this.SetValue(value);
 
-    public  WebElementLocator SelectLocator => this.Element.WithLocator(By.CssSelector("select, input, div"));
+    // COM-8980 [Autonomer Test-Fix]: fields with a unit (e.g. the glasses Sphere/Cylinder/Axis/Add/Prisma
+    // lines in ConfirmedDevice.Glasses.tsx) get wrapped by ValueBase.tsx's withItemGroup() in an extra
+    // "div.input-group" around the actual <select>/<input> (for both the editable AND the readonly
+    // rendering, since withItemGroup is also used on the readOnly branch whenever a unit is set). A bare
+    // "div" selector alternative matches that wrapper div first (ancestor-before-descendant in DOM order),
+    // so Find() returned the wrapper instead of the real element -- exclude it explicitly so the search
+    // continues into its children instead of stopping there.
+    public  WebElementLocator SelectLocator => this.Element.WithLocator(By.CssSelector("select, input, div:not(.input-group)"));
 
     public void SetValue(object? value)
     {
