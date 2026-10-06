@@ -29,22 +29,30 @@ export default function SendEmailTask(p: { ctx: TypeContext<SendEmailTaskEntity>
   }, [p.ctx.value.emailTemplate]);
 
   React.useEffect(() => {
+    // COM-9010: pair is undefined while useAPI is still loading — distinct from a resolved
+    // { query: null } (template genuinely has no query). Without this guard, every mount briefly
+    // forces targetFrom to NoTarget and back, marking the entity modified on every open even
+    // without user interaction (blocks Execute with a permanent "must save" loop).
+    if (pair === undefined) {
+      return;
+    }
+
+    // COM-9010: go through the binding's setValue (same path EnumLine itself uses) instead of
+    // mutating p.ctx.value directly — it compares old/new value and sets modified accordingly,
+    // so Save actually persists the correction instead of silently keeping the stale DB state.
+    const targetFromCtx = p.ctx.subCtx(s => s.targetFrom);
+
     if (pair?.type) {
       if (p.ctx.value.targetFrom == "NoTarget") {
         // COM-9010: Respect an already-set targetsFromUserQuery/uniqueTarget instead of
         // always defaulting to "Unique" — otherwise legacy records with TargetFrom stuck
         // on "NoTarget" show as "Unique" with an empty target and hide the real value.
-        p.ctx.value.targetFrom = p.ctx.value.targetsFromUserQuery != null ? "UserQuery" : "Unique";
-        // COM-9010: direct mutation outside a bound widget's onChange must flag the entity
-        // as modified, otherwise Save sends modified:false and the server falls back to the
-        // stale persisted TargetFrom, silently ignoring the corrected value.
-        p.ctx.value.modified = true;
+        targetFromCtx.value = p.ctx.value.targetsFromUserQuery != null ? "UserQuery" : "Unique";
         forceUpdate();
       }
     } else {
       if (p.ctx.value.targetFrom != "NoTarget") {
-        p.ctx.value.targetFrom = "NoTarget";
-        p.ctx.value.modified = true;
+        targetFromCtx.value = "NoTarget";
         forceUpdate();
       }
     }
