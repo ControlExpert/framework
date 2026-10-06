@@ -35,11 +35,16 @@ export default function SendEmailTask(p: { ctx: TypeContext<SendEmailTaskEntity>
         // always defaulting to "Unique" — otherwise legacy records with TargetFrom stuck
         // on "NoTarget" show as "Unique" with an empty target and hide the real value.
         p.ctx.value.targetFrom = p.ctx.value.targetsFromUserQuery != null ? "UserQuery" : "Unique";
+        // COM-9010: direct mutation outside a bound widget's onChange must flag the entity
+        // as modified, otherwise Save sends modified:false and the server falls back to the
+        // stale persisted TargetFrom, silently ignoring the corrected value.
+        p.ctx.value.modified = true;
         forceUpdate();
       }
     } else {
       if (p.ctx.value.targetFrom != "NoTarget") {
         p.ctx.value.targetFrom = "NoTarget";
+        p.ctx.value.modified = true;
         forceUpdate();
       }
     }
