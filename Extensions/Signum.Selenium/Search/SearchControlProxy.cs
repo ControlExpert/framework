@@ -36,7 +36,10 @@ public class SearchControlProxy
 
     public void WaitSearchCompleted(Action searchTrigger)
     {
-        string counter = this.Element.GetDomAttributeOrThrow("data-search-count");
+        // COM-8195: React omits data-search-count while SearchControlLoaded.state.searchCount is still undefined (before the first search),
+        // e.g. on pages that do not search on load. GetDomAttributeOrThrow (introduced by 80d5d98c58 "migrate to GetDomAttribute") threw there,
+        // whereas the previous GetAttribute returned null; WaitInitialSearchCompleted already treats a null counter as valid.
+        string? counter = this.Element.GetDomAttribute("data-search-count");
         searchTrigger();
         WaitSearchCompleted(counter);
     }
