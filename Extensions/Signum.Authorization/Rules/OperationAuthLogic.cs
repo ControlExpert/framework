@@ -103,6 +103,14 @@ public static class OperationAuthLogic
         if (entity != null && WritesToReadOnlyEntity(operationKey, entity))
             return false;
 
+        // COM-9156: Honor AllowTemporally before the type-condition logic (placed after the read-only guards). Without this, roles whose type rule has
+        // Fallback None + conditions (External service provider) got an empty candidate list and SingleEx threw
+        // "Sequence contains no OperationAllowed" when ClearImpediment executed Restart temporarily.
+        if (GetTemporallyAllowed(operationKey))
+        {
+            return true;
+        }
+
         var oa = GetOperationAllowed(operationKey, entityType);
 
         if (entity == null || entity.IsNew)
