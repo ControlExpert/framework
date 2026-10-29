@@ -14,7 +14,8 @@ public class AutoLineModalProxy : ModalProxy
     {
         get
         {
-            var formGroup = this.Element.FindElement(By.CssSelector("div.modal-body div.form-group"));
+            // COM-8196: AutoLineModal renders its AutoLine inside React.Suspense (lazy import, fallback "Loading..."), so the form-group appears asynchronously.
+            var formGroup = this.Element.WaitElementPresent(By.CssSelector("div.modal-body div.form-group"));
             return BaseLineProxy.AutoLine(formGroup, route!);
         }
     }
