@@ -97,6 +97,14 @@ public static class OperationAuthLogic
 
     static bool OperationLogic_AllowOperation(OperationSymbol operationKey, Type entityType, bool inUserInterface, Entity? entity)
     {
+        // COM-9156: Honor AllowTemporally before the type-condition logic. Without this, roles whose type rule has
+        // Fallback None + conditions (External service provider) got an empty candidate list and SingleEx threw
+        // "Sequence contains no OperationAllowed" when ClearImpediment executed Restart temporarily.
+        if (GetTemporallyAllowed(operationKey))
+        {
+            return true;
+        }
+
         var oa = GetOperationAllowed(operationKey, entityType);
 
         if (entity == null || entity.IsNew)
