@@ -301,7 +301,8 @@ export function b64toBlob(b64Data: string, contentType: string = "", sliceSize =
   sliceSize = sliceSize || 512;
 
   var byteCharacters = atob(b64Data);
-  var byteArrays: Uint8Array[] = [];
+  // COM-8196: TS 5.9 + @types/node 22 require Uint8Array<ArrayBuffer> as BlobPart.
+  var byteArrays: Uint8Array<ArrayBuffer>[] = [];
 
   for (var offset = 0; offset < byteCharacters.length; offset += sliceSize) {
     var slice = byteCharacters.slice(offset, offset + sliceSize);
