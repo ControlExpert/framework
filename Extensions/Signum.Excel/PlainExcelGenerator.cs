@@ -101,16 +101,20 @@ public static class PlainExcelGenerator
                 CustomWidth = true
             }).ToArray()));
 
+            // COM-9170: Per-export CellBuilder - the shared static one kept CustomDecimalStyles/CellFormatCount across requests and is not
+            // thread-safe, so concurrent exports corrupted it ("Unexpected CellFormats count", ArgumentException in GetOrCreate).
+            var cellBuilder = CellBuilder.CreateForExport();
+
             Dictionary<DynamicQuery.Column, (DefaultStyle defaultStyle, UInt32Value styleIndex)> styleIndexes =
-                request.Columns.ToDictionary(c => c, c => CellBuilder.GetDefaultStyleAndIndex(c));
+                request.Columns.ToDictionary(c => c, c => cellBuilder.GetDefaultStyleAndIndex(c));
 
             var ss = document.WorkbookPart!.WorkbookStylesPart!.Stylesheet;
             {
                 var maxIndex = ss.NumberingFormats!.ChildElements.Cast<NumberingFormat>()
                     .Max(f => (uint)f.NumberFormatId!) + 1;
 
-                var decimalCellFormat = ss.CellFormats!.ElementAt((int)(uint)CellBuilder.DefaultStyles[DefaultStyle.Decimal]);
-                foreach (var kvp in CellBuilder.CustomDecimalStyles)
+                var decimalCellFormat = ss.CellFormats!.ElementAt((int)(uint)cellBuilder.DefaultStyles[DefaultStyle.Decimal]);
+                foreach (var kvp in cellBuilder.CustomDecimalStyles)
                 {
                     var numberingFormat = new NumberingFormat
                     {
@@ -131,10 +135,10 @@ public static class PlainExcelGenerator
 
             worksheetPart.Worksheet.Append(new Sequence<Row>()
             {
-                new [] { CellBuilder.Cell(title, DefaultStyle.Title, forImport) }.ToRow(),
+                new [] { cellBuilder.Cell(title, DefaultStyle.Title, forImport) }.ToRow(),
 
                 (from c in request.Columns
-                select CellBuilder.Cell(c.DisplayName, DefaultStyle.Header, forImport)).ToRow(),
+                select cellBuilder.Cell(c.DisplayName, DefaultStyle.Header, forImport)).ToRow(),
 
                 from r in results.Rows
                 select request.Columns.Select(c =>
@@ -147,7 +151,7 @@ public static class PlainExcelGenerator
                         ((IEnumerable?)r[rt])?.Cast<object>().ToString(cta.ToArrayType is CollectionToArrayType.SeparatedByComma or CollectionToArrayType.SeparatedByCommaDistinct? ", " : "\n"):
                         r[rt];
 
-                    var cell = CellBuilder.Cell(value, t.defaultStyle, t.styleIndex, forImport);
+                    var cell = cellBuilder.Cell(value, t.defaultStyle, t.styleIndex, forImport);
 
                     if ((cta != null && (cta.ToArrayType is CollectionToArrayType.SeparatedByComma or CollectionToArrayType.SeparatedByCommaDistinct) == false))
                         ApplyWrapTextStyle(workbookPart, cell);

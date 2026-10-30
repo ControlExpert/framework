@@ -142,7 +142,15 @@ public class CellBuilder
 
     public Dictionary<string, UInt32Value> CustomDecimalStyles = new Dictionary<string, UInt32Value>();
     public UInt32Value CellFormatCount = null!;
-        
+
+    // COM-9170: The static template CellBuilder only provides the immutable DefaultStyles; every export gets its own copy for the
+    // mutable custom-decimal-style state.
+    internal CellBuilder CreateForExport() => new CellBuilder
+    {
+        DefaultStyles = DefaultStyles,
+        CellFormatCount = CellFormatCount,
+    };
+
 
     internal (DefaultStyle defaultStyle, UInt32Value styleIndex) GetDefaultStyleAndIndex(DynamicQuery.Column c)
     {
