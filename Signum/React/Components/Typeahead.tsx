@@ -232,6 +232,10 @@ export class TypeaheadController {
   }
 
   handleOnChange = (): void => {
+    // COM-8196: Also look up on change. Pasting via the context menu (or cut/drop) fires change but no keyup,
+    // and handleKeyUp was the only caller of lookup(), so the omnibox did not search after such a paste.
+    this.lookup();
+
     if (this.props.onChange)
       this.props.onChange(this.input!.value);
   }
