@@ -14,4 +14,41 @@
 		</None>
 	</ItemGroup>
 
+	<!-- COM-8197: The published Signum.TSGenerator 10.0.0 NuGet package writes the generated *.ts files with the
+	     platform line ending (CRLF on Windows), while the repo stores them as LF (.gitattributes eol=lf; the generator
+	     source normalizes to LF, the package build does not). Every build therefore left "ghost" changes in
+	     Extensions/**/*.ts. Normalize the generated files back to LF right after the generator ran. -->
+	<UsingTask TaskName="NormalizeGeneratedTsLineEndings" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+		<ParameterGroup>
+			<Files ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+		</ParameterGroup>
+		<Task>
+			<Using Namespace="System.IO" />
+			<Code Type="Fragment" Language="cs"><![CDATA[
+foreach (var item in Files)
+{
+    var path = item.GetMetadata("FullPath");
+    if (!File.Exists(path))
+    {
+        continue;
+    }
+
+    var text = File.ReadAllText(path);
+    if (text.Contains("\r"))
+    {
+        File.WriteAllText(path, text.Replace("\r\n", "\n"));
+    }
+}
+]]></Code>
+		</Task>
+	</UsingTask>
+
+	<Target Name="NormalizeGeneratedTsLineEndings" AfterTargets="GenerateSignumTS">
+		<ItemGroup>
+			<_SignumT4s Include="$(MSBuildProjectDirectory)\**\*.t4s" />
+			<_SignumGeneratedTs Include="@(_SignumT4s->'%(RootDir)%(Directory)%(Filename).ts')" />
+		</ItemGroup>
+		<NormalizeGeneratedTsLineEndings Files="@(_SignumGeneratedTs)" />
+	</Target>
+
 </Project>
