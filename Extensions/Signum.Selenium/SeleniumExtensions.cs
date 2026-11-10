@@ -483,7 +483,9 @@ public static class SeleniumExtensions
     public static IWebElement ScrollTo(this IWebElement element)
     {
         IJavaScriptExecutor js = (IJavaScriptExecutor)element.GetDriver();
-        js.ExecuteScript("arguments[0].scrollIntoView({behavior: 'auto', block: 'center', inline: 'center'});", element);
+        // COM-9140: 'auto' defers to the CSS scroll-behavior (Bootstrap sets 'smooth' on :root), so on tall pages the animated scroll
+        // outlasts ScrollToTimeout and the following MoveToElement fails with "move target out of bounds"; 'instant' ignores the CSS value.
+        js.ExecuteScript("arguments[0].scrollIntoView({behavior: 'instant', block: 'center', inline: 'center'});", element);
         Thread.Sleep(ScrollToTimeout);
 
         return element;
