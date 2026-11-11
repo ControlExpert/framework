@@ -9,6 +9,7 @@ import { FileTypeSymbol } from '../Signum.Files/Signum.Files'
 import { ProcessEntity } from '../Signum.Processes/Signum.Processes'
 import { useAPI } from '@framework/Hooks'
 import { getToString, JavascriptMessage } from '@framework/Signum.Entities'
+import { LinkButton } from '@framework/Basics/LinkButton'
 
 export default function PrintPanelPage(p: {}): React.JSX.Element {
 
