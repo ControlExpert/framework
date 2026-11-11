@@ -1,5 +1,6 @@
 using OpenQA.Selenium;
 using Signum.Utilities.Reflection;
+using System.Globalization;
 
 namespace Signum.Selenium.LineProxies;
 public class EnumLineProxy : BaseLineProxy
@@ -25,6 +26,12 @@ public class EnumLineProxy : BaseLineProxy
         var strValue = 
             value == null ? "" : 
             value is Enum e ? e.ToString() : 
+            // COM-8980 [Autonomer Test-Fix]: EnumLine.tsx is also used for non-enum option lists (e.g. the
+            // glasses lens Sphere/Cylinder/Axis/Add/Prisma fields in ConfirmedDevice.Glasses.tsx's
+            // SpecsComponent, which render as a <select> with decimal optionItems instead of a C# enum).
+            // Its toStr() helper there just does val.toString() for any non-bool value, so mirror that for
+            // any other IFormattable (int/decimal/etc.) instead of only supporting bool/Enum.
+            value is IFormattable f ? f.ToString(null, CultureInfo.InvariantCulture) :
             throw new UnexpectedValueException(value);
 
         var rw = WidgetLocator.TryFind();
