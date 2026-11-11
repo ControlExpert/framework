@@ -18,7 +18,8 @@
     "noUncheckedSideEffectImports": false,
     "lib": [
       "ESNext",
-      "dom"
+      "dom",
+      "dom.iterable"
     ],
     "types": [ "node", "google.maps" ]
   }
